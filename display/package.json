@@ -16,5 +16,11 @@
     "svelte-check": "^3.7.1",
     "typescript": "^5.4.5",
     "vite": "^5.2.11"
+  },
+  "dependencies": {
+    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10"
   }
 }

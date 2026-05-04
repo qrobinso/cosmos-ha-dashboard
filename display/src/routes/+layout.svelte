@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Layout intentionally minimal in this plan.
+  import '$lib/fonts.css';
 </script>
 
 <slot />

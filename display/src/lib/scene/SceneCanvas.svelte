@@ -7,9 +7,15 @@
   import Background from '$lib/backgrounds/Background.svelte';
 
   export let scene: SceneState;
+
+  const fontVar = (family: string) => `var(--cosmos-font-${family.replace(/\s+/g, '')}, system-ui, sans-serif)`;
 </script>
 
-<div class="scene-canvas">
+<div
+  class="scene-canvas"
+  style="font-family: {fontVar(scene.typography.font_family)};
+         --cosmos-font-scale: {scene.typography.font_scale};"
+>
   <div class="background-layer" data-bg-type={scene.background.type}>
     <Background background={scene.background} />
   </div>

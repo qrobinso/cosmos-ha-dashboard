@@ -40,13 +40,13 @@
     gap: 0.25rem;
   }
   .time {
-    font-size: clamp(2.5rem, 8vw, 6rem);
+    font-size: calc(clamp(2.5rem, 8vw, 6rem) * var(--cosmos-font-scale, 1));
     font-weight: 200;
     line-height: 1;
     letter-spacing: -0.02em;
   }
   .date {
-    font-size: clamp(0.85rem, 1.5vw, 1.25rem);
+    font-size: calc(clamp(0.85rem, 1.5vw, 1.25rem) * var(--cosmos-font-scale, 1));
     opacity: 0.7;
   }
 </style>
