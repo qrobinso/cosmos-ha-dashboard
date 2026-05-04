@@ -65,7 +65,22 @@ async function main() {
     onSettingsChanged: () => void wssRef?.pushSettingsChanged(),
   });
   await registerStatic(app, config.staticDir);
-  const wss = attachWsHub(app.server, { displays, scenes, settings, transitions, overrides, resolveEntity });
+  function publishOnline(displayId: string, _name: string) {
+    mqttClient?.publish(`cosmos/${displayId}/online`, 'online', { retain: true });
+  }
+  function publishOffline(displayId: string, _name: string) {
+    mqttClient?.publish(`cosmos/${displayId}/online`, 'offline', { retain: true });
+  }
+  function publishSceneState(displayId: string, sceneName: string | null) {
+    mqttClient?.publish(`cosmos/${displayId}/current_scene`, sceneName ?? '', { retain: true });
+  }
+
+  const wss = attachWsHub(app.server, {
+    displays, scenes, settings, transitions, overrides, resolveEntity,
+    onDisplayOnline: publishOnline,
+    onDisplayOffline: publishOffline,
+    onSceneActivated: publishSceneState,
+  });
   wssRef = wss;
 
   // When HA emits a state change for an entity used by an active scene, re-push that scene.

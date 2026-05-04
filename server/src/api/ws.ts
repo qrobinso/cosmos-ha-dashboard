@@ -15,6 +15,9 @@ export type WsDeps = {
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
   resolveEntity?: import('../scenes/assembler.js').EntityResolver;
+  onDisplayOnline?: (displayId: string, name: string) => void;
+  onDisplayOffline?: (displayId: string, name: string) => void;
+  onSceneActivated?: (displayId: string, sceneName: string | null) => void;
 };
 
 export type CosmosWss = WebSocketServer & {
@@ -65,6 +68,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       resolver: deps.resolveEntity,
     });
     lastSceneByDisplay.set(displayId, scene.id);
+    deps.onSceneActivated?.(displayId, scene.name);
     return JSON.stringify(payload);
   }
 
@@ -77,6 +81,8 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       if (set && set.size === 0) {
         sockets.delete(ownDisplayId);
         lastSceneByDisplay.delete(ownDisplayId);
+        const d = deps.displays.getById(ownDisplayId);
+        if (d) deps.onDisplayOffline?.(ownDisplayId, d.name);
       }
     });
     socket.on('message', (raw) => {
@@ -114,6 +120,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
 
         // Hello-time push has no previous scene by definition, so no transition.
         lastSceneByDisplay.delete(display.id);
+        deps.onDisplayOnline?.(display.id, display.name);
         const payload = await buildPayload(display.id);
         if (payload) socket.send(payload);
       })();
