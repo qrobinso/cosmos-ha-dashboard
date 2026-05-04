@@ -47,6 +47,44 @@ const migrations: Migration[] = [
       ALTER TABLE displays ADD COLUMN current_scene_id TEXT REFERENCES scenes(id) ON DELETE SET NULL;
     `,
   },
+  {
+    version: 3,
+    up: `
+      CREATE TABLE IF NOT EXISTS transitions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        descriptor_json TEXT NOT NULL,
+        builtin INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS scene_transition_overrides (
+        from_scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+        to_scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+        transition_id TEXT NOT NULL REFERENCES transitions(id) ON DELETE CASCADE,
+        PRIMARY KEY (from_scene_id, to_scene_id)
+      );
+      ALTER TABLE scenes ADD COLUMN default_transition_id TEXT REFERENCES transitions(id) ON DELETE SET NULL;
+
+      INSERT OR IGNORE INTO transitions (id, name, descriptor_json, builtin) VALUES
+        ('builtin-cross-fade', 'cross-fade',
+          '{"id":"builtin-cross-fade","name":"cross-fade","out":{"keyframes":"cosmos-out-fade","duration_ms":300,"easing":"ease"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-fade","duration_ms":300,"easing":"ease"}}',
+          1),
+        ('builtin-scale-fade', 'scale-fade',
+          '{"id":"builtin-scale-fade","name":"scale-fade","out":{"keyframes":"cosmos-out-scale-fade","duration_ms":350,"easing":"ease-in"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-scale-fade","duration_ms":350,"easing":"ease-out"}}',
+          1),
+        ('builtin-slide-up', 'slide-up',
+          '{"id":"builtin-slide-up","name":"slide-up","out":{"keyframes":"cosmos-out-slide-up","duration_ms":400,"easing":"ease-in"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-slide-up","duration_ms":400,"easing":"ease-out"}}',
+          1),
+        ('builtin-slide-down', 'slide-down',
+          '{"id":"builtin-slide-down","name":"slide-down","out":{"keyframes":"cosmos-out-slide-down","duration_ms":400,"easing":"ease-in"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-slide-down","duration_ms":400,"easing":"ease-out"}}',
+          1),
+        ('builtin-dissolve', 'dissolve',
+          '{"id":"builtin-dissolve","name":"dissolve","out":{"keyframes":"cosmos-out-dissolve","duration_ms":500,"easing":"ease","stagger_ms":40},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-dissolve","duration_ms":500,"easing":"ease","stagger_ms":40}}',
+          1),
+        ('builtin-gradient-morph', 'gradient-morph',
+          '{"id":"builtin-gradient-morph","name":"gradient-morph","out":{"keyframes":"cosmos-out-fade","duration_ms":600,"easing":"ease"},"bridge":{"background_morph":true},"in":{"keyframes":"cosmos-in-fade","duration_ms":600,"easing":"ease"}}',
+          1);
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

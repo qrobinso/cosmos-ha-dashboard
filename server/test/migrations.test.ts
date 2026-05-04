@@ -36,6 +36,30 @@ describe('runMigrations', () => {
     const versions = db
       .prepare('SELECT version FROM schema_version ORDER BY version')
       .all() as { version: number }[];
-    expect(versions.map((r) => r.version)).toEqual([1, 2]);
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3]);
+  });
+
+  it('migration v3 adds transitions, scene_transition_overrides, and scenes.default_transition_id', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .all() as { name: string }[];
+    const names = tables.map((t) => t.name);
+    expect(names).toContain('transitions');
+    expect(names).toContain('scene_transition_overrides');
+
+    const sceneCols = db.prepare("PRAGMA table_info('scenes')").all() as { name: string }[];
+    expect(sceneCols.map((c) => c.name)).toContain('default_transition_id');
+
+    const versions = db.prepare('SELECT version FROM schema_version ORDER BY version').all() as { version: number }[];
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3]);
+  });
+
+  it('migration v3 seeds the 6 built-in transitions', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const rows = db.prepare('SELECT name FROM transitions WHERE builtin = 1 ORDER BY name').all() as { name: string }[];
+    expect(rows.map((r) => r.name)).toEqual(['cross-fade', 'dissolve', 'gradient-morph', 'scale-fade', 'slide-down', 'slide-up']);
   });
 });
