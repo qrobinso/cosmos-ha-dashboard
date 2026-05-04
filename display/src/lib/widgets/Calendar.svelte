@@ -113,7 +113,6 @@
     height: 100%;
     padding: 1rem;
     box-sizing: border-box;
-    overflow: hidden;
   }
   header {
     display: flex;
@@ -146,7 +145,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    overflow: hidden;
     min-height: 0;
   }
   .day {
