@@ -4,13 +4,14 @@
   import Clock from '$lib/widgets/Clock.svelte';
   import Weather from '$lib/widgets/Weather.svelte';
   import EntityTile from '$lib/widgets/EntityTile.svelte';
+  import Background from '$lib/backgrounds/Background.svelte';
 
   export let scene: SceneState;
 </script>
 
 <div class="scene-canvas">
   <div class="background-layer" data-bg-type={scene.background.type}>
-    <slot name="background" background={scene.background} />
+    <Background background={scene.background} />
   </div>
   <div
     class="widget-layer"
