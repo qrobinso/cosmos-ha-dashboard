@@ -344,6 +344,16 @@
                 <span>Display seconds (ticks every second)</span>
               </label>
             </Field>
+            <Field label="Show date">
+              <label class="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={w.config.show_date !== false}
+                  on:change={(e) => { w.config = { ...w.config, show_date: e.currentTarget.checked }; widgets = widgets; }}
+                />
+                <span>Display the date below the time</span>
+              </label>
+            </Field>
           {:else if w.kind === 'entity_tile'}
             <Field label="Entity">
               <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>

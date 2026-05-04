@@ -11,6 +11,7 @@
 
   $: format = (widget.config as { format?: string }).format ?? '24h';
   $: showSeconds = (widget.config as { show_seconds?: boolean }).show_seconds === true;
+  $: showDate = (widget.config as { show_date?: boolean }).show_date !== false;
 
   $: hmStr = (() => {
     const m = String(now.getMinutes()).padStart(2, '0');
@@ -65,7 +66,9 @@
         </span>
       {/if}
     </div>
-    <div class="date">{fmtDate(now)}</div>
+    {#if showDate}
+      <div class="date">{fmtDate(now)}</div>
+    {/if}
   </div>
 </FitContent>
 
