@@ -3,6 +3,7 @@
   import WidgetSlot from './WidgetSlot.svelte';
   import Clock from '$lib/widgets/Clock.svelte';
   import Weather from '$lib/widgets/Weather.svelte';
+  import EntityTile from '$lib/widgets/EntityTile.svelte';
 
   export let scene: SceneState;
 </script>
@@ -22,6 +23,8 @@
           <Clock widget={w} />
         {:else if w.kind === 'weather'}
           <Weather widget={w} />
+        {:else if w.kind === 'entity_tile'}
+          <EntityTile widget={w} />
         {/if}
       </WidgetSlot>
     {/each}

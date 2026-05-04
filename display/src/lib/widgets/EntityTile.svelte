@@ -1,0 +1,102 @@
+<script lang="ts">
+  import type { WidgetState, EntityState } from '$lib/types';
+  export let widget: WidgetState;
+
+  $: entity = widget.data as EntityState | null;
+  $: domain = entity?.entity_id.split('.')[0] ?? '';
+  $: friendly = (entity?.attributes.friendly_name as string | undefined) ?? entity?.entity_id ?? 'Unknown';
+
+  function fmtBrightness(b: unknown): string {
+    return typeof b === 'number' ? `${Math.round((b / 255) * 100)}%` : '';
+  }
+
+  function rgbCss(rgb: unknown): string | null {
+    if (Array.isArray(rgb) && rgb.length === 3) return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    return null;
+  }
+</script>
+
+<div class="tile" data-domain={domain}>
+  <div class="label">{friendly}</div>
+  {#if !entity}
+    <div class="value">—</div>
+  {:else if domain === 'light'}
+    {@const swatch = rgbCss(entity.attributes.rgb_color)}
+    <div class="row">
+      <div class="pill" data-on={entity.state === 'on'}>{entity.state}</div>
+      {#if swatch}
+        <div class="swatch" style="background:{swatch}"></div>
+      {/if}
+    </div>
+    <div class="sub">{fmtBrightness(entity.attributes.brightness)}</div>
+  {:else if domain === 'switch' || domain === 'binary_sensor'}
+    <div class="pill" data-on={entity.state === 'on'}>{entity.state}</div>
+  {:else if domain === 'sensor'}
+    <div class="value">{entity.state}<span class="unit">{entity.attributes.unit_of_measurement ?? ''}</span></div>
+  {:else if domain === 'climate'}
+    <div class="value">{entity.attributes.current_temperature ?? '—'}°</div>
+    <div class="sub">target {entity.attributes.temperature ?? '—'}° · {entity.state}</div>
+  {:else if domain === 'lock'}
+    <div class="pill" data-on={entity.state === 'locked'}>{entity.state}</div>
+  {:else if domain === 'cover'}
+    <div class="pill" data-on={entity.state === 'open'}>{entity.state}</div>
+    {#if typeof entity.attributes.current_position === 'number'}
+      <div class="sub">{entity.attributes.current_position}%</div>
+    {/if}
+  {:else}
+    <div class="value">{entity.state}</div>
+  {/if}
+</div>
+
+<style>
+  .tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 0.75rem;
+  }
+  .label {
+    font-size: 0.85rem;
+    opacity: 0.7;
+  }
+  .value {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 300;
+    line-height: 1;
+  }
+  .unit {
+    font-size: 0.7em;
+    opacity: 0.6;
+    margin-left: 0.25rem;
+  }
+  .sub {
+    font-size: 0.85rem;
+    opacity: 0.6;
+    margin-top: auto;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .pill {
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .pill[data-on='true'] {
+    background: rgba(255, 200, 100, 0.25);
+  }
+  .swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+</style>
