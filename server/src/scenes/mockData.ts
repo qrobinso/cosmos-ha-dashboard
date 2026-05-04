@@ -47,6 +47,41 @@ export const MOCK_ENTITIES: Record<string, EntityState> = {
     state: 'closed',
     attributes: { friendly_name: 'Garage Door', current_position: 0 },
   },
+  'input_boolean.guest_mode': {
+    entity_id: 'input_boolean.guest_mode',
+    state: 'off',
+    attributes: { friendly_name: 'Guest Mode' },
+  },
+  'input_number.target_temp': {
+    entity_id: 'input_number.target_temp',
+    state: '21',
+    attributes: { friendly_name: 'Target Temperature', unit_of_measurement: '°C', min: 10, max: 30 },
+  },
+  'input_select.house_mode': {
+    entity_id: 'input_select.house_mode',
+    state: 'home',
+    attributes: { friendly_name: 'House Mode', options: ['home', 'away', 'sleep'] },
+  },
+  'input_text.note': {
+    entity_id: 'input_text.note',
+    state: 'Welcome home',
+    attributes: { friendly_name: 'Display Note' },
+  },
+  'input_datetime.wakeup': {
+    entity_id: 'input_datetime.wakeup',
+    state: '07:00:00',
+    attributes: { friendly_name: 'Wakeup Time', has_time: true, has_date: false },
+  },
+  'counter.coffee_count': {
+    entity_id: 'counter.coffee_count',
+    state: '3',
+    attributes: { friendly_name: 'Coffees Today' },
+  },
+  'timer.laundry': {
+    entity_id: 'timer.laundry',
+    state: 'idle',
+    attributes: { friendly_name: 'Laundry Timer', duration: '00:45:00' },
+  },
 };
 
 export function mockEntity(entity_id: string): EntityState {
