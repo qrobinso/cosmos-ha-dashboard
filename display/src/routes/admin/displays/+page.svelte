@@ -114,13 +114,20 @@
   onMount(refresh);
 </script>
 
-<h1>Displays</h1>
+<header class="page-header reveal reveal-1">
+  <span class="eyebrow">Displays</span>
+  <h1>Connected tablets.</h1>
+</header>
 
 {#if loading}
-  <p>Loading…</p>
+  <p class="loading">Loading…</p>
 {:else if displays.length === 0}
-  <p class="empty">No displays yet — open <code>http://localhost:8099/</code> on a tablet (or this browser) to register one.</p>
+  <div class="empty-state reveal reveal-2">
+    <h2>No displays yet.</h2>
+    <p>Open <code>http://&lt;host&gt;:8099/</code> on a tablet (or this browser) and name it to register.</p>
+  </div>
 {:else}
+  <div class="table-wrap reveal reveal-2">
   <table>
     <thead>
       <tr>
@@ -227,11 +234,43 @@
       {/each}
     </tbody>
   </table>
+  </div>
 {/if}
 
 <style>
+  .page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1.5rem;
+  }
+  .page-header h1 {
+    font-size: clamp(1.5rem, 3.5vw, 2rem);
+  }
+  .loading { color: var(--c-fg-3); }
+  .empty-state {
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius-md);
+    padding: 3rem 1.5rem;
+    text-align: center;
+  }
+  .empty-state code {
+    background: var(--c-surface-2);
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    font-family: var(--f-mono);
+    font-size: 0.85em;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius-md);
+  }
   h1 { margin: 0 0 1.5rem; font-weight: 300; }
-  table { width: 100%; border-collapse: collapse; }
+  table { width: 100%; border-collapse: collapse; min-width: 56rem; }
   th, td {
     text-align: left;
     padding: 0.65rem 0.5rem;

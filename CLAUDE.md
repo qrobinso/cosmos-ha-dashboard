@@ -61,6 +61,15 @@ Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enabl
 - Modules have one job; files stay focused enough to hold in context at once.
 - Never modify Plan 1 / Plan 2 plan files retroactively; if a plan is wrong, surface it as a deviation in the implementer's report.
 
+## Design
+
+Two distinct surfaces with separate visual languages:
+
+- **Kiosk** (`/`, the wall display) — calm and beautiful. CSS-driven animated gradient backgrounds, bundled `@fontsource` typography (Inter, Fraunces, JetBrains Mono, Space Grotesk), per-scene typography + scale, transition engine with 6 built-ins, message overlays. Designed to be glanceable from across a room and gorgeous mid-transition.
+- **Admin** (`/admin/*`) — modern, simple, mobile + desktop friendly. Lives under a `.cosmos-admin` ancestor class and pulls all styling from `display/src/lib/admin/theme.css`. Calm dark surfaces, single warm accent (`--c-accent`), Inter for UI + JetBrains Mono for data, 44px touch targets, hamburger nav <720px and pill nav ≥720px, hairline borders, motion via `cubic-bezier(0.2, 0.8, 0.2, 1)`. See `display/CLAUDE.md` § "Admin design system" for the full token list.
+
+When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` + `h1` page-header pattern, `.card` surfaces, `.tag` pills for metadata, and theme CSS variables — never hardcode colors. Stack on mobile by default and broaden at the existing 600px / 720px breakpoints.
+
 ## Known tech debt (carry forward)
 
 - `displays.registerByName` has a SELECT-then-INSERT race — fine at single-user scale, fix when concurrent reconnections become a thing.
