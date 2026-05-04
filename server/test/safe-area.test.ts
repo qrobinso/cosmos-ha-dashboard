@@ -4,6 +4,7 @@ import { runMigrations } from '../src/store/migrations.js';
 import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
 import { createScenesRepo } from '../src/store/scenes.js';
+import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
 import { buildHttpApp, DEFAULT_SAFE_AREA } from '../src/api/http.js';
 
 function setup() {
@@ -13,6 +14,8 @@ function setup() {
     displays: createDisplaysRepo(db),
     settings: createSettingsRepo(db),
     scenes: createScenesRepo(db),
+    transitions: createTransitionsRepo(db),
+    overrides: createOverridesRepo(db),
   };
 }
 

@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { SettingsRepo } from '../store/settings.js';
 import type { ScenesRepo } from '../store/scenes.js';
+import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { registerSceneRoutes } from './scenes.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
@@ -27,7 +28,9 @@ export type HttpDeps = {
   displays: DisplaysRepo;
   settings: SettingsRepo;
   scenes: ScenesRepo;
-  onSceneChanged?: (displayId: string) => void;
+  transitions: TransitionsRepo;
+  overrides: OverridesRepo;
+  onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
   onSettingsChanged?: () => void;
 };
 
@@ -43,12 +46,8 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   app.get('/api/displays', async () => deps.displays.list());
 
   app.get('/api/settings/safe-area', async () => readSafeArea(deps.settings));
-
   app.put<{ Body: Partial<SafeArea> }>('/api/settings/safe-area', async (req, reply) => {
-    const merged: SafeArea = {
-      ...readSafeArea(deps.settings),
-      ...req.body,
-    };
+    const merged: SafeArea = { ...readSafeArea(deps.settings), ...req.body };
     if (Object.values(merged).some((n) => typeof n !== 'number' || Number.isNaN(n) || n < 0)) {
       return reply.code(400).send({ error: 'invalid safe-area values' });
     }

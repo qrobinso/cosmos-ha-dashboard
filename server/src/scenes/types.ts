@@ -1,4 +1,5 @@
 import type { Scene, Widget } from '../store/scenes.js';
+import type { TransitionDescriptor } from '../transitions/types.js';
 
 export type ClockData = null;
 
@@ -20,4 +21,10 @@ export type WidgetState = Widget & { data: WidgetData };
 export type SceneState = Omit<Scene, 'widgets'> & {
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
+};
+
+export type ScenePushPayload = {
+  type: 'scene';
+  state: SceneState;
+  transition?: TransitionDescriptor;
 };

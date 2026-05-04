@@ -10,13 +10,14 @@ function isValidSceneInput(body: unknown): body is SceneInput {
   if (typeof b.background !== 'object' || b.background === null) return false;
   if (typeof b.typography !== 'object' || b.typography === null) return false;
   if (!Array.isArray(b.widgets)) return false;
+  // defaultTransitionId is optional; the repo accepts string | null | undefined.
   return true;
 }
 
 export type SceneRoutesDeps = {
   scenes: ScenesRepo;
   displays: DisplaysRepo;
-  onSceneChanged?: (displayId: string) => void;
+  onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
 };
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
@@ -67,6 +68,26 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
         deps.displays.setDefaultScene(display.id, sceneId);
       }
       deps.onSceneChanged?.(display.id);
+      return deps.displays.getById(display.id);
+    }
+  );
+
+  app.post<{
+    Params: { name: string };
+    Body: { sceneId?: unknown; transitionId?: unknown };
+  }>(
+    '/api/displays/:name/scene/activate',
+    async (req, reply) => {
+      const display = deps.displays.getByName(req.params.name);
+      if (!display) return reply.code(404).send({ error: 'display not found' });
+      const sceneId = typeof req.body?.sceneId === 'string' ? req.body.sceneId : null;
+      if (!sceneId) return reply.code(400).send({ error: 'sceneId required' });
+      const scene = deps.scenes.get(sceneId);
+      if (!scene) return reply.code(404).send({ error: 'scene not found' });
+      const transitionId =
+        typeof req.body?.transitionId === 'string' ? req.body.transitionId : null;
+      deps.displays.setCurrentScene(display.id, sceneId);
+      deps.onSceneChanged?.(display.id, { explicitTransitionId: transitionId });
       return deps.displays.getById(display.id);
     }
   );

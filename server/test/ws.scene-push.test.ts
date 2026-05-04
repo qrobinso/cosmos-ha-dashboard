@@ -5,6 +5,7 @@ import { runMigrations } from '../src/store/migrations.js';
 import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
 import { createScenesRepo } from '../src/store/scenes.js';
+import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
 import { buildHttpApp } from '../src/api/http.js';
 import { attachWsHub } from '../src/api/ws.js';
 
@@ -14,8 +15,10 @@ async function startServer() {
   const displays = createDisplaysRepo(db);
   const settings = createSettingsRepo(db);
   const scenes = createScenesRepo(db);
-  const app = await buildHttpApp({ displays, settings, scenes });
-  const wss = attachWsHub(app.server, { displays, scenes, settings });
+  const transitions = createTransitionsRepo(db);
+  const overrides = createOverridesRepo(db);
+  const app = await buildHttpApp({ displays, settings, scenes, transitions, overrides });
+  const wss = attachWsHub(app.server, { displays, scenes, settings, transitions, overrides });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const addr = app.server.address();
   if (typeof addr === 'string' || !addr) throw new Error('no address');

@@ -3,17 +3,20 @@ import type { Server } from 'node:http';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { ScenesRepo } from '../store/scenes.js';
 import type { SettingsRepo } from '../store/settings.js';
-import { buildSceneState } from '../scenes/assembler.js';
+import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
+import { assemblePush } from '../scenes/assembler.js';
 import { readSafeArea } from './http.js';
 
 export type WsDeps = {
   displays: DisplaysRepo;
   scenes: ScenesRepo;
   settings: SettingsRepo;
+  transitions: TransitionsRepo;
+  overrides: OverridesRepo;
 };
 
 export type CosmosWss = WebSocketServer & {
-  pushSceneTo(displayId: string): void;
+  pushSceneTo(displayId: string, opts?: { explicitTransitionId?: string | null }): void;
   pushSettingsChanged(): void;
 };
 
@@ -34,25 +37,34 @@ function activeSceneId(displayId: string, deps: WsDeps): string | null {
   return d.currentSceneId ?? d.defaultSceneId ?? null;
 }
 
-function sceneMessageFor(displayId: string, deps: WsDeps): string | null {
-  const sceneId = activeSceneId(displayId, deps);
-  if (!sceneId) return null;
-  const scene = deps.scenes.get(sceneId);
-  if (!scene) return null;
-  const safeArea = readSafeArea(deps.settings);
-  return JSON.stringify({ type: 'scene', state: buildSceneState(scene, safeArea) });
-}
-
 export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   const wss = new WebSocketServer({ server, path: '/ws' }) as CosmosWss;
   const sockets = new Map<string, Set<WebSocket>>();
+  const lastSceneByDisplay = new Map<string, string>();
+
+  function buildPayload(displayId: string, explicitTransitionId?: string | null): string | null {
+    const sceneId = activeSceneId(displayId, deps);
+    if (!sceneId) return null;
+    const scene = deps.scenes.get(sceneId);
+    if (!scene) return null;
+    const previousSceneId = lastSceneByDisplay.get(displayId) ?? null;
+    const safeArea = readSafeArea(deps.settings);
+    const payload = assemblePush({
+      scene,
+      safeArea,
+      previousSceneId,
+      transitions: deps.transitions,
+      overrides: deps.overrides,
+      explicitTransitionId,
+    });
+    lastSceneByDisplay.set(displayId, scene.id);
+    return JSON.stringify(payload);
+  }
 
   wss.on('connection', (socket: WebSocket) => {
     let ownDisplayId: string | null = null;
     socket.on('close', () => {
-      if (ownDisplayId) {
-        sockets.get(ownDisplayId)?.delete(socket);
-      }
+      if (ownDisplayId) sockets.get(ownDisplayId)?.delete(socket);
     });
     socket.on('message', (raw) => {
       let parsed: unknown;
@@ -86,18 +98,20 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
         })
       );
 
-      const sceneMsg = sceneMessageFor(display.id, deps);
-      if (sceneMsg) socket.send(sceneMsg);
+      // Hello-time push has no previous scene by definition, so no transition.
+      lastSceneByDisplay.delete(display.id);
+      const payload = buildPayload(display.id);
+      if (payload) socket.send(payload);
     });
   });
 
-  wss.pushSceneTo = (displayId: string) => {
+  wss.pushSceneTo = (displayId, opts) => {
     const set = sockets.get(displayId);
     if (!set || set.size === 0) return;
-    const sceneMsg = sceneMessageFor(displayId, deps);
-    if (!sceneMsg) return;
+    const payload = buildPayload(displayId, opts?.explicitTransitionId);
+    if (!payload) return;
     for (const s of set) {
-      if (s.readyState === s.OPEN) s.send(sceneMsg);
+      if (s.readyState === s.OPEN) s.send(payload);
     }
   };
 

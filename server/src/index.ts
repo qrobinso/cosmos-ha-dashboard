@@ -4,6 +4,7 @@ import { runMigrations } from './store/migrations.js';
 import { createDisplaysRepo } from './store/displays.js';
 import { createSettingsRepo } from './store/settings.js';
 import { createScenesRepo } from './store/scenes.js';
+import { createTransitionsRepo, createOverridesRepo } from './store/transitions.js';
 import { buildHttpApp } from './api/http.js';
 import { attachWsHub } from './api/ws.js';
 import { registerStatic } from './static.js';
@@ -14,19 +15,24 @@ async function main() {
   const displays = createDisplaysRepo(db);
   const settings = createSettingsRepo(db);
   const scenes = createScenesRepo(db);
+  const transitions = createTransitionsRepo(db);
+  const overrides = createOverridesRepo(db);
 
   let wssRef: ReturnType<typeof attachWsHub> | null = null;
-  const onSceneChanged = (displayId: string) => wssRef?.pushSceneTo(displayId);
+  const onSceneChanged = (displayId: string, opts?: { explicitTransitionId?: string | null }) =>
+    wssRef?.pushSceneTo(displayId, opts);
 
   const app = await buildHttpApp({
     displays,
     settings,
     scenes,
+    transitions,
+    overrides,
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged(),
   });
   await registerStatic(app, config.staticDir);
-  const wss = attachWsHub(app.server, { displays, scenes, settings });
+  const wss = attachWsHub(app.server, { displays, scenes, settings, transitions, overrides });
   wssRef = wss;
 
   await app.listen({ port: config.port, host: config.host });
