@@ -18,6 +18,7 @@
 
 <style>
   .widget-slot {
+    --cosmos-edge-fade: 0.6rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -26,5 +27,13 @@
     container-name: widget;
     min-width: 0;
     min-height: 0;
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0, black var(--cosmos-edge-fade), black calc(100% - var(--cosmos-edge-fade)), transparent 100%),
+      linear-gradient(to bottom, transparent 0, black var(--cosmos-edge-fade), black calc(100% - var(--cosmos-edge-fade)), transparent 100%);
+    mask-image:
+      linear-gradient(to right, transparent 0, black var(--cosmos-edge-fade), black calc(100% - var(--cosmos-edge-fade)), transparent 100%),
+      linear-gradient(to bottom, transparent 0, black var(--cosmos-edge-fade), black calc(100% - var(--cosmos-edge-fade)), transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
   }
 </style>
