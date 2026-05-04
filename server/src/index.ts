@@ -71,6 +71,41 @@ async function main() {
   const onSceneChanged = (displayId: string, opts?: { explicitTransitionId?: string | null }) =>
     wssRef?.pushSceneTo(displayId, opts).catch((err) => console.error('pushSceneTo failed', err));
 
+  // Per-display rotation scheduler.
+  const rotationTimers = new Map<string, ReturnType<typeof setInterval>>();
+  const rotationCursors = new Map<string, number>();
+  function stopRotation(displayId: string) {
+    const t = rotationTimers.get(displayId);
+    if (t) {
+      clearInterval(t);
+      rotationTimers.delete(displayId);
+    }
+    rotationCursors.delete(displayId);
+  }
+  function tickRotation(displayId: string) {
+    const d = displays.getById(displayId);
+    if (!d?.rotation?.enabled || d.rotation.sceneIds.length === 0) {
+      stopRotation(displayId);
+      return;
+    }
+    const idx = (rotationCursors.get(displayId) ?? -1) + 1;
+    const sceneId = d.rotation.sceneIds[idx % d.rotation.sceneIds.length];
+    rotationCursors.set(displayId, idx);
+    if (!scenes.get(sceneId)) return;
+    displays.setCurrentScene(displayId, sceneId);
+    void wssRef?.pushSceneTo(displayId).catch((err) => console.error('rotation push failed', err));
+  }
+  function startRotation(displayId: string) {
+    stopRotation(displayId);
+    const d = displays.getById(displayId);
+    if (!d?.rotation?.enabled || d.rotation.sceneIds.length === 0) return;
+    const intervalMs = Math.max(5_000, d.rotation.intervalSec * 1000);
+    rotationTimers.set(displayId, setInterval(() => tickRotation(displayId), intervalMs));
+  }
+  function onRotationChanged(displayId: string) {
+    startRotation(displayId);
+  }
+
   const app = await buildHttpApp({
     displays,
     settings,
@@ -80,6 +115,7 @@ async function main() {
     haClient,  // pass the live client (or null) so /api/ha/entities can read the cache
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
+    onRotationChanged,
   });
   await registerStatic(app, config.staticDir);
   let publishedDiscoveryFor = new Set<string>();
@@ -214,12 +250,19 @@ async function main() {
   await app.listen({ port: config.port, host: config.host });
   console.log(`cosmos server listening on http://${config.host}:${config.port}`);
 
+  // Start rotations for any display that already has one configured.
+  for (const d of displays.list()) {
+    if (d.rotation?.enabled) startRotation(d.id);
+  }
+
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`received ${signal}, shutting down`);
     try {
+      for (const t of rotationTimers.values()) clearInterval(t);
+      rotationTimers.clear();
       wss.close();
       await app.close();
       unsubHaStateChange?.();

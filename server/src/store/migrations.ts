@@ -85,6 +85,12 @@ const migrations: Migration[] = [
           1);
     `,
   },
+  {
+    version: 4,
+    up: `
+      ALTER TABLE displays ADD COLUMN rotation_json TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

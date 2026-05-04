@@ -20,6 +20,7 @@ export type SceneRoutesDeps = {
   displays: DisplaysRepo;
   transitions: TransitionsRepo;
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
+  onRotationChanged?: (displayId: string) => void;
 };
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
@@ -93,6 +94,36 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       }
       deps.displays.setCurrentScene(display.id, sceneId);
       deps.onSceneChanged?.(display.id, { explicitTransitionId: transitionId });
+      return deps.displays.getById(display.id);
+    }
+  );
+
+  app.put<{
+    Params: { name: string };
+    Body: { enabled?: unknown; sceneIds?: unknown; intervalSec?: unknown };
+  }>(
+    '/api/displays/:name/rotation',
+    async (req, reply) => {
+      const display = deps.displays.getByName(req.params.name);
+      if (!display) return reply.code(404).send({ error: 'display not found' });
+      const enabled = req.body?.enabled === true;
+      const sceneIds = Array.isArray(req.body?.sceneIds)
+        ? req.body!.sceneIds.filter((x): x is string => typeof x === 'string')
+        : [];
+      const intervalSec =
+        typeof req.body?.intervalSec === 'number' && req.body.intervalSec >= 5
+          ? req.body.intervalSec
+          : 60;
+      if (enabled && sceneIds.length === 0) {
+        return reply.code(400).send({ error: 'sceneIds must be non-empty when enabled' });
+      }
+      for (const sid of sceneIds) {
+        if (!deps.scenes.get(sid)) {
+          return reply.code(404).send({ error: `scene ${sid} not found` });
+        }
+      }
+      deps.displays.setRotation(display.id, { enabled, sceneIds, intervalSec });
+      deps.onRotationChanged?.(display.id);
       return deps.displays.getById(display.id);
     }
   );

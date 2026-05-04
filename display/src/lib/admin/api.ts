@@ -47,8 +47,17 @@ export const api = {
     },
   },
   displays: {
-    async list(): Promise<{ id: string; name: string; lastSeen: string | null; defaultSceneId: string | null; currentSceneId: string | null }[]> {
+    async list(): Promise<{ id: string; name: string; lastSeen: string | null; defaultSceneId: string | null; currentSceneId: string | null; rotation: { enabled: boolean; sceneIds: string[]; intervalSec: number } | null }[]> {
       return jsonOr(await fetch('/api/displays'), []);
+    },
+    async setRotation(displayName: string, payload: { enabled: boolean; sceneIds: string[]; intervalSec: number }): Promise<void> {
+      await ensureOk(
+        await fetch(`/api/displays/${encodeURIComponent(displayName)}/rotation`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      );
     },
     async assignScene(displayName: string, sceneId: string, makeDefault: boolean): Promise<void> {
       await ensureOk(

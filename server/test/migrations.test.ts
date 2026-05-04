@@ -36,7 +36,7 @@ describe('runMigrations', () => {
     const versions = db
       .prepare('SELECT version FROM schema_version ORDER BY version')
       .all() as { version: number }[];
-    expect(versions.map((r) => r.version)).toEqual([1, 2, 3]);
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4]);
   });
 
   it('migration v3 adds transitions, scene_transition_overrides, and scenes.default_transition_id', () => {
@@ -53,7 +53,7 @@ describe('runMigrations', () => {
     expect(sceneCols.map((c) => c.name)).toContain('default_transition_id');
 
     const versions = db.prepare('SELECT version FROM schema_version ORDER BY version').all() as { version: number }[];
-    expect(versions.map((r) => r.version)).toEqual([1, 2, 3]);
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4]);
   });
 
   it('migration v3 seeds the 6 built-in transitions', () => {
