@@ -12,4 +12,5 @@ export const config = {
   haUrl: process.env.HA_URL ?? null,
   haToken: process.env.HA_TOKEN ?? null,
   mqttUrl: process.env.MQTT_URL ?? null,
+  supervisorToken: process.env.SUPERVISOR_TOKEN ?? null,
 };

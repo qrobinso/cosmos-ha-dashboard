@@ -32,11 +32,26 @@ async function main() {
   const transitions = createTransitionsRepo(db);
   const overrides = createOverridesRepo(db);
 
+  // Resolve effective HA + MQTT settings, falling back to Supervisor when running as an add-on.
+  const { fetchMqttFromSupervisor, SUPERVISOR_HA_URL, SUPERVISOR_BASE } = await import('./ha/supervisor.js');
+  const effectiveHaUrl = config.haUrl ?? (config.supervisorToken ? SUPERVISOR_HA_URL : null);
+  const effectiveHaToken = config.haToken ?? config.supervisorToken;
+  let effectiveMqttUrl = config.mqttUrl;
+  if (!effectiveMqttUrl && config.supervisorToken) {
+    const result = await fetchMqttFromSupervisor(SUPERVISOR_BASE, config.supervisorToken);
+    if (result) {
+      effectiveMqttUrl = result.url;
+      console.log(`MQTT broker discovered via Supervisor: ${result.url.replace(/:[^:@/]*@/, ':***@')}`);
+    } else {
+      console.log('Supervisor reports no MQTT service available');
+    }
+  }
+
   let haClient: HaClient | null = null;
-  if (config.haUrl && config.haToken) {
+  if (effectiveHaUrl && effectiveHaToken) {
     try {
-      console.log(`connecting to Home Assistant at ${config.haUrl}`);
-      haClient = await makeHaClient({ url: config.haUrl, token: config.haToken });
+      console.log(`connecting to Home Assistant at ${effectiveHaUrl}`);
+      haClient = await makeHaClient({ url: effectiveHaUrl, token: effectiveHaToken });
       await haClient.ready();
       console.log('Home Assistant connected; entity cache populated');
     } catch (err) {
@@ -44,7 +59,7 @@ async function main() {
       haClient = null;
     }
   } else {
-    console.log('HA_URL/HA_TOKEN not set; using mock entity data');
+    console.log('HA_URL/HA_TOKEN not set and no Supervisor token; using mock entity data');
   }
 
   const resolveEntity = haClient
@@ -154,11 +169,11 @@ async function main() {
     }
   }
 
-  if (config.mqttUrl) {
+  if (effectiveMqttUrl) {
     try {
-      console.log(`connecting to MQTT at ${config.mqttUrl}`);
+      console.log(`connecting to MQTT at ${effectiveMqttUrl.replace(/:[^:@/]*@/, ':***@')}`);
       const { makeMqttClient } = await import('./mqtt/client.js');
-      mqttClient = await makeMqttClient(config.mqttUrl);
+      mqttClient = await makeMqttClient(effectiveMqttUrl);
       console.log('MQTT connected');
 
       const { buildDiscoveryPayloads } = await import('./mqtt/discovery.js');
@@ -193,7 +208,7 @@ async function main() {
       mqttClient = null;
     }
   } else {
-    console.log('MQTT_URL not set; overlay commands unavailable');
+    console.log('MQTT not configured; overlay commands unavailable');
   }
 
   await app.listen({ port: config.port, host: config.host });
