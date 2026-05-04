@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/admin/api';
   import Field from '$lib/admin/Field.svelte';
+  import WidgetCanvas from '$lib/admin/WidgetCanvas.svelte';
   import type { Background, Typography, WidgetKind, WidgetState, Layout } from '$lib/types';
 
   type Widget = WidgetState;
@@ -19,6 +20,7 @@
   let typography: Typography = { font_family: 'Inter', font_scale: 1.0 };
   let defaultTransitionId: string | null = null;
   let widgets: Widget[] = [];
+  let selectedWidgetIdx: number | null = null;
 
   let transitions: { id: string; name: string }[] = [];
   let entities: { entity_id: string; state: string }[] = [];
@@ -70,17 +72,27 @@
     background = { ...background, colors: background.colors.filter((_, i) => i !== idx) };
   }
 
+  function centeredPosition(w: number, h: number) {
+    const safeW = Math.min(w, layout.cols);
+    const safeH = Math.min(h, layout.rows);
+    return {
+      col: Math.max(1, Math.floor((layout.cols - safeW) / 2) + 1),
+      row: Math.max(1, Math.floor((layout.rows - safeH) / 2) + 1),
+      w: safeW,
+      h: safeH,
+    };
+  }
+
   function addWidget() {
-    widgets = [
-      ...widgets,
-      {
-        id: crypto.randomUUID(),
-        kind: 'clock',
-        position: { col: 1, row: 1, w: 4, h: 2 },
-        config: {},
-        data: null,
-      },
-    ];
+    const newWidget = {
+      id: crypto.randomUUID(),
+      kind: 'clock' as WidgetKind,
+      position: centeredPosition(4, 2),
+      config: { format: '24h' } as Record<string, unknown>,
+      data: null,
+    };
+    widgets = [...widgets, newWidget];
+    selectedWidgetIdx = widgets.length - 1;
   }
 
   function removeWidget(idx: number) {
@@ -213,21 +225,21 @@
       <button on:click={addWidget}>+ Add widget</button>
     </header>
     {#if widgets.length === 0}
-      <p class="empty">No widgets yet.</p>
+      <p class="empty">No widgets yet — click <strong>+ Add widget</strong> to drop one in the middle of the canvas.</p>
     {:else}
+      <WidgetCanvas
+        {layout}
+        bind:widgets
+        selectedIndex={selectedWidgetIdx}
+        onSelect={(i) => (selectedWidgetIdx = i)}
+      />
       {#each widgets as w, i (w.id)}
-        <div class="widget-card">
+        <div class="widget-card" class:selected={selectedWidgetIdx === i}>
           <div class="widget-row">
             <Field label="Kind">
               <select value={w.kind} on:change={(e) => setWidgetKind(i, e.currentTarget.value)}>
                 {#each WIDGET_KINDS as k (k)}<option value={k}>{k}</option>{/each}
               </select>
-            </Field>
-            <Field label="Col">
-              <input type="number" min="1" bind:value={w.position.col} />
-            </Field>
-            <Field label="Row">
-              <input type="number" min="1" bind:value={w.position.row} />
             </Field>
             <Field label="Width">
               <input type="number" min="1" bind:value={w.position.w} />
@@ -235,7 +247,7 @@
             <Field label="Height">
               <input type="number" min="1" bind:value={w.position.h} />
             </Field>
-            <button class="danger" type="button" on:click={() => removeWidget(i)}>Remove</button>
+            <button class="danger" type="button" on:click={() => { removeWidget(i); if (selectedWidgetIdx === i) selectedWidgetIdx = null; }}>Remove</button>
           </div>
           {#if w.kind === 'clock'}
             <Field label="Format">
@@ -347,6 +359,10 @@
     border-radius: 0.5rem;
     padding: 0.85rem;
     margin-bottom: 0.75rem;
+    transition: border-color 120ms ease;
+  }
+  .widget-card.selected {
+    border-color: rgba(245, 158, 11, 0.6);
   }
   .widget-row {
     display: flex;
