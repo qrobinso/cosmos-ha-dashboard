@@ -65,7 +65,7 @@
   })();
 
   const FONT_FAMILIES = ['Inter', 'Fraunces', 'JetBrains Mono', 'Space Grotesk'];
-  const FONT_SCALES = [0.8, 1.0, 1.25, 1.5, 2.0];
+  const FONT_SCALES = [0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0];
   const GRADIENT_SPEEDS = ['slow', 'medium', 'fast'] as const;
   const GRADIENT_STYLES = ['mesh', 'linear', 'radial'] as const;
   const GRADIENT_PRESETS: { name: string; colors: string[] }[] = [
@@ -172,6 +172,10 @@
   function configStr(cfg: Record<string, unknown>, key: string, fallback = ''): string {
     const v = cfg[key];
     return typeof v === 'string' ? v : fallback;
+  }
+
+  function configBool(cfg: Record<string, unknown>, key: string): boolean {
+    return cfg[key] === true;
   }
 
   async function save() {
@@ -329,6 +333,16 @@
                 <option value="24h">24h</option>
                 <option value="12h">12h</option>
               </select>
+            </Field>
+            <Field label="Show seconds">
+              <label class="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={configBool(w.config, 'show_seconds')}
+                  on:change={(e) => { w.config = { ...w.config, show_seconds: e.currentTarget.checked }; widgets = widgets; }}
+                />
+                <span>Display seconds (ticks every second)</span>
+              </label>
             </Field>
           {:else if w.kind === 'entity_tile'}
             <Field label="Entity">
