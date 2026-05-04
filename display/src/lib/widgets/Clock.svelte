@@ -83,8 +83,12 @@
     line-height: 1.1;
     letter-spacing: -0.02em;
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0;
+  }
+  .hm,
+  .sep {
+    line-height: 1.1;
   }
   .sep {
     margin: 0 0.04em;
@@ -93,8 +97,8 @@
     position: relative;
     display: inline-block;
     width: 2ch;
-    height: 1em;
-    vertical-align: baseline;
+    height: 1.1em;
+    line-height: 1.1;
     overflow: hidden;
     font-variant-numeric: tabular-nums;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 28%, black 72%, transparent 100%);
@@ -106,6 +110,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    line-height: 1;
     will-change: transform, opacity;
   }
   .date {
