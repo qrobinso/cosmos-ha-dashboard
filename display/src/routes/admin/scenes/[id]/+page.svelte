@@ -491,6 +491,14 @@
                 {/each}
               </select>
             </Field>
+            <Field label="Theme" hint="Visual style for the player">
+              <select value={configStr(w.config, 'theme', 'default')} on:change={(e) => { w.config = { ...w.config, theme: e.currentTarget.value }; widgets = widgets; }}>
+                <option value="default">Default — horizontal art + info</option>
+                <option value="cinematic">Cinematic — full-bleed art with overlay</option>
+                <option value="card">Card — bold vertical layout</option>
+                <option value="vinyl">Vinyl — sleeve with spinning record</option>
+              </select>
+            </Field>
             <div class="checkboxes">
               <label class="checkbox-row">
                 <input type="checkbox" checked={w.config.show_album_art !== false} on:change={(e) => { w.config = { ...w.config, show_album_art: e.currentTarget.checked }; widgets = widgets; }} />

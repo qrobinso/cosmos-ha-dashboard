@@ -32,7 +32,7 @@
 <header class="hero reveal reveal-1">
   <span class="eyebrow">Overview</span>
   <h1>Configure your wall display.</h1>
-  <p>Manage scenes, displays, and global settings. Changes go live across every connected tablet.</p>
+  <p>Manage scenes, displays, and global settings. Changes go live across every connected device.</p>
 </header>
 
 {#if loading}
@@ -52,7 +52,7 @@
           <span class="dot online"></span>
           {onlineCount} online now
         {:else}
-          Connect a tablet to begin
+          Connect a device to begin
         {/if}
       </span>
     </a>
@@ -94,7 +94,7 @@
         <a href="/admin/displays" class="more">View all →</a>
       </header>
       {#if displays.length === 0}
-        <p class="empty">No displays yet. Open <span class="mono">http://&lt;host&gt;:8099/</span> on a tablet to register.</p>
+        <p class="empty">No displays yet. Open <span class="mono">http://&lt;host&gt;:8099/</span> on a device to register.</p>
       {:else}
         <ul class="list">
           {#each displays as d (d.id)}

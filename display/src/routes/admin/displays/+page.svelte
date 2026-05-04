@@ -116,7 +116,7 @@
 
 <header class="page-header reveal reveal-1">
   <span class="eyebrow">Displays</span>
-  <h1>Connected tablets.</h1>
+  <h1>Connected devices.</h1>
 </header>
 
 {#if loading}
@@ -124,7 +124,7 @@
 {:else if displays.length === 0}
   <div class="empty-state reveal reveal-2">
     <h2>No displays yet.</h2>
-    <p>Open <code>http://&lt;host&gt;:8099/</code> on a tablet (or this browser) and name it to register.</p>
+    <p>Open <code>http://&lt;host&gt;:8099/</code> on a device (or this browser) and name it to register.</p>
   </div>
 {:else}
   <div class="table-wrap reveal reveal-2">
@@ -269,7 +269,6 @@
     border: 1px solid var(--c-line);
     border-radius: var(--radius-md);
   }
-  h1 { margin: 0 0 1.5rem; font-weight: 300; }
   table { width: 100%; border-collapse: collapse; min-width: 56rem; }
   th, td {
     text-align: left;

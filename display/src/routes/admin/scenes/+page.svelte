@@ -95,7 +95,7 @@
 {:else if scenes.length === 0}
   <div class="empty-state reveal reveal-2">
     <h2>No scenes yet.</h2>
-    <p>A scene is a layout of widgets shown on a tablet — like a Morning routine or a Dinner overlay.</p>
+    <p>A scene is a layout of widgets shown on a device — like a Morning routine or a Dinner overlay.</p>
     <button class="primary" on:click={createNew} disabled={creating}>
       {creating ? 'Creating…' : 'Create your first scene'}
     </button>
