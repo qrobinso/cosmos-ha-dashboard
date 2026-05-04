@@ -4,6 +4,9 @@
   import Clock from '$lib/widgets/Clock.svelte';
   import Weather from '$lib/widgets/Weather.svelte';
   import EntityTile from '$lib/widgets/EntityTile.svelte';
+  import Calendar from '$lib/widgets/Calendar.svelte';
+  import MediaPlayer from '$lib/widgets/MediaPlayer.svelte';
+  import Statistics from '$lib/widgets/Statistics.svelte';
   import Background from '$lib/backgrounds/Background.svelte';
 
   export let scene: SceneState;
@@ -34,6 +37,12 @@
           <Weather widget={w} />
         {:else if w.kind === 'entity_tile'}
           <EntityTile widget={w} />
+        {:else if w.kind === 'calendar'}
+          <Calendar widget={w} />
+        {:else if w.kind === 'media_player'}
+          <MediaPlayer widget={w} />
+        {:else if w.kind === 'statistics'}
+          <Statistics widget={w} />
         {/if}
       </WidgetSlot>
     {/each}

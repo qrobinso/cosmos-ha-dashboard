@@ -1,4 +1,4 @@
-import type { EntityState } from '../scenes/types.js';
+import type { CalendarEvent, EntityState, StatisticsPoint } from '../scenes/types.js';
 
 export type { EntityState };
 
@@ -13,6 +13,16 @@ export type HaClient = {
   listEntities(): EntityState[];
   /** Subscribe to incremental state changes. Returns an unsubscribe function. */
   onStateChanged(handler: StateChangedHandler): () => void;
+  /** Fetch calendar events from a `calendar.*` entity over a time window. */
+  getCalendarEvents(
+    entityId: string,
+    opts: { start: Date; end: Date }
+  ): Promise<CalendarEvent[]>;
+  /** Fetch state history for a single entity over a time window. */
+  getHistory(
+    entityId: string,
+    opts: { start: Date; end: Date }
+  ): Promise<StatisticsPoint[]>;
   /** Disconnect cleanly. */
   close(): Promise<void>;
 };

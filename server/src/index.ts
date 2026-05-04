@@ -65,6 +65,12 @@ async function main() {
   const resolveEntity = haClient
     ? (entityId: string) => haClient!.getEntity(entityId) ?? mockEntityResolver(entityId)
     : mockEntityResolver;
+  const resolveCalendarEvents = haClient
+    ? (entityId: string, opts: { start: Date; end: Date }) => haClient!.getCalendarEvents(entityId, opts)
+    : undefined;
+  const resolveHistory = haClient
+    ? (entityId: string, opts: { start: Date; end: Date }) => haClient!.getHistory(entityId, opts)
+    : undefined;
 
   let wssRef: ReturnType<typeof attachWsHub> | null = null;
   let mqttClient: import('./mqtt/types.js').MqttClient | null = null;
@@ -141,7 +147,10 @@ async function main() {
   }
 
   const wss = attachWsHub(app.server, {
-    displays, scenes, settings, transitions, overrides, resolveEntity,
+    displays, scenes, settings, transitions, overrides,
+    resolveEntity,
+    resolveCalendarEvents,
+    resolveHistory,
     onDisplayOnline: publishOnline,
     onDisplayOffline: publishOffline,
     onSceneActivated: publishSceneState,

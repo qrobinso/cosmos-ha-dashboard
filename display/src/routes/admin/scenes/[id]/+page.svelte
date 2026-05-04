@@ -89,7 +89,16 @@
     if (!preset) return;
     background = { ...background, colors: [...preset.colors] };
   }
-  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile'];
+  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics'];
+
+  const WIDGET_KIND_LABELS: Record<WidgetKind, string> = {
+    clock: 'Clock',
+    weather: 'Weather',
+    entity_tile: 'Entity tile',
+    calendar: 'Calendar agenda',
+    media_player: 'Media player',
+    statistics: 'Statistics / history',
+  };
 
   onMount(async () => {
     const [scene, txns, ents] = await Promise.all([
@@ -160,11 +169,59 @@
     widgets = widgets.filter((_, i) => i !== idx);
   }
 
+  function firstEntityOfDomain(domain: string): string {
+    const match = entities.find((e) => e.entity_id.startsWith(`${domain}.`));
+    return match?.entity_id ?? '';
+  }
+
   function setWidgetKind(idx: number, kind: string) {
     const w = { ...widgets[idx], kind: kind as WidgetKind };
     if (kind === 'clock') w.config = { format: '24h' };
     if (kind === 'weather') w.config = {};
     if (kind === 'entity_tile') w.config = { entity_id: entities[0]?.entity_id ?? '' };
+    if (kind === 'calendar') {
+      w.config = {
+        entity_id: firstEntityOfDomain('calendar') || 'calendar.home',
+        days_ahead: 2,
+        max_events: 5,
+        show_all_day: true,
+        show_location: true,
+        show_description: false,
+        show_header: true,
+        time_format: '24h',
+        group_by_day: true,
+        hide_past: true,
+      };
+    }
+    if (kind === 'media_player') {
+      w.config = {
+        entity_id: firstEntityOfDomain('media_player') || 'media_player.living_room',
+        show_album_art: true,
+        show_artist: true,
+        show_album: false,
+        show_progress: true,
+        show_controls: true,
+        show_volume: false,
+        show_source: false,
+        blur_background: true,
+        compact: false,
+      };
+    }
+    if (kind === 'statistics') {
+      w.config = {
+        entity_id: firstEntityOfDomain('sensor') || 'sensor.outside_temp',
+        hours_back: 24,
+        show_current: true,
+        show_min_max: true,
+        show_unit: true,
+        show_axis: false,
+        show_area_fill: true,
+        smoothing: true,
+        chart_type: 'line',
+        title: '',
+        color: '',
+      };
+    }
     widgets[idx] = w;
     widgets = widgets;
   }
@@ -316,7 +373,7 @@
           <div class="widget-row">
             <Field label="Kind">
               <select value={w.kind} on:change={(e) => setWidgetKind(i, e.currentTarget.value)}>
-                {#each WIDGET_KINDS as k (k)}<option value={k}>{k}</option>{/each}
+                {#each WIDGET_KINDS as k (k)}<option value={k}>{WIDGET_KIND_LABELS[k]}</option>{/each}
               </select>
             </Field>
             <Field label="Width">
@@ -366,6 +423,173 @@
               </select>
               {#if entities.length === 0}<span class="hint">No entities cached. Set HA_URL/HA_TOKEN or add a real entity to your scene config.</span>{/if}
             </Field>
+
+          {:else if w.kind === 'calendar'}
+            <Field label="Calendar entity">
+              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
+                <option value="">— Select calendar —</option>
+                {#each entities.filter((e) => e.entity_id.startsWith('calendar.')) as e (e.entity_id)}
+                  <option value={e.entity_id}>{e.entity_id}</option>
+                {/each}
+              </select>
+              <span class="hint">Falls back to mock events when HA isn't connected.</span>
+            </Field>
+            <div class="inline-fields">
+              <Field label="Days ahead">
+                <select value={String(w.config.days_ahead ?? 2)} on:change={(e) => { w.config = { ...w.config, days_ahead: Number(e.currentTarget.value) }; widgets = widgets; }}>
+                  <option value="1">Today only</option>
+                  <option value="2">Today + tomorrow</option>
+                  <option value="3">3 days</option>
+                  <option value="7">1 week</option>
+                  <option value="14">2 weeks</option>
+                  <option value="30">1 month</option>
+                </select>
+              </Field>
+              <Field label="Max events">
+                <input type="number" min="1" max="50" value={w.config.max_events ?? 5} on:input={(e) => { w.config = { ...w.config, max_events: Number(e.currentTarget.value) }; widgets = widgets; }} />
+              </Field>
+              <Field label="Time format">
+                <select value={configStr(w.config, 'time_format', '24h')} on:change={(e) => { w.config = { ...w.config, time_format: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="24h">24h</option>
+                  <option value="12h">12h</option>
+                </select>
+              </Field>
+            </div>
+            <div class="checkboxes">
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_header !== false} on:change={(e) => { w.config = { ...w.config, show_header: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show header (calendar name + count)</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_all_day !== false} on:change={(e) => { w.config = { ...w.config, show_all_day: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show all-day events</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_location !== false} on:change={(e) => { w.config = { ...w.config, show_location: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show location</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_description === true} on:change={(e) => { w.config = { ...w.config, show_description: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show description</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.group_by_day !== false} on:change={(e) => { w.config = { ...w.config, group_by_day: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Group by day</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.hide_past !== false} on:change={(e) => { w.config = { ...w.config, hide_past: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Hide past events (today)</span>
+              </label>
+            </div>
+
+          {:else if w.kind === 'media_player'}
+            <Field label="Media player entity">
+              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
+                <option value="">— Select media player —</option>
+                {#each entities.filter((e) => e.entity_id.startsWith('media_player.')) as e (e.entity_id)}
+                  <option value={e.entity_id}>{e.entity_id}</option>
+                {/each}
+              </select>
+            </Field>
+            <div class="checkboxes">
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_album_art !== false} on:change={(e) => { w.config = { ...w.config, show_album_art: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show album art</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_artist !== false} on:change={(e) => { w.config = { ...w.config, show_artist: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show artist</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_album === true} on:change={(e) => { w.config = { ...w.config, show_album: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show album name</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_progress !== false} on:change={(e) => { w.config = { ...w.config, show_progress: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show progress bar &amp; times</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_controls !== false} on:change={(e) => { w.config = { ...w.config, show_controls: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show transport controls (play/next/prev)</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_volume === true} on:change={(e) => { w.config = { ...w.config, show_volume: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show volume</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_source === true} on:change={(e) => { w.config = { ...w.config, show_source: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show source / app name (Spotify, Plex, …)</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.blur_background !== false} on:change={(e) => { w.config = { ...w.config, blur_background: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Blur album art behind the widget</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.compact === true} on:change={(e) => { w.config = { ...w.config, compact: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Compact layout (smaller art, denser text)</span>
+              </label>
+            </div>
+
+          {:else if w.kind === 'statistics'}
+            <Field label="Sensor entity">
+              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
+                <option value="">— Select sensor —</option>
+                {#each entities.filter((e) => e.entity_id.startsWith('sensor.') || e.entity_id.startsWith('input_number.') || e.entity_id.startsWith('counter.')) as e (e.entity_id)}
+                  <option value={e.entity_id}>{e.entity_id}</option>
+                {/each}
+              </select>
+              <span class="hint">Numeric entities only (sensors, input_numbers, counters).</span>
+            </Field>
+            <div class="inline-fields">
+              <Field label="History window">
+                <select value={String(w.config.hours_back ?? 24)} on:change={(e) => { w.config = { ...w.config, hours_back: Number(e.currentTarget.value) }; widgets = widgets; }}>
+                  <option value="1">Last hour</option>
+                  <option value="6">Last 6 hours</option>
+                  <option value="12">Last 12 hours</option>
+                  <option value="24">Last 24 hours</option>
+                  <option value="48">Last 2 days</option>
+                  <option value="168">Last 7 days</option>
+                </select>
+              </Field>
+              <Field label="Chart type">
+                <select value={configStr(w.config, 'chart_type', 'line')} on:change={(e) => { w.config = { ...w.config, chart_type: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="line">Line</option>
+                  <option value="bar">Bar</option>
+                </select>
+              </Field>
+              <Field label="Custom title">
+                <input type="text" placeholder="(uses entity friendly name)" value={configStr(w.config, 'title')} on:input={(e) => { w.config = { ...w.config, title: e.currentTarget.value }; widgets = widgets; }} />
+              </Field>
+              <Field label="Line color">
+                <input type="color" value={configStr(w.config, 'color', '#f3a26a')} on:input={(e) => { w.config = { ...w.config, color: e.currentTarget.value }; widgets = widgets; }} />
+              </Field>
+            </div>
+            <div class="checkboxes">
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_current !== false} on:change={(e) => { w.config = { ...w.config, show_current: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show current value</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_min_max !== false} on:change={(e) => { w.config = { ...w.config, show_min_max: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show min &amp; max for the period</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_unit !== false} on:change={(e) => { w.config = { ...w.config, show_unit: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show unit of measurement</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_axis === true} on:change={(e) => { w.config = { ...w.config, show_axis: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show chart axes</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_area_fill !== false} on:change={(e) => { w.config = { ...w.config, show_area_fill: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Fill area under the line</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.smoothing !== false} on:change={(e) => { w.config = { ...w.config, smoothing: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Smooth the line (Bézier curves)</span>
+              </label>
+            </div>
           {/if}
         </div>
       {/each}
@@ -450,6 +674,21 @@
     gap: 0.5rem;
     cursor: pointer;
     font-size: 0.95rem;
+  }
+  .checkboxes {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+  @media (min-width: 600px) {
+    .checkboxes { grid-template-columns: repeat(2, 1fr); }
+  }
+  .inline-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+    margin: 0.5rem 0;
   }
   .grid-input {
     display: flex;

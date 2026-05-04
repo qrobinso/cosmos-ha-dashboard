@@ -1,35 +1,222 @@
 import type { Scene, Widget } from '../store/scenes.js';
-import type { SceneState, WidgetState, WidgetData, ScenePushPayload } from './types.js';
+import type {
+  SceneState,
+  WidgetState,
+  WidgetData,
+  ScenePushPayload,
+  CalendarData,
+  CalendarEvent,
+  MediaPlayerData,
+  StatisticsData,
+  StatisticsPoint,
+  EntityState,
+} from './types.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
-import type { EntityState } from './types.js';
-import { MOCK_WEATHER, mockEntity } from './mockData.js';
+import {
+  MOCK_WEATHER,
+  mockEntity,
+  mockCalendar,
+  mockMediaPlayer,
+  mockHistory,
+} from './mockData.js';
 
 export type EntityResolver = (entityId: string) => EntityState | Promise<EntityState>;
 
+/** Optional async fetchers for widgets that need data beyond the entity cache. */
+export type DataResolvers = {
+  /** Resolve a single entity (defaults to the mock fixtures). */
+  resolveEntity?: EntityResolver;
+  /** Calendar events from a `calendar.*` entity. Falls back to mock when absent. */
+  resolveCalendarEvents?: (entityId: string, opts: { start: Date; end: Date }) => Promise<CalendarEvent[]>;
+  /** State history for a single entity. Falls back to mock when absent. */
+  resolveHistory?: (entityId: string, opts: { start: Date; end: Date }) => Promise<StatisticsPoint[]>;
+};
+
 export const mockEntityResolver: EntityResolver = (entityId) => mockEntity(entityId);
 
-async function dataFor(widget: Widget, resolver: EntityResolver): Promise<WidgetData> {
+/* -------------------------------------------------------------------------- */
+/*  Per-widget data shaping                                                    */
+/* -------------------------------------------------------------------------- */
+
+function readNumber(cfg: Record<string, unknown>, key: string, fallback: number): number {
+  const v = cfg[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+function readString(cfg: Record<string, unknown>, key: string, fallback = ''): string {
+  const v = cfg[key];
+  return typeof v === 'string' ? v : fallback;
+}
+
+async function calendarData(widget: Widget, deps: DataResolvers): Promise<CalendarData> {
+  const cfg = widget.config as Record<string, unknown>;
+  const entityId = readString(cfg, 'entity_id', 'calendar.home');
+  const daysAhead = readNumber(cfg, 'days_ahead', 2);
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + Math.max(1, Math.min(30, daysAhead)));
+
+  let events: CalendarEvent[];
+  if (deps.resolveCalendarEvents) {
+    try {
+      events = await deps.resolveCalendarEvents(entityId, { start, end });
+    } catch {
+      events = mockCalendar(entityId).events;
+    }
+  } else {
+    events = mockCalendar(entityId).events;
+  }
+
+  return {
+    entity_id: entityId,
+    friendly_name: entityId.replace(/^calendar\./, '').replace(/_/g, ' '),
+    events,
+  };
+}
+
+async function mediaPlayerData(widget: Widget, resolver: EntityResolver): Promise<MediaPlayerData> {
+  const cfg = widget.config as Record<string, unknown>;
+  const entityId = readString(cfg, 'entity_id');
+  if (!entityId) return mockMediaPlayer('media_player.unknown');
+
+  // Pull the entity from the cache (or mock fixture); shape it into a MediaPlayerData.
+  const entity = await resolver(entityId);
+  if (!entity) return mockMediaPlayer(entityId);
+
+  // If the resolver returned a placeholder mock entity (state 'unknown' with no media attrs),
+  // fall back to the rich media-player fixture so dev mode shows real-looking content.
+  const a = entity.attributes as Record<string, unknown>;
+  const hasMediaAttrs =
+    typeof a.media_title === 'string' ||
+    typeof a.media_artist === 'string' ||
+    typeof a.entity_picture === 'string' ||
+    typeof a.app_name === 'string';
+  if (entity.state === 'unknown' && !hasMediaAttrs) {
+    return mockMediaPlayer(entityId);
+  }
+
+  const supportedFeatures = typeof a.supported_features === 'number' ? a.supported_features : 0;
+  // HA media_player supported_features bitmask (subset)
+  const PAUSE = 1, PLAY = 16384, PREV = 16, NEXT = 32, VOLUME_SET = 4, SELECT_SOURCE = 2048;
+
+  const mediaArtUrl = typeof a.entity_picture === 'string' ? a.entity_picture : undefined;
+  const muted = typeof a.is_volume_muted === 'boolean' ? a.is_volume_muted : undefined;
+
+  return {
+    entity_id: entity.entity_id,
+    state: (['playing','paused','idle','on','off','standby','buffering'].includes(entity.state)
+      ? entity.state
+      : 'unknown') as MediaPlayerData['state'],
+    friendly_name: typeof a.friendly_name === 'string' ? a.friendly_name : undefined,
+    title: typeof a.media_title === 'string' ? a.media_title : undefined,
+    artist: typeof a.media_artist === 'string' ? a.media_artist : undefined,
+    album: typeof a.media_album_name === 'string' ? a.media_album_name : undefined,
+    album_art_url: mediaArtUrl,
+    position: typeof a.media_position === 'number' ? a.media_position : undefined,
+    duration: typeof a.media_duration === 'number' ? a.media_duration : undefined,
+    volume: typeof a.volume_level === 'number' ? a.volume_level : undefined,
+    muted,
+    source: typeof a.source === 'string' ? a.source : undefined,
+    app: typeof a.app_name === 'string' ? a.app_name : undefined,
+    supports: {
+      play_pause: !!(supportedFeatures & (PLAY | PAUSE)),
+      next: !!(supportedFeatures & NEXT),
+      previous: !!(supportedFeatures & PREV),
+      volume_set: !!(supportedFeatures & VOLUME_SET),
+      select_source: !!(supportedFeatures & SELECT_SOURCE),
+    },
+  };
+}
+
+async function statisticsData(
+  widget: Widget,
+  deps: DataResolvers,
+  resolver: EntityResolver
+): Promise<StatisticsData> {
+  const cfg = widget.config as Record<string, unknown>;
+  const entityId = readString(cfg, 'entity_id');
+  const hoursBack = Math.max(1, Math.min(168, readNumber(cfg, 'hours_back', 24)));
+  if (!entityId) return mockHistory('sensor.unknown', hoursBack);
+
+  const end = new Date();
+  const start = new Date(end.getTime() - hoursBack * 3_600_000);
+
+  let points: StatisticsPoint[] = [];
+  if (deps.resolveHistory) {
+    try {
+      points = await deps.resolveHistory(entityId, { start, end });
+    } catch {
+      /* fall through to mock */
+    }
+  }
+  if (points.length === 0) {
+    return mockHistory(entityId, hoursBack);
+  }
+
+  // Pull friendly_name + unit from the live entity if available.
+  const entity = await resolver(entityId);
+  const a = (entity?.attributes ?? {}) as Record<string, unknown>;
+  const unit = typeof a.unit_of_measurement === 'string' ? a.unit_of_measurement : undefined;
+  const friendly = typeof a.friendly_name === 'string' ? a.friendly_name : entityId;
+
+  let min = points[0].v;
+  let max = points[0].v;
+  for (const p of points) {
+    if (p.v < min) min = p.v;
+    if (p.v > max) max = p.v;
+  }
+
+  return {
+    entity_id: entityId,
+    friendly_name: friendly,
+    unit,
+    current: points[points.length - 1]?.v,
+    min: Math.round(min * 100) / 100,
+    max: Math.round(max * 100) / 100,
+    points,
+  };
+}
+
+async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData> {
+  const resolver = deps.resolveEntity ?? mockEntityResolver;
   switch (widget.kind) {
     case 'clock':
       return null;
     case 'weather':
       return MOCK_WEATHER;
     case 'entity_tile': {
-      const entityId = String((widget.config as { entity_id?: string }).entity_id ?? '');
+      const entityId = readString(widget.config as Record<string, unknown>, 'entity_id');
       return await resolver(entityId);
     }
+    case 'calendar':
+      return await calendarData(widget, deps);
+    case 'media_player':
+      return await mediaPlayerData(widget, resolver);
+    case 'statistics':
+      return await statisticsData(widget, deps, resolver);
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Public assembler API                                                       */
+/* -------------------------------------------------------------------------- */
 
 export async function buildSceneState(
   scene: Scene,
   safeArea: { top: number; right: number; bottom: number; left: number },
-  resolver: EntityResolver = mockEntityResolver
+  resolverOrDeps: EntityResolver | DataResolvers = mockEntityResolver
 ): Promise<SceneState> {
+  // Backwards-compat: callers that pass a plain resolver function still work.
+  const deps: DataResolvers =
+    typeof resolverOrDeps === 'function'
+      ? { resolveEntity: resolverOrDeps }
+      : resolverOrDeps;
+
   const widgets: WidgetState[] = [];
   for (const w of scene.widgets) {
-    widgets.push({ ...w, data: await dataFor(w, resolver) });
+    widgets.push({ ...w, data: await dataFor(w, deps) });
   }
   return {
     id: scene.id,
@@ -52,6 +239,9 @@ export type AssemblePushArgs = {
   overrides: OverridesRepo;
   explicitTransitionId?: string | null;
   resolver?: EntityResolver;
+  /** Optional async fetchers for calendar / history. */
+  resolveCalendarEvents?: DataResolvers['resolveCalendarEvents'];
+  resolveHistory?: DataResolvers['resolveHistory'];
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -67,7 +257,11 @@ export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor 
 }
 
 export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPayload> {
-  const state = await buildSceneState(args.scene, args.safeArea, args.resolver);
+  const state = await buildSceneState(args.scene, args.safeArea, {
+    resolveEntity: args.resolver,
+    resolveCalendarEvents: args.resolveCalendarEvents,
+    resolveHistory: args.resolveHistory,
+  });
   const transition = resolveTransition(args);
   return transition ? { type: 'scene', state, transition } : { type: 'scene', state };
 }

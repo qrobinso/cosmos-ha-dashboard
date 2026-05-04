@@ -14,7 +14,75 @@ export type EntityState = {
 };
 export type EntityTileData = EntityState;
 
-export type WidgetData = ClockData | WeatherData | EntityTileData;
+/** Calendar agenda — mirrors the shape HA's `calendar.get_events` returns. */
+export type CalendarEvent = {
+  summary: string;
+  description?: string;
+  location?: string;
+  /** ISO-8601 datetime. For all-day events, this is a date with start-of-day. */
+  start: string;
+  /** ISO-8601 datetime. For all-day events, exclusive end-of-day. */
+  end: string;
+  all_day: boolean;
+};
+export type CalendarData = {
+  /** entity_id of the source calendar (for friendly-name lookups). */
+  entity_id: string;
+  friendly_name?: string;
+  events: CalendarEvent[];
+};
+
+/** Media player — mirrors HA `media_player.*` attributes. */
+export type MediaPlayerData = {
+  entity_id: string;
+  state: 'playing' | 'paused' | 'idle' | 'on' | 'off' | 'standby' | 'buffering' | 'unknown';
+  friendly_name?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  album_art_url?: string;
+  /** seconds */
+  position?: number;
+  /** seconds */
+  duration?: number;
+  /** 0..1 */
+  volume?: number;
+  muted?: boolean;
+  source?: string;
+  /** App reporting playback (e.g. "Spotify"). */
+  app?: string;
+  supports?: {
+    play_pause?: boolean;
+    next?: boolean;
+    previous?: boolean;
+    volume_set?: boolean;
+    select_source?: boolean;
+  };
+};
+
+/** Statistics / history graph — sparkline series. */
+export type StatisticsPoint = {
+  /** Unix epoch milliseconds. */
+  t: number;
+  v: number;
+};
+export type StatisticsData = {
+  entity_id: string;
+  friendly_name?: string;
+  unit?: string;
+  current?: number;
+  min?: number;
+  max?: number;
+  points: StatisticsPoint[];
+};
+
+export type WidgetData =
+  | ClockData
+  | WeatherData
+  | EntityTileData
+  | CalendarData
+  | MediaPlayerData
+  | StatisticsData;
 
 export type WidgetState = Widget & { data: WidgetData };
 

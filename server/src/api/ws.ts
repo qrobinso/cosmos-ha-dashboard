@@ -15,6 +15,8 @@ export type WsDeps = {
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
   resolveEntity?: import('../scenes/assembler.js').EntityResolver;
+  resolveCalendarEvents?: import('../scenes/assembler.js').DataResolvers['resolveCalendarEvents'];
+  resolveHistory?: import('../scenes/assembler.js').DataResolvers['resolveHistory'];
   onDisplayOnline?: (displayId: string, name: string) => void;
   onDisplayOffline?: (displayId: string, name: string) => void;
   onSceneActivated?: (displayId: string, sceneName: string | null) => void;
@@ -67,6 +69,8 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       overrides: deps.overrides,
       explicitTransitionId,
       resolver: deps.resolveEntity,
+      resolveCalendarEvents: deps.resolveCalendarEvents,
+      resolveHistory: deps.resolveHistory,
     });
     lastSceneByDisplay.set(displayId, scene.id);
     deps.onSceneActivated?.(displayId, scene.name);

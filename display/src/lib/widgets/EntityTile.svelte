@@ -61,11 +61,11 @@
     border-radius: 0.75rem;
   }
   .label {
-    font-size: 0.85rem;
+    font-size: calc(min(8cqmin, 14cqh) * var(--cosmos-font-scale, 1));
     opacity: 0.7;
   }
   .value {
-    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-size: calc(min(20cqmin, 32cqh) * var(--cosmos-font-scale, 1));
     font-weight: 300;
     line-height: 1;
   }
@@ -75,7 +75,7 @@
     margin-left: 0.25rem;
   }
   .sub {
-    font-size: 0.85rem;
+    font-size: calc(min(7cqmin, 12cqh) * var(--cosmos-font-scale, 1));
     opacity: 0.6;
     margin-top: auto;
   }

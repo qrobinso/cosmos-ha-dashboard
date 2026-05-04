@@ -42,13 +42,13 @@
     gap: 0.25rem;
   }
   .temp {
-    font-size: clamp(2rem, 6vw, 4rem);
+    font-size: calc(min(18cqmin, 28cqh) * var(--cosmos-font-scale, 1));
     font-weight: 200;
     line-height: 1;
   }
   .condition {
     opacity: 0.75;
-    font-size: 0.95rem;
+    font-size: calc(min(7cqmin, 11cqh) * var(--cosmos-font-scale, 1));
   }
   .forecast {
     display: grid;
@@ -61,7 +61,7 @@
     flex-direction: column;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.8rem;
+    font-size: calc(min(6cqmin, 10cqh) * var(--cosmos-font-scale, 1));
   }
   .day-name {
     opacity: 0.7;
