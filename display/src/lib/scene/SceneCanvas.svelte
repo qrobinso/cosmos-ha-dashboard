@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SceneState } from '$lib/types';
   import WidgetSlot from './WidgetSlot.svelte';
+  import Clock from '$lib/widgets/Clock.svelte';
 
   export let scene: SceneState;
 </script>
@@ -15,8 +16,10 @@
            grid-template-rows: repeat({scene.layout.rows}, 1fr);"
   >
     {#each scene.widgets as widget (widget.id)}
-      <WidgetSlot {widget}>
-        <slot name="widget" {widget} />
+      <WidgetSlot {widget} let:widget={w}>
+        {#if w.kind === 'clock'}
+          <Clock widget={w} />
+        {/if}
       </WidgetSlot>
     {/each}
   </div>
