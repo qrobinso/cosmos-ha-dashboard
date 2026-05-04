@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import { runMigrations } from '../src/store/migrations.js';
 
 describe('runMigrations', () => {
-  it('creates displays and settings tables on a fresh database', () => {
+  it('creates all tables on a fresh database', () => {
     const db = new Database(':memory:');
     runMigrations(db);
     const tables = db
@@ -13,13 +13,29 @@ describe('runMigrations', () => {
     expect(names).toContain('displays');
     expect(names).toContain('settings');
     expect(names).toContain('schema_version');
+    expect(names).toContain('scenes');
+    expect(names).toContain('widgets');
+    expect(names).toContain('scenes_displays');
   });
 
-  it('is idempotent', () => {
+  it('adds default_scene_id and current_scene_id columns to displays', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const cols = db
+      .prepare("PRAGMA table_info('displays')")
+      .all() as { name: string }[];
+    const names = cols.map((c) => c.name);
+    expect(names).toContain('default_scene_id');
+    expect(names).toContain('current_scene_id');
+  });
+
+  it('records both migration versions and is idempotent', () => {
     const db = new Database(':memory:');
     runMigrations(db);
     runMigrations(db);
-    const version = db.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number };
-    expect(version.v).toBe(1);
+    const versions = db
+      .prepare('SELECT version FROM schema_version ORDER BY version')
+      .all() as { version: number }[];
+    expect(versions.map((r) => r.version)).toEqual([1, 2]);
   });
 });
