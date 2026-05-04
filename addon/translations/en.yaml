@@ -1,0 +1,6 @@
+configuration:
+  log_level:
+    name: Log level
+    description: Verbosity of the Cosmos server logs. `trace`/`debug` enable verbose Node logging.
+network:
+  8099/tcp: Web UI port (kiosk + admin).
