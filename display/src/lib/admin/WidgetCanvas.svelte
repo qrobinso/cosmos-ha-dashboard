@@ -142,7 +142,6 @@
     border-radius: 0.5rem;
     overflow: hidden;
     user-select: none;
-    touch-action: none;
   }
   .cell {
     border-right: 1px dashed #1f1f1f;
@@ -165,6 +164,7 @@
     overflow: hidden;
     padding: 0.25rem;
     box-sizing: border-box;
+    touch-action: none;
   }
   .widget-rect:active {
     cursor: grabbing;
