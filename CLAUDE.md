@@ -27,6 +27,7 @@ DB_PATH="$(pwd)/data/cosmos.db" npm --workspace server start
 - `ha/` (server) — HA websocket client. Subscribes to `state_changed`, maintains an in-memory entity cache, fires reactive scene re-pushes when an active scene's widgets read an entity that changes.
 - `mqtt/` (server) — MQTT client + HA discovery payload builder + command parser. Optional; degrades gracefully when `MQTT_URL` is unset.
 - `overlay/` (server) — `OverlayMessage` type + WS push helpers (`pushOverlayTo`, `dismissOverlayFor`, …) for the toast/banner primitive.
+- `addon/` — Home Assistant add-on packaging: `config.yaml` (manifest with ingress + panel), `Dockerfile` (multi-stage build), `run.sh` (entrypoint), `DOCS.md` / `CHANGELOG.md` / `translations/en.yaml`. The add-on auto-discovers the Supervisor token + MQTT broker; users install it from the HA add-on store after adding `https://github.com/qrobinso/cosmos-dashboard` as a repository.
 
 WebSocket protocol (server → display):
 - `{type: 'welcome', displayId, message}` — sent on hello.
@@ -80,4 +81,4 @@ Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enabl
 - Plan 3: ✅ Shipped — transition engine with 6 built-ins + per-scene defaults + explicit overrides.
 - Plan 4: ✅ Shipped — HA + MQTT integration with reactive entity-driven scene push, MQTT discovery + command topics, message overlay primitive.
 - Plan 5: ✅ Shipped — admin editor at `/admin` for scenes, displays, settings. Iframe-friendly for HA sidebar panel mounting in Plan 6.
-- Plan 6: Home Assistant add-on packaging.
+- Plan 6: ✅ Shipped — installable HA add-on with Supervisor auto-discovery, Ingress sidebar panel, multi-arch Docker images.

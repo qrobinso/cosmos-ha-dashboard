@@ -16,6 +16,7 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - `src/ha/` — HA client interface, real implementation (`home-assistant-js-websocket`), in-memory entity cache, fake client for tests.
 - `src/mqtt/` — MQTT client interface, real implementation (`mqtt`), command parser (pure), HA discovery payload builder, fake client for tests.
 - `src/overlay/` — overlay message type.
+- `src/ha/supervisor.ts` — helpers for Supervisor service discovery. When `SUPERVISOR_TOKEN` is set (i.e. running as an HA add-on), the server falls back to `http://supervisor/core` for HA Core API and queries `http://supervisor/services/mqtt` for the broker URL.
 - `src/api/ha-entities.ts` — `GET /api/ha/entities` listing cached HA entities (or mock fixtures when HA is disabled). Used by the admin editor's entity picker.
 
 ## Conventions
