@@ -55,6 +55,9 @@ REST highlights:
 - `scenes` repo `list()` and `listAssignedTo()` do N+1 widget queries — fine at < ~10 scenes.
 - Widget input is not validated at the API layer (any JSON shape is accepted). Validation belongs at the API boundary; add when an editor UI lands (Plan 5).
 - `Fastify({logger: false})` is hardcoded — wire to config when production logging matters.
+- Scene `font_family` strings are matched to CSS variables by stripping spaces (`'Space Grotesk'` → `--cosmos-font-SpaceGrotesk`). Nothing enforces consistency between DB values and CSS variable names. Plan 5's editor UI should validate against an enum (or store a canonical key + map).
+- `Weather.svelte` hardcodes `grid-template-columns: repeat(5, 1fr)` for the forecast row. The mock data is always 5 days, but `WeatherForecastDay[]` has no length constraint. Loosen to `repeat(auto-fill, minmax(...))` or pin the type when Plan 4 wires real HA data.
+- `display/src/lib/ws.ts` reports `error`/`close` but does not retry. Reconnection-with-backoff should land before or alongside Plan 3's transition engine, otherwise a network blip leaves the page on a stale scene.
 
 ## Roadmap
 
