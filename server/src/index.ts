@@ -84,6 +84,76 @@ async function main() {
     });
   }
 
+  // MQTT setup
+  let mqttClient: import('./mqtt/types.js').MqttClient | null = null;
+
+  function resolveTargetDisplays(target: string): { id: string; name: string }[] {
+    if (target === 'all') return displays.list().map((d) => ({ id: d.id, name: d.name }));
+    const decoded = decodeURIComponent(target);
+    const byName = displays.getByName(decoded);
+    if (byName) return [{ id: byName.id, name: byName.name }];
+    const byId = displays.getById(decoded);
+    if (byId) return [{ id: byId.id, name: byId.name }];
+    return [];
+  }
+
+  function dispatchOverlay(target: string, message: import('./overlay/types.js').OverlayMessage) {
+    for (const d of resolveTargetDisplays(target)) wssRef?.pushOverlayTo(d.id, message);
+  }
+  function dispatchDismiss(target: string) {
+    for (const d of resolveTargetDisplays(target)) wssRef?.dismissOverlayFor(d.id);
+  }
+  function dispatchShowScene(target: string, sceneName: string) {
+    const scene = scenes.getByName(sceneName);
+    if (!scene) return;
+    for (const d of resolveTargetDisplays(target)) {
+      displays.setCurrentScene(d.id, scene.id);
+      void wssRef?.pushSceneTo(d.id);
+    }
+  }
+
+  if (config.mqttUrl) {
+    try {
+      console.log(`connecting to MQTT at ${config.mqttUrl}`);
+      const { makeMqttClient } = await import('./mqtt/client.js');
+      mqttClient = await makeMqttClient(config.mqttUrl);
+      console.log('MQTT connected');
+
+      const { buildDiscoveryPayloads } = await import('./mqtt/discovery.js');
+      const { parseCommandTopic } = await import('./mqtt/commands.js');
+
+      function publishDiscovery() {
+        if (!mqttClient) return;
+        const list = displays.list().map((d) => ({ id: d.id, name: d.name }));
+        for (const p of buildDiscoveryPayloads(list)) {
+          mqttClient.publish(p.topic, p.payload, { retain: p.retain });
+        }
+      }
+      publishDiscovery();
+
+      mqttClient.subscribe('cosmos/+/message/set', (topic, payload) => {
+        const cmd = parseCommandTopic(topic, payload);
+        if (cmd?.kind !== 'show_message') return;
+        dispatchOverlay(cmd.target, cmd.message);
+      });
+      mqttClient.subscribe('cosmos/+/message/dismiss', (topic, payload) => {
+        const cmd = parseCommandTopic(topic, payload);
+        if (cmd?.kind !== 'dismiss_message') return;
+        dispatchDismiss(cmd.target);
+      });
+      mqttClient.subscribe('cosmos/+/scene/set', (topic, payload) => {
+        const cmd = parseCommandTopic(topic, payload);
+        if (cmd?.kind !== 'show_scene') return;
+        dispatchShowScene(cmd.target, cmd.sceneName);
+      });
+    } catch (err) {
+      console.error('MQTT connection failed; overlay/scene commands unavailable', err);
+      mqttClient = null;
+    }
+  } else {
+    console.log('MQTT_URL not set; overlay commands unavailable');
+  }
+
   await app.listen({ port: config.port, host: config.host });
   console.log(`cosmos server listening on http://${config.host}:${config.port}`);
 
@@ -96,6 +166,7 @@ async function main() {
       wss.close();
       await app.close();
       await haClient?.close();
+      await mqttClient?.close();
       db.close();
     } catch (err) {
       console.error('error during shutdown', err);
