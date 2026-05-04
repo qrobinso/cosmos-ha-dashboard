@@ -3045,6 +3045,179 @@ git status
 
 ---
 
+## Task 17: CLAUDE.md docs for future agents
+
+After the implementation is verified end-to-end, write CLAUDE.md files so the next agent picking up this repo has the context to be productive immediately.
+
+**Files:**
+- Create: `CLAUDE.md` (repo root)
+- Create: `server/CLAUDE.md`
+- Create: `display/CLAUDE.md`
+
+- [ ] **Step 1: Create root `CLAUDE.md`**
+
+```markdown
+# Cosmos Dashboard
+
+Wall dashboard for Home Assistant. Two-package npm workspace: a Node/TypeScript server (`server/`) and a SvelteKit static display app (`display/`).
+
+## Quick start
+
+```bash
+npm install
+npm test                                       # run server test suite
+npm run dev:server                             # http://localhost:8099
+npm run dev:display                            # http://localhost:5173 (proxies /api + /ws to 8099)
+npm run build                                  # build display + server for production
+```
+
+To run the production server (bundles the built display via @fastify/static):
+
+```bash
+npm run build
+DB_PATH="$(pwd)/data/cosmos.db" npm --workspace server start
+```
+
+## Architecture (current)
+
+- `server/` — Node + TypeScript + Fastify + ws + better-sqlite3. Holds scene config in SQLite; pushes scene state over WebSocket to displays. See `server/CLAUDE.md`.
+- `display/` — SvelteKit + adapter-static. Built artifacts at `display/build/` are served by the server. See `display/CLAUDE.md`.
+
+WebSocket protocol (server → display):
+- `{type: 'welcome', displayId, message}` — sent on hello.
+- `{type: 'scene', state: SceneState}` — sent on hello (if a scene is assigned) and whenever the active scene changes via REST.
+- `{type: 'error', error}` — error reporting.
+
+REST highlights:
+- `POST /api/displays/register {name}` — register/find a display.
+- `GET /api/displays` — list displays.
+- `POST /api/scenes` / `GET /api/scenes` / `GET /api/scenes/:id` / `PUT /api/scenes/:id` / `DELETE /api/scenes/:id` — scene CRUD.
+- `POST /api/displays/:name/assign-scene {sceneId, makeDefault?}` — assign a scene to a display.
+- `GET /api/settings/safe-area` / `PUT /api/settings/safe-area {top,right,bottom,left}` — global safe-area padding.
+
+## Where to look
+
+- `docs/superpowers/plans/` — implementation plans (Plan 1 = Foundation, Plan 2 = Scenes & widgets, future plans coming).
+- `docs/superpowers/specs/` — design specs (currently embedded inside the plans; standalone specs may land later).
+
+## Conventions
+
+- TDD: write the failing test first, run it and observe failure, implement, observe pass, then commit.
+- Conventional commits: `feat|fix|chore|refactor(scope): subject`.
+- Frequent small commits; each task in a plan is its own commit.
+- Modules have one job; files stay focused enough to hold in context at once.
+- Never modify Plan 1 / Plan 2 plan files retroactively; if a plan is wrong, surface it as a deviation in the implementer's report.
+
+## Known tech debt (carry forward)
+
+- `displays.registerByName` has a SELECT-then-INSERT race — fine at single-user scale, fix when concurrent reconnections become a thing.
+- `scenes` repo `list()` and `listAssignedTo()` do N+1 widget queries — fine at < ~10 scenes.
+- Widget input is not validated at the API layer (any JSON shape is accepted). Validation belongs at the API boundary; add when an editor UI lands (Plan 5).
+- `Fastify({logger: false})` is hardcoded — wire to config when production logging matters.
+
+## Roadmap
+
+- Plan 3: Transition engine (Out → Bridge → In choreography between scenes).
+- Plan 4: HA + MQTT integration (real entity state, MQTT discovery, message overlay primitive).
+- Plan 5: Editor UI inside an HA sidebar panel.
+- Plan 6: Home Assistant add-on packaging.
+```
+
+- [ ] **Step 2: Create `server/CLAUDE.md`**
+
+```markdown
+# Cosmos Server
+
+Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` persistence.
+
+## Layout
+
+- `src/config.ts` — env-driven runtime config. Path defaults are anchored to `import.meta.url` so the process works from any CWD.
+- `src/store/` — pure persistence. One file per concern: `db.ts` (connection), `migrations.ts` (versioned, transactional), `displays.ts`, `settings.ts`, `scenes.ts`.
+- `src/api/` — pure transport. `http.ts` builds the Fastify app and registers routes; `scenes.ts` registers scene-related routes; `ws.ts` attaches the WebSocket hub on the Fastify HTTP server.
+- `src/scenes/` — domain logic for assembling scene state. `types.ts` defines `SceneState`/`WidgetState`; `mockData.ts` holds fixtures used until Plan 4 wires HA; `assembler.ts` builds a `SceneState` from a `Scene` + safe area.
+- `src/static.ts` — serves the SvelteKit build via `@fastify/static`. Skips silently if the build dir is missing.
+- `src/index.ts` — entrypoint. Opens DB, runs migrations, builds repos, builds Fastify, attaches WS, listens. Has SIGTERM/SIGINT graceful shutdown.
+
+## Conventions
+
+- ESM (`"type": "module"`). Imports use `.js` extensions because TypeScript is configured with `moduleResolution: "Bundler"`. This works for both `tsx` (dev) and `tsc` (build).
+- Repos are factories: `createXRepo(db) → XRepo`. Prepared statements live in the closure; no per-call SQL strings.
+- JSON columns are serialized at the repo boundary; consumers see typed objects.
+- Migrations are versioned; the runner tracks `schema_version`. Each new migration adds an entry — never edit a published migration.
+- All tests use `:memory:` SQLite + real factories. No mocks of the DB.
+
+## Adding things
+
+- A new widget kind: extend `WidgetKind` in `store/scenes.ts`, add a case in `scenes/assembler.ts` `dataFor()`, add a renderer in the display app.
+- A new REST endpoint: register it in `api/http.ts` (or a new file under `api/` if scoped). Pass repo deps through `HttpDeps`.
+- A new migration: append to `migrations.ts` with the next `version` number. Never modify version 1 or 2.
+
+## Tests
+
+```bash
+npm --workspace server test                  # full suite
+npm --workspace server test -- scenes        # filter
+npm --workspace server test -- ws            # filter
+```
+
+The WS tests start a real Fastify on an ephemeral port (`port: 0`) and connect with a real `ws.WebSocket` client. They are integration tests, not mocks.
+```
+
+- [ ] **Step 3: Create `display/CLAUDE.md`**
+
+```markdown
+# Cosmos Display
+
+SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin in production; in dev, Vite proxies `/api` and `/ws` to `http://localhost:8099`.
+
+## Layout
+
+- `src/routes/+page.svelte` — single page. Three states: onboarding form (no display name), `<SceneCanvas>` (scene received), greeting fallback (display registered but no scene assigned). Connects to the server WS, persists display name in `localStorage`.
+- `src/routes/+layout.svelte` — imports `$lib/fonts.css` so bundled fonts are loaded once.
+- `src/lib/types.ts` — mirror of the server's `SceneState`/`WidgetState` types. Keep in sync.
+- `src/lib/storage.ts` — SSR-safe localStorage helpers for the display name.
+- `src/lib/ws.ts` — `connect(displayName, onMessage)` opens a WebSocket, sends hello on open, parses messages, exposes typed `ServerMessage` to callers. Handles `error`/`close` and reports both as `{type:'error'}`.
+- `src/lib/scene/SceneCanvas.svelte` — composes `<Background>` + a CSS Grid widget layer. Reads `scene.layout.{cols,rows}` for grid dimensions, `scene.safeArea` for padding, `scene.typography` for font family + scale (CSS variable `--cosmos-font-scale`).
+- `src/lib/scene/WidgetSlot.svelte` — positions a widget into its grid cell.
+- `src/lib/widgets/` — one file per widget kind. Render functions only; data arrives via `widget.data` from the server.
+  - `Clock.svelte` — renders local time + date; updates every 30s.
+  - `Weather.svelte` — renders `widget.data` as `WeatherData`.
+  - `EntityTile.svelte` — type-aware: picks a renderer based on entity domain (`light`, `switch`, `binary_sensor`, `sensor`, `climate`, `lock`, `cover`, fallback).
+- `src/lib/backgrounds/` — `Background.svelte` dispatches to `Solid.svelte` or `Gradient.svelte`. Gradient runs an infinite CSS animation (continuously moving) and respects `prefers-reduced-motion`.
+- `src/lib/fonts.css` — `@fontsource/*` imports. Defines `--cosmos-font-Inter` etc. CSS variables.
+
+## Conventions
+
+- All animation is CSS-driven (`@keyframes`, `transition`, `background-position`). No JS in the render loop.
+- Widgets read `widget.data` directly. They do not fetch or compute data.
+- No display-side test suite yet — the end-to-end Playwright smoke in plan verification is the gate.
+- Inline styles are intentional during early plans; design language solidifies in later plans.
+
+## Adding a widget
+
+1. Add the kind to `WidgetKind` in this file's `types.ts` and the server's `scenes.ts`.
+2. Create `src/lib/widgets/Foo.svelte` reading `widget` (and `widget.data` if the server provides any).
+3. Wire the dispatch in `SceneCanvas.svelte`: import `Foo`, add `{:else if w.kind === 'foo'}<Foo widget={w} />`.
+4. On the server: extend `assembler.ts` `dataFor()` if the widget needs server-resolved data.
+
+## Build
+
+```bash
+npm --workspace display run build            # writes display/build/
+npm --workspace display run dev              # http://localhost:5173 with HMR
+```
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add CLAUDE.md server/CLAUDE.md display/CLAUDE.md
+git commit -m "docs: add CLAUDE.md guides for repo, server, and display"
+```
+
+---
+
 ## Done criteria
 
 - `npm test` is green for the server (display has no test suite yet).
