@@ -12,10 +12,11 @@
   let stageState: StageState = controller.current();
   let unsubscribe = controller.subscribe((s) => (stageState = s));
 
-  let lastReceivedSceneId: string | null = null;
-  $: if (scene && scene.id !== lastReceivedSceneId) {
-    controller.receive(scene, transition);
-    lastReceivedSceneId = scene.id;
+  let lastSceneRef: typeof scene = null;
+  $: if (scene && scene !== lastSceneRef) {
+    const sceneChanged = lastSceneRef === null || lastSceneRef.id !== scene.id;
+    controller.receive(scene, sceneChanged ? transition : null);
+    lastSceneRef = scene;
   }
 
   onDestroy(() => unsubscribe());

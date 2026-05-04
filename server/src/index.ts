@@ -52,8 +52,9 @@ async function main() {
     : mockEntityResolver;
 
   let wssRef: ReturnType<typeof attachWsHub> | null = null;
+  let mqttClient: import('./mqtt/types.js').MqttClient | null = null;
   const onSceneChanged = (displayId: string, opts?: { explicitTransitionId?: string | null }) =>
-    void wssRef?.pushSceneTo(displayId, opts);
+    wssRef?.pushSceneTo(displayId, opts).catch((err) => console.error('pushSceneTo failed', err));
 
   const app = await buildHttpApp({
     displays,
@@ -62,7 +63,7 @@ async function main() {
     transitions,
     overrides,
     onSceneChanged,
-    onSettingsChanged: () => void wssRef?.pushSettingsChanged(),
+    onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
   });
   await registerStatic(app, config.staticDir);
   function publishOnline(displayId: string, _name: string) {
@@ -84,8 +85,9 @@ async function main() {
   wssRef = wss;
 
   // When HA emits a state change for an entity used by an active scene, re-push that scene.
+  let unsubHaStateChange: (() => void) | null = null;
   if (haClient) {
-    haClient.onStateChanged((entity) => {
+    unsubHaStateChange = haClient.onStateChanged((entity) => {
       const usedIds = widgetEntityIds(scenes);
       if (!usedIds.has(entity.entity_id)) return;
       for (const d of displays.list()) {
@@ -94,13 +96,10 @@ async function main() {
         const scene = scenes.get(activeId);
         if (!scene) continue;
         const usesIt = scene.widgets.some((w) => (w.config as { entity_id?: string }).entity_id === entity.entity_id);
-        if (usesIt) void wssRef?.pushSceneTo(d.id);
+        if (usesIt) wssRef?.pushSceneTo(d.id).catch((err) => console.error('pushSceneTo failed', err));
       }
     });
   }
-
-  // MQTT setup
-  let mqttClient: import('./mqtt/types.js').MqttClient | null = null;
 
   function resolveTargetDisplays(target: string): { id: string; name: string }[] {
     if (target === 'all') return displays.list().map((d) => ({ id: d.id, name: d.name }));
@@ -123,7 +122,7 @@ async function main() {
     if (!scene) return;
     for (const d of resolveTargetDisplays(target)) {
       displays.setCurrentScene(d.id, scene.id);
-      void wssRef?.pushSceneTo(d.id);
+      wssRef?.pushSceneTo(d.id).catch((err) => console.error('pushSceneTo failed', err));
     }
   }
 
@@ -180,6 +179,7 @@ async function main() {
     try {
       wss.close();
       await app.close();
+      unsubHaStateChange?.();
       await haClient?.close();
       await mqttClient?.close();
       db.close();
