@@ -24,11 +24,16 @@ DB_PATH="$(pwd)/data/cosmos.db" npm --workspace server start
 - `server/` — Node + TypeScript + Fastify + ws + better-sqlite3. Holds scene config in SQLite; pushes scene state over WebSocket to displays. See `server/CLAUDE.md`.
 - `display/` — SvelteKit + adapter-static. Built artifacts at `display/build/` are served by the server. See `display/CLAUDE.md`.
 - `transitions/` (server) — built-in transition descriptors + per-scene-pair overrides. Server resolves which transition applies on each scene activation; client runs the choreography.
+- `ha/` (server) — HA websocket client. Subscribes to `state_changed`, maintains an in-memory entity cache, fires reactive scene re-pushes when an active scene's widgets read an entity that changes.
+- `mqtt/` (server) — MQTT client + HA discovery payload builder + command parser. Optional; degrades gracefully when `MQTT_URL` is unset.
+- `overlay/` (server) — `OverlayMessage` type + WS push helpers (`pushOverlayTo`, `dismissOverlayFor`, …) for the toast/banner primitive.
 
 WebSocket protocol (server → display):
 - `{type: 'welcome', displayId, message}` — sent on hello.
 - `{type: 'scene', state: SceneState, transition?: TransitionDescriptor}` — sent on hello (without transition) and whenever the active scene changes (with transition resolved by the server).
 - `{type: 'error', error}` — error reporting.
+- `{type: 'overlay', overlay: OverlayMessage}` — push a banner to the display.
+- `{type: 'overlay_dismiss'}` — clear any visible banner.
 
 REST highlights:
 - `POST /api/displays/register {name}` — register/find a display.
@@ -38,6 +43,8 @@ REST highlights:
 - `GET /api/settings/safe-area` / `PUT /api/settings/safe-area {top,right,bottom,left}` — global safe-area padding.
 - `POST /api/displays/:name/scene/activate {sceneId, transitionId?}` — set the active scene with optional explicit transition override.
 - `GET /api/transitions` / `GET /api/transitions/:id` — list/get transitions.
+
+Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enables MQTT command dispatch + HA discovery. Without them, Cosmos uses mock entity data and overlay commands are unavailable.
 
 ## Where to look
 
@@ -70,6 +77,6 @@ REST highlights:
 ## Roadmap
 
 - Plan 3: ✅ Shipped — transition engine with 6 built-ins + per-scene defaults + explicit overrides.
-- Plan 4: HA + MQTT integration (real entity state, MQTT discovery, message overlay primitive).
+- Plan 4: ✅ Shipped — HA + MQTT integration with reactive entity-driven scene push, MQTT discovery + command topics, message overlay primitive.
 - Plan 5: Editor UI inside an HA sidebar panel.
 - Plan 6: Home Assistant add-on packaging.

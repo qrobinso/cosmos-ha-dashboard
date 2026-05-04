@@ -13,6 +13,9 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - `src/transitions/` — transition descriptor types + builtins.
 - `src/store/transitions.ts` — read-only repo for built-in transitions + a small overrides repo for per-scene-pair custom transitions.
 - `src/api/transitions.ts` — `GET /api/transitions(/:id)` exposed for the editor (Plan 5) and curl exploration.
+- `src/ha/` — HA client interface, real implementation (`home-assistant-js-websocket`), in-memory entity cache, fake client for tests.
+- `src/mqtt/` — MQTT client interface, real implementation (`mqtt`), command parser (pure), HA discovery payload builder, fake client for tests.
+- `src/overlay/` — overlay message type.
 
 ## Conventions
 
@@ -28,6 +31,7 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - A new REST endpoint: register it in `api/http.ts` (or a new file under `api/` if scoped). Pass repo deps through `HttpDeps`.
 - A new migration: append to `migrations.ts` with the next `version` number. Never modify version 1 or 2.
 - A new built-in transition: append to migration `transitions` seed (new migration version). Add the corresponding `@keyframes` block to `display/src/lib/transitions/keyframes.css`.
+- A new MQTT command: extend `parseCommandTopic` in `mqtt/commands.ts` and the matching dispatcher in `index.ts`.
 
 ## Tests
 
