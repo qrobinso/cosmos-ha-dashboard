@@ -64,7 +64,13 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   wss.on('connection', (socket: WebSocket) => {
     let ownDisplayId: string | null = null;
     socket.on('close', () => {
-      if (ownDisplayId) sockets.get(ownDisplayId)?.delete(socket);
+      if (!ownDisplayId) return;
+      const set = sockets.get(ownDisplayId);
+      set?.delete(socket);
+      if (set && set.size === 0) {
+        sockets.delete(ownDisplayId);
+        lastSceneByDisplay.delete(ownDisplayId);
+      }
     });
     socket.on('message', (raw) => {
       let parsed: unknown;
