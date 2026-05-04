@@ -1,0 +1,12 @@
+{
+  "name": "cosmos-dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": ["server", "display"],
+  "scripts": {
+    "dev:server": "npm --workspace server run dev",
+    "dev:display": "npm --workspace display run dev",
+    "build": "npm --workspace display run build && npm --workspace server run build",
+    "test": "npm --workspace server run test"
+  }
+}
