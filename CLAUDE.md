@@ -23,10 +23,11 @@ DB_PATH="$(pwd)/data/cosmos.db" npm --workspace server start
 
 - `server/` — Node + TypeScript + Fastify + ws + better-sqlite3. Holds scene config in SQLite; pushes scene state over WebSocket to displays. See `server/CLAUDE.md`.
 - `display/` — SvelteKit + adapter-static. Built artifacts at `display/build/` are served by the server. See `display/CLAUDE.md`.
+- `transitions/` (server) — built-in transition descriptors + per-scene-pair overrides. Server resolves which transition applies on each scene activation; client runs the choreography.
 
 WebSocket protocol (server → display):
 - `{type: 'welcome', displayId, message}` — sent on hello.
-- `{type: 'scene', state: SceneState}` — sent on hello (if a scene is assigned) and whenever the active scene changes via REST.
+- `{type: 'scene', state: SceneState, transition?: TransitionDescriptor}` — sent on hello (without transition) and whenever the active scene changes (with transition resolved by the server).
 - `{type: 'error', error}` — error reporting.
 
 REST highlights:
@@ -35,6 +36,8 @@ REST highlights:
 - `POST /api/scenes` / `GET /api/scenes` / `GET /api/scenes/:id` / `PUT /api/scenes/:id` / `DELETE /api/scenes/:id` — scene CRUD.
 - `POST /api/displays/:name/assign-scene {sceneId, makeDefault?}` — assign a scene to a display.
 - `GET /api/settings/safe-area` / `PUT /api/settings/safe-area {top,right,bottom,left}` — global safe-area padding.
+- `POST /api/displays/:name/scene/activate {sceneId, transitionId?}` — set the active scene with optional explicit transition override.
+- `GET /api/transitions` / `GET /api/transitions/:id` — list/get transitions.
 
 ## Where to look
 
@@ -61,7 +64,7 @@ REST highlights:
 
 ## Roadmap
 
-- Plan 3: Transition engine (Out → Bridge → In choreography between scenes).
+- Plan 3: ✅ Shipped — transition engine with 6 built-ins + per-scene defaults + explicit overrides.
 - Plan 4: HA + MQTT integration (real entity state, MQTT discovery, message overlay primitive).
 - Plan 5: Editor UI inside an HA sidebar panel.
 - Plan 6: Home Assistant add-on packaging.

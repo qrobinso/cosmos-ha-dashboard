@@ -17,6 +17,9 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
   - `EntityTile.svelte` — type-aware: picks a renderer based on entity domain (`light`, `switch`, `binary_sensor`, `sensor`, `climate`, `lock`, `cover`, fallback).
 - `src/lib/backgrounds/` — `Background.svelte` dispatches to `Solid.svelte` or `Gradient.svelte`. Gradient runs an infinite CSS animation (continuously moving) and respects `prefers-reduced-motion`.
 - `src/lib/fonts.css` — `@fontsource/*` imports. Defines `--cosmos-font-Inter` etc. CSS variables.
+- `src/lib/transitions/controller.ts` — `TransitionController` state machine. Drives the Out → Bridge → In phases on incoming scene changes. Honors `prefers-reduced-motion`.
+- `src/lib/transitions/keyframes.css` — `@keyframes` blocks named to match server descriptors (`cosmos-out-fade`, `cosmos-in-scale-fade`, etc.). Add a new pair when adding a new transition.
+- `src/lib/scene/TransitionStage.svelte` — wraps `SceneCanvas`. Mounts both outgoing and incoming canvases during a transition; applies CSS classes that drive the keyframe animations.
 
 ## Conventions
 

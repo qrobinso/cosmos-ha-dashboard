@@ -10,6 +10,9 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - `src/scenes/` — domain logic for assembling scene state. `types.ts` defines `SceneState`/`WidgetState`; `mockData.ts` holds fixtures used until Plan 4 wires HA; `assembler.ts` builds a `SceneState` from a `Scene` + safe area.
 - `src/static.ts` — serves the SvelteKit build via `@fastify/static`. Skips silently if the build dir is missing.
 - `src/index.ts` — entrypoint. Opens DB, runs migrations, builds repos, builds Fastify, attaches WS, listens. Has SIGTERM/SIGINT graceful shutdown.
+- `src/transitions/` — transition descriptor types + builtins.
+- `src/store/transitions.ts` — read-only repo for built-in transitions + a small overrides repo for per-scene-pair custom transitions.
+- `src/api/transitions.ts` — `GET /api/transitions(/:id)` exposed for the editor (Plan 5) and curl exploration.
 
 ## Conventions
 
@@ -24,6 +27,7 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - A new widget kind: extend `WidgetKind` in `store/scenes.ts`, add a case in `scenes/assembler.ts` `dataFor()`, add a renderer in the display app.
 - A new REST endpoint: register it in `api/http.ts` (or a new file under `api/` if scoped). Pass repo deps through `HttpDeps`.
 - A new migration: append to `migrations.ts` with the next `version` number. Never modify version 1 or 2.
+- A new built-in transition: append to migration `transitions` seed (new migration version). Add the corresponding `@keyframes` block to `display/src/lib/transitions/keyframes.css`.
 
 ## Tests
 
