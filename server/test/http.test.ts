@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { runMigrations } from '../src/store/migrations.js';
 import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
+import { createScenesRepo } from '../src/store/scenes.js';
 import { buildHttpApp } from '../src/api/http.js';
 
 function setup() {
@@ -10,7 +11,8 @@ function setup() {
   runMigrations(db);
   const displays = createDisplaysRepo(db);
   const settings = createSettingsRepo(db);
-  return buildHttpApp({ displays, settings });
+  const scenes = createScenesRepo(db);
+  return buildHttpApp({ displays, settings, scenes });
 }
 
 describe('HTTP API', () => {

@@ -1,10 +1,14 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { SettingsRepo } from '../store/settings.js';
+import type { ScenesRepo } from '../store/scenes.js';
+import { registerSceneRoutes } from './scenes.js';
 
 export type HttpDeps = {
   displays: DisplaysRepo;
   settings: SettingsRepo;
+  scenes: ScenesRepo;
+  onSceneChanged?: (displayId: string) => void;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -20,6 +24,12 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   });
 
   app.get('/api/displays', async () => deps.displays.list());
+
+  registerSceneRoutes(app, {
+    scenes: deps.scenes,
+    displays: deps.displays,
+    onSceneChanged: deps.onSceneChanged,
+  });
 
   return app;
 }

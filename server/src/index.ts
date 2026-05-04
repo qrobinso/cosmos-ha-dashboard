@@ -3,6 +3,7 @@ import { openDatabase } from './store/db.js';
 import { runMigrations } from './store/migrations.js';
 import { createDisplaysRepo } from './store/displays.js';
 import { createSettingsRepo } from './store/settings.js';
+import { createScenesRepo } from './store/scenes.js';
 import { buildHttpApp } from './api/http.js';
 import { attachWsHub } from './api/ws.js';
 import { registerStatic } from './static.js';
@@ -12,8 +13,9 @@ async function main() {
   runMigrations(db);
   const displays = createDisplaysRepo(db);
   const settings = createSettingsRepo(db);
+  const scenes = createScenesRepo(db);
 
-  const app = await buildHttpApp({ displays, settings });
+  const app = await buildHttpApp({ displays, settings, scenes });
   await registerStatic(app, config.staticDir);
   const wss = attachWsHub(app.server, { displays });
 
