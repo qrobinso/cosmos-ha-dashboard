@@ -10,7 +10,7 @@
   let greeting: string | null = null;
   let scene: SceneState | null = null;
   let error: string | null = null;
-  let socket: WebSocket | null = null;
+  let socket: { close(): void } | null = null;
 
   function handleMessage(msg: ServerMessage) {
     if (msg.type === 'welcome') {
