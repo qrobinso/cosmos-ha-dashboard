@@ -48,8 +48,10 @@ export class TransitionController {
   private advanceToBridge(): void {
     if (!this.state.transition) return;
     this.set({ ...this.state, phase: 'bridge' });
-    // Bridge is essentially zero-duration in v1; immediately advance to In.
-    this.timer = setTimeout(() => this.advanceToIn(), 16);
+    const bridgeMs = this.state.transition.bridge.background_morph
+      ? Math.round(this.state.transition.in.duration_ms * 0.5)
+      : 16;
+    this.timer = setTimeout(() => this.advanceToIn(), bridgeMs);
   }
 
   private advanceToIn(): void {
