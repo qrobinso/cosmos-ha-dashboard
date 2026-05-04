@@ -1,7 +1,8 @@
 import type { SceneState } from './types';
+import type { TransitionDescriptor } from './transitions/types';
 
 export type WelcomeMessage = { type: 'welcome'; displayId: string; message: string };
-export type SceneMessage = { type: 'scene'; state: SceneState };
+export type SceneMessage = { type: 'scene'; state: SceneState; transition?: TransitionDescriptor };
 export type ErrorMessage = { type: 'error'; error: string };
 export type ServerMessage = WelcomeMessage | SceneMessage | ErrorMessage;
 

@@ -28,6 +28,7 @@ export type SceneState = {
   layout: Layout;
   background: Background;
   typography: Typography;
+  defaultTransitionId: string | null;
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
 };
