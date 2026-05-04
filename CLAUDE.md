@@ -43,6 +43,7 @@ REST highlights:
 - `GET /api/settings/safe-area` / `PUT /api/settings/safe-area {top,right,bottom,left}` — global safe-area padding.
 - `POST /api/displays/:name/scene/activate {sceneId, transitionId?}` — set the active scene with optional explicit transition override.
 - `GET /api/transitions` / `GET /api/transitions/:id` — list/get transitions.
+- `GET /api/ha/entities[?domain=light]` — list cached HA entities (or mock entities when HA disabled).
 
 Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enables MQTT command dispatch + HA discovery. Without them, Cosmos uses mock entity data and overlay commands are unavailable.
 
@@ -78,5 +79,5 @@ Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enabl
 
 - Plan 3: ✅ Shipped — transition engine with 6 built-ins + per-scene defaults + explicit overrides.
 - Plan 4: ✅ Shipped — HA + MQTT integration with reactive entity-driven scene push, MQTT discovery + command topics, message overlay primitive.
-- Plan 5: Editor UI inside an HA sidebar panel.
+- Plan 5: ✅ Shipped — admin editor at `/admin` for scenes, displays, settings. Iframe-friendly for HA sidebar panel mounting in Plan 6.
 - Plan 6: Home Assistant add-on packaging.

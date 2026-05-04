@@ -21,6 +21,8 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
 - `src/lib/transitions/keyframes.css` — `@keyframes` blocks named to match server descriptors (`cosmos-out-fade`, `cosmos-in-scale-fade`, etc.). Add a new pair when adding a new transition.
 - `src/lib/scene/TransitionStage.svelte` — wraps `SceneCanvas`. Mounts both outgoing and incoming canvases during a transition; applies CSS classes that drive the keyframe animations.
 - `src/lib/overlay/MessageOverlay.svelte` — toast/banner overlay layered above the scene canvas. Auto-dismisses on `timeout_ms`; tappable to dismiss early. Reduced-motion safe.
+- `src/lib/admin/` — admin-only utilities (typed API helpers, generic `Field.svelte` form-field).
+- `src/routes/admin/` — admin editor pages: home (`+page.svelte`), scenes list (`scenes/+page.svelte`), scene editor (`scenes/[id]/+page.svelte`), displays manager (`displays/+page.svelte`), global settings (`settings/+page.svelte`). Utilitarian forms; no animation; system fonts. Iframe-friendly for HA sidebar mounting (Plan 6).
 
 ## Conventions
 
