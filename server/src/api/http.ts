@@ -5,6 +5,7 @@ import type { ScenesRepo } from '../store/scenes.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { registerSceneRoutes } from './scenes.js';
 import { registerTransitionRoutes } from './transitions.js';
+import { registerHaEntityRoutes } from './ha-entities.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 export const DEFAULT_SAFE_AREA: SafeArea = { top: 16, right: 16, bottom: 16, left: 16 };
@@ -31,6 +32,7 @@ export type HttpDeps = {
   scenes: ScenesRepo;
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
+  haClient?: import('../ha/types.js').HaClient | null;
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
   onSettingsChanged?: () => void;
 };
@@ -58,6 +60,8 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   });
 
   registerTransitionRoutes(app, deps.transitions);
+
+  registerHaEntityRoutes(app, { haClient: deps.haClient ?? null });
 
   registerSceneRoutes(app, {
     scenes: deps.scenes,

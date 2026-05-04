@@ -44,6 +44,7 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
   return {
     ready: () => readyPromise,
     getEntity: (id) => cache.get(id),
+    listEntities: () => cache.list(),
     onStateChanged: (h: StateChangedHandler) => cache.onChange(h),
     close: async () => {
       unsubscribe();

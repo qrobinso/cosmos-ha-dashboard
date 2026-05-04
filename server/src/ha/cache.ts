@@ -4,6 +4,7 @@ export type EntityCache = {
   set(entity: EntityState): void;
   setMany(entities: EntityState[]): void;
   get(entityId: string): EntityState | null;
+  list(): EntityState[];
   emitChange(entity: EntityState): void;
   onChange(handler: StateChangedHandler): () => void;
 };
@@ -20,6 +21,9 @@ export function createEntityCache(): EntityCache {
     },
     get(entityId) {
       return map.get(entityId) ?? null;
+    },
+    list() {
+      return Array.from(map.values());
     },
     emitChange(entity) {
       map.set(entity.entity_id, entity);

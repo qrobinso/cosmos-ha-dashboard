@@ -9,6 +9,8 @@ export type HaClient = {
   ready(): Promise<void>;
   /** Look up an entity from the local cache; returns null if unknown. */
   getEntity(entityId: string): EntityState | null;
+  /** Return all entities currently in the cache. */
+  listEntities(): EntityState[];
   /** Subscribe to incremental state changes. Returns an unsubscribe function. */
   onStateChanged(handler: StateChangedHandler): () => void;
   /** Disconnect cleanly. */

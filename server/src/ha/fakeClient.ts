@@ -14,6 +14,7 @@ export function createFakeHaClient(initial: EntityState[] = []): FakeHaClient {
   return {
     ready: async () => {},
     getEntity: (id) => cache.get(id),
+    listEntities: () => cache.list(),
     onStateChanged: (h) => cache.onChange(h),
     close: async () => {},
     set: (e) => cache.set(e),

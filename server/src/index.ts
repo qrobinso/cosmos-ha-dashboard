@@ -62,6 +62,7 @@ async function main() {
     scenes,
     transitions,
     overrides,
+    haClient,  // pass the live client (or null) so /api/ha/entities can read the cache
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
   });
