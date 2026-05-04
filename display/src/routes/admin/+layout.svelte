@@ -30,6 +30,11 @@
 </div>
 
 <style>
+  :global(html),
+  :global(body) {
+    height: auto;
+    overflow: auto;
+  }
   .admin-shell {
     min-height: 100vh;
     display: flex;
