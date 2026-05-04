@@ -148,7 +148,7 @@ const MEDIA_FIXTURES: Record<string, MediaPlayerData> = {
     title: "Hold On, We're Going Home",
     artist: 'Drake',
     album: 'Nothing Was the Same',
-    album_art_url: 'https://upload.wikimedia.org/wikipedia/en/f/f3/Drake_-_Nothing_Was_the_Same_cover.png',
+    album_art_url: 'https://upload.wikimedia.org/wikipedia/en/4/42/Drake_-_Nothing_Was_the_Same_cover.png',
     position: 134,
     duration: 228,
     volume: 0.42,
