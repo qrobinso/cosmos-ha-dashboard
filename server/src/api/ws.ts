@@ -13,11 +13,12 @@ export type WsDeps = {
   settings: SettingsRepo;
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
+  resolveEntity?: import('../scenes/assembler.js').EntityResolver;
 };
 
 export type CosmosWss = WebSocketServer & {
-  pushSceneTo(displayId: string, opts?: { explicitTransitionId?: string | null }): void;
-  pushSettingsChanged(): void;
+  pushSceneTo(displayId: string, opts?: { explicitTransitionId?: string | null }): Promise<void>;
+  pushSettingsChanged(): Promise<void>;
 };
 
 type ClientMessage = { type: 'hello'; displayName: string };
@@ -42,20 +43,21 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   const sockets = new Map<string, Set<WebSocket>>();
   const lastSceneByDisplay = new Map<string, string>();
 
-  function buildPayload(displayId: string, explicitTransitionId?: string | null): string | null {
+  async function buildPayload(displayId: string, explicitTransitionId?: string | null): Promise<string | null> {
     const sceneId = activeSceneId(displayId, deps);
     if (!sceneId) return null;
     const scene = deps.scenes.get(sceneId);
     if (!scene) return null;
     const previousSceneId = lastSceneByDisplay.get(displayId) ?? null;
     const safeArea = readSafeArea(deps.settings);
-    const payload = assemblePush({
+    const payload = await assemblePush({
       scene,
       safeArea,
       previousSceneId,
       transitions: deps.transitions,
       overrides: deps.overrides,
       explicitTransitionId,
+      resolver: deps.resolveEntity,
     });
     lastSceneByDisplay.set(displayId, scene.id);
     return JSON.stringify(payload);
@@ -73,56 +75,58 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       }
     });
     socket.on('message', (raw) => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw.toString());
-      } catch {
-        socket.send(JSON.stringify({ type: 'error', error: 'invalid json' }));
-        return;
-      }
-      if (!isHello(parsed)) {
-        socket.send(JSON.stringify({ type: 'error', error: 'unsupported message' }));
-        return;
-      }
-      const name = parsed.displayName.trim();
-      if (!name) {
-        socket.send(JSON.stringify({ type: 'error', error: 'displayName required' }));
-        return;
-      }
-      const display = deps.displays.registerByName(name);
-      deps.displays.touch(display.id);
-      ownDisplayId = display.id;
-      const set = sockets.get(display.id) ?? new Set<WebSocket>();
-      set.add(socket);
-      sockets.set(display.id, set);
+      void (async () => {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw.toString());
+        } catch {
+          socket.send(JSON.stringify({ type: 'error', error: 'invalid json' }));
+          return;
+        }
+        if (!isHello(parsed)) {
+          socket.send(JSON.stringify({ type: 'error', error: 'unsupported message' }));
+          return;
+        }
+        const name = parsed.displayName.trim();
+        if (!name) {
+          socket.send(JSON.stringify({ type: 'error', error: 'displayName required' }));
+          return;
+        }
+        const display = deps.displays.registerByName(name);
+        deps.displays.touch(display.id);
+        ownDisplayId = display.id;
+        const set = sockets.get(display.id) ?? new Set<WebSocket>();
+        set.add(socket);
+        sockets.set(display.id, set);
 
-      socket.send(
-        JSON.stringify({
-          type: 'welcome',
-          displayId: display.id,
-          message: `Hello, ${display.name}!`,
-        })
-      );
+        socket.send(
+          JSON.stringify({
+            type: 'welcome',
+            displayId: display.id,
+            message: `Hello, ${display.name}!`,
+          })
+        );
 
-      // Hello-time push has no previous scene by definition, so no transition.
-      lastSceneByDisplay.delete(display.id);
-      const payload = buildPayload(display.id);
-      if (payload) socket.send(payload);
+        // Hello-time push has no previous scene by definition, so no transition.
+        lastSceneByDisplay.delete(display.id);
+        const payload = await buildPayload(display.id);
+        if (payload) socket.send(payload);
+      })();
     });
   });
 
-  wss.pushSceneTo = (displayId, opts) => {
+  wss.pushSceneTo = async (displayId, opts) => {
     const set = sockets.get(displayId);
     if (!set || set.size === 0) return;
-    const payload = buildPayload(displayId, opts?.explicitTransitionId);
+    const payload = await buildPayload(displayId, opts?.explicitTransitionId);
     if (!payload) return;
     for (const s of set) {
       if (s.readyState === s.OPEN) s.send(payload);
     }
   };
 
-  wss.pushSettingsChanged = () => {
-    for (const displayId of sockets.keys()) wss.pushSceneTo(displayId);
+  wss.pushSettingsChanged = async () => {
+    for (const displayId of sockets.keys()) await wss.pushSceneTo(displayId);
   };
 
   return wss;

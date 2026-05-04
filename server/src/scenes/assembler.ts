@@ -2,9 +2,14 @@ import type { Scene, Widget } from '../store/scenes.js';
 import type { SceneState, WidgetState, WidgetData, ScenePushPayload } from './types.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
+import type { EntityState } from './types.js';
 import { MOCK_WEATHER, mockEntity } from './mockData.js';
 
-function dataFor(widget: Widget): WidgetData {
+export type EntityResolver = (entityId: string) => EntityState | Promise<EntityState>;
+
+export const mockEntityResolver: EntityResolver = (entityId) => mockEntity(entityId);
+
+async function dataFor(widget: Widget, resolver: EntityResolver): Promise<WidgetData> {
   switch (widget.kind) {
     case 'clock':
       return null;
@@ -12,16 +17,20 @@ function dataFor(widget: Widget): WidgetData {
       return MOCK_WEATHER;
     case 'entity_tile': {
       const entityId = String((widget.config as { entity_id?: string }).entity_id ?? '');
-      return mockEntity(entityId);
+      return await resolver(entityId);
     }
   }
 }
 
-export function buildSceneState(
+export async function buildSceneState(
   scene: Scene,
-  safeArea: { top: number; right: number; bottom: number; left: number }
-): SceneState {
-  const widgets: WidgetState[] = scene.widgets.map((w) => ({ ...w, data: dataFor(w) }));
+  safeArea: { top: number; right: number; bottom: number; left: number },
+  resolver: EntityResolver = mockEntityResolver
+): Promise<SceneState> {
+  const widgets: WidgetState[] = [];
+  for (const w of scene.widgets) {
+    widgets.push({ ...w, data: await dataFor(w, resolver) });
+  }
   return {
     id: scene.id,
     name: scene.name,
@@ -41,6 +50,7 @@ export type AssemblePushArgs = {
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
   explicitTransitionId?: string | null;
+  resolver?: EntityResolver;
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -55,8 +65,8 @@ export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor 
   return null;
 }
 
-export function assemblePush(args: AssemblePushArgs): ScenePushPayload {
-  const state = buildSceneState(args.scene, args.safeArea);
+export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPayload> {
+  const state = await buildSceneState(args.scene, args.safeArea, args.resolver);
   const transition = resolveTransition(args);
   return transition ? { type: 'scene', state, transition } : { type: 'scene', state };
 }

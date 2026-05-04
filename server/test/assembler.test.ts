@@ -22,28 +22,28 @@ const baseScene: Scene = {
 };
 
 describe('buildSceneState', () => {
-  it('passes scene metadata through unchanged including safe area', () => {
-    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
+  it('passes scene metadata through unchanged including safe area', async () => {
+    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     expect(state.id).toBe('scene-1');
     expect(state.background).toEqual(baseScene.background);
     expect(state.typography).toEqual(baseScene.typography);
     expect(state.safeArea).toEqual(DEFAULT_SAFE_AREA);
   });
 
-  it('attaches null data to clock widgets', () => {
-    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
+  it('attaches null data to clock widgets', async () => {
+    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     const clock = state.widgets.find((w) => w.kind === 'clock')!;
     expect(clock.data).toBeNull();
   });
 
-  it('attaches mock weather data to weather widgets', () => {
-    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
+  it('attaches mock weather data to weather widgets', async () => {
+    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     const weather = state.widgets.find((w) => w.kind === 'weather')!;
     expect(weather.data).toMatchObject({ current: { temp: 18 }, forecast: expect.any(Array) });
   });
 
-  it('attaches mock entity state to entity_tile widgets and falls back for unknown entities', () => {
-    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
+  it('attaches mock entity state to entity_tile widgets and falls back for unknown entities', async () => {
+    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     const known = state.widgets.find((w) => w.id === 'w3')!;
     const unknown = state.widgets.find((w) => w.id === 'w4')!;
     expect((known.data as { state: string }).state).toBe('on');
@@ -58,26 +58,26 @@ function reposFor() {
 }
 
 describe('assemblePush', () => {
-  it('omits transition when previousSceneId is null', () => {
+  it('omits transition when previousSceneId is null', async () => {
     const { transitions, overrides } = reposFor();
-    const payload = assemblePush({ scene: baseScene, safeArea: DEFAULT_SAFE_AREA, previousSceneId: null, transitions, overrides });
+    const payload = await assemblePush({ scene: baseScene, safeArea: DEFAULT_SAFE_AREA, previousSceneId: null, transitions, overrides });
     expect(payload.transition).toBeUndefined();
   });
 
-  it('omits transition when previous and new are the same scene', () => {
+  it('omits transition when previous and new are the same scene', async () => {
     const { transitions, overrides } = reposFor();
-    const payload = assemblePush({ scene: baseScene, safeArea: DEFAULT_SAFE_AREA, previousSceneId: baseScene.id, transitions, overrides });
+    const payload = await assemblePush({ scene: baseScene, safeArea: DEFAULT_SAFE_AREA, previousSceneId: baseScene.id, transitions, overrides });
     expect(payload.transition).toBeUndefined();
   });
 
-  it('uses scene.defaultTransitionId when no override exists', () => {
+  it('uses scene.defaultTransitionId when no override exists', async () => {
     const { transitions, overrides } = reposFor();
     const sceneWithDefault = { ...baseScene, id: 'scene-2', defaultTransitionId: 'builtin-cross-fade' };
-    const payload = assemblePush({ scene: sceneWithDefault, safeArea: DEFAULT_SAFE_AREA, previousSceneId: 'scene-1', transitions, overrides });
+    const payload = await assemblePush({ scene: sceneWithDefault, safeArea: DEFAULT_SAFE_AREA, previousSceneId: 'scene-1', transitions, overrides });
     expect(payload.transition?.name).toBe('cross-fade');
   });
 
-  it('uses overrides.get when a scene-pair override exists', () => {
+  it('uses overrides.get when a scene-pair override exists', async () => {
     const db = new Database(':memory:');
     runMigrations(db);
     db.prepare(`INSERT INTO scenes (id, name, layout_json, background_json, typography_json) VALUES (?, ?, ?, ?, ?)`).run('scene-1', 'A', '{}', '{}', '{}');
@@ -86,14 +86,14 @@ describe('assemblePush', () => {
     const overrides = createOverridesRepo(db);
     overrides.set('scene-1', 'scene-2', 'builtin-dissolve');
     const sceneB = { ...baseScene, id: 'scene-2', defaultTransitionId: 'builtin-cross-fade' };
-    const payload = assemblePush({ scene: sceneB, safeArea: DEFAULT_SAFE_AREA, previousSceneId: 'scene-1', transitions, overrides });
+    const payload = await assemblePush({ scene: sceneB, safeArea: DEFAULT_SAFE_AREA, previousSceneId: 'scene-1', transitions, overrides });
     expect(payload.transition?.name).toBe('dissolve');
   });
 
-  it('explicitTransitionId takes precedence', () => {
+  it('explicitTransitionId takes precedence', async () => {
     const { transitions, overrides } = reposFor();
     const sceneB = { ...baseScene, id: 'scene-2', defaultTransitionId: 'builtin-cross-fade' };
-    const payload = assemblePush({
+    const payload = await assemblePush({
       scene: sceneB, safeArea: DEFAULT_SAFE_AREA, previousSceneId: 'scene-1',
       transitions, overrides, explicitTransitionId: 'builtin-slide-up',
     });
