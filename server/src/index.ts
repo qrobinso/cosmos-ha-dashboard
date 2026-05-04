@@ -66,8 +66,19 @@ async function main() {
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
   });
   await registerStatic(app, config.staticDir);
+  let publishedDiscoveryFor = new Set<string>();
   function publishOnline(displayId: string, _name: string) {
     mqttClient?.publish(`cosmos/${displayId}/online`, 'online', { retain: true });
+    if (mqttClient && !publishedDiscoveryFor.has(displayId)) {
+      publishedDiscoveryFor.add(displayId);
+      void (async () => {
+        const { buildDiscoveryPayloads } = await import('./mqtt/discovery.js');
+        const list = displays.list().map((d) => ({ id: d.id, name: d.name }));
+        for (const p of buildDiscoveryPayloads(list)) {
+          mqttClient!.publish(p.topic, p.payload, { retain: p.retain });
+        }
+      })();
+    }
   }
   function publishOffline(displayId: string, _name: string) {
     mqttClient?.publish(`cosmos/${displayId}/online`, 'offline', { retain: true });
@@ -84,7 +95,23 @@ async function main() {
   });
   wssRef = wss;
 
-  // When HA emits a state change for an entity used by an active scene, re-push that scene.
+  // Debounce reactive scene pushes: many HA entities can change in one tick.
+  // We coalesce per-display dirty flags and flush them ~50ms later in one batch.
+  const dirtyDisplays = new Set<string>();
+  let dirtyFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  function markDisplayDirty(displayId: string) {
+    dirtyDisplays.add(displayId);
+    if (dirtyFlushTimer) return;
+    dirtyFlushTimer = setTimeout(() => {
+      dirtyFlushTimer = null;
+      const ids = Array.from(dirtyDisplays);
+      dirtyDisplays.clear();
+      for (const id of ids) {
+        wssRef?.pushSceneTo(id).catch((err) => console.error('pushSceneTo failed', err));
+      }
+    }, 50);
+  }
+
   let unsubHaStateChange: (() => void) | null = null;
   if (haClient) {
     unsubHaStateChange = haClient.onStateChanged((entity) => {
@@ -96,7 +123,7 @@ async function main() {
         const scene = scenes.get(activeId);
         if (!scene) continue;
         const usesIt = scene.widgets.some((w) => (w.config as { entity_id?: string }).entity_id === entity.entity_id);
-        if (usesIt) wssRef?.pushSceneTo(d.id).catch((err) => console.error('pushSceneTo failed', err));
+        if (usesIt) markDisplayDirty(d.id);
       }
     });
   }
