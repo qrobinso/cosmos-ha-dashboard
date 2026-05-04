@@ -22,7 +22,7 @@ RUN npm prune --workspace server --omit=dev
 # --- runtime stage ---
 FROM ${BUILD_FROM}
 
-# Install Node 20 + tini for clean PID-1 handling
+# Install Node 20 for the runtime
 RUN apk add --no-cache nodejs npm
 
 WORKDIR /app
