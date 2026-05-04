@@ -4,6 +4,7 @@ import type { SettingsRepo } from '../store/settings.js';
 import type { ScenesRepo } from '../store/scenes.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { registerSceneRoutes } from './scenes.js';
+import { registerTransitionRoutes } from './transitions.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 export const DEFAULT_SAFE_AREA: SafeArea = { top: 16, right: 16, bottom: 16, left: 16 };
@@ -55,6 +56,8 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     deps.onSettingsChanged?.();
     return merged;
   });
+
+  registerTransitionRoutes(app, deps.transitions);
 
   registerSceneRoutes(app, {
     scenes: deps.scenes,
