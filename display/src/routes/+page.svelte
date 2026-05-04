@@ -5,6 +5,8 @@
   import type { SceneState } from '$lib/types';
   import TransitionStage from '$lib/scene/TransitionStage.svelte';
   import type { TransitionDescriptor } from '$lib/transitions/types';
+  import MessageOverlay from '$lib/overlay/MessageOverlay.svelte';
+  import type { OverlayMessage } from '$lib/types';
 
   let name: string | null = null;
   let inputName = '';
@@ -13,6 +15,7 @@
   let error: string | null = null;
   let socket: { close(): void } | null = null;
   let pendingTransition: TransitionDescriptor | null = null;
+  let overlay: OverlayMessage | null = null;
 
   function handleMessage(msg: ServerMessage) {
     if (msg.type === 'welcome') {
@@ -22,6 +25,10 @@
       pendingTransition = msg.transition ?? null;
       scene = msg.state;
       error = null;
+    } else if (msg.type === 'overlay') {
+      overlay = msg.overlay;
+    } else if (msg.type === 'overlay_dismiss') {
+      overlay = null;
     } else {
       error = msg.error;
     }
@@ -71,6 +78,7 @@
     <p style="color:#ff8a8a">Error: {error}</p>
   {:else if scene}
     <TransitionStage {scene} transition={pendingTransition} />
+    <MessageOverlay {overlay} onDismiss={() => (overlay = null)} />
   {:else if greeting}
     <h1 style="font-weight:300;font-size:3rem">{greeting}</h1>
   {:else}
