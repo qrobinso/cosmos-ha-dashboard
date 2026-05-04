@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ScenesRepo, SceneInput } from '../store/scenes.js';
 import type { DisplaysRepo } from '../store/displays.js';
+import type { TransitionsRepo } from '../store/transitions.js';
 
 function isValidSceneInput(body: unknown): body is SceneInput {
   if (typeof body !== 'object' || body === null) return false;
@@ -17,6 +18,7 @@ function isValidSceneInput(body: unknown): body is SceneInput {
 export type SceneRoutesDeps = {
   scenes: ScenesRepo;
   displays: DisplaysRepo;
+  transitions: TransitionsRepo;
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
 };
 
@@ -86,6 +88,9 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       if (!scene) return reply.code(404).send({ error: 'scene not found' });
       const transitionId =
         typeof req.body?.transitionId === 'string' ? req.body.transitionId : null;
+      if (transitionId !== null && deps.transitions.getById(transitionId) === null) {
+        return reply.code(404).send({ error: 'transition not found' });
+      }
       deps.displays.setCurrentScene(display.id, sceneId);
       deps.onSceneChanged?.(display.id, { explicitTransitionId: transitionId });
       return deps.displays.getById(display.id);

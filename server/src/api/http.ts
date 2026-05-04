@@ -62,6 +62,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   registerSceneRoutes(app, {
     scenes: deps.scenes,
     displays: deps.displays,
+    transitions: deps.transitions,
     onSceneChanged: deps.onSceneChanged,
   });
 

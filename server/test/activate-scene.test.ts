@@ -83,6 +83,18 @@ describe('POST /api/displays/:name/scene/activate', () => {
     expect(res.statusCode).toBe(404);
   });
 
+  it('returns 404 for unknown transitionId', async () => {
+    const display = (await app.inject({ method: 'POST', url: '/api/displays/register', payload: { name: 'Hall' } })).json();
+    const scene = (await app.inject({ method: 'POST', url: '/api/scenes', payload: sample })).json();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/displays/${encodeURIComponent(display.name)}/scene/activate`,
+      payload: { sceneId: scene.id, transitionId: 'no-such-transition' },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toMatch(/transition/i);
+  });
+
   it('returns 400 when sceneId is missing', async () => {
     const display = (await app.inject({ method: 'POST', url: '/api/displays/register', payload: { name: 'Hall' } })).json();
     const res = await app.inject({

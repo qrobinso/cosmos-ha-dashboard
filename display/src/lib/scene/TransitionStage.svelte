@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy } from 'svelte';
   import type { SceneState } from '$lib/types';
   import type { TransitionDescriptor, StageState } from '$lib/transitions/types';
   import { TransitionController } from '$lib/transitions/controller';
