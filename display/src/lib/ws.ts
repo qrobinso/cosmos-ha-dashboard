@@ -1,10 +1,17 @@
-import type { SceneState } from './types';
+import type { SceneState, OverlayMessage } from './types';
 import type { TransitionDescriptor } from './transitions/types';
 
 export type WelcomeMessage = { type: 'welcome'; displayId: string; message: string };
 export type SceneMessage = { type: 'scene'; state: SceneState; transition?: TransitionDescriptor };
+export type OverlayPushMessage = { type: 'overlay'; overlay: OverlayMessage };
+export type OverlayDismissMessage = { type: 'overlay_dismiss' };
 export type ErrorMessage = { type: 'error'; error: string };
-export type ServerMessage = WelcomeMessage | SceneMessage | ErrorMessage;
+export type ServerMessage =
+  | WelcomeMessage
+  | SceneMessage
+  | OverlayPushMessage
+  | OverlayDismissMessage
+  | ErrorMessage;
 
 export type CosmosConnection = {
   close(): void;

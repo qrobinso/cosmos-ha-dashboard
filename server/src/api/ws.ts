@@ -6,6 +6,7 @@ import type { SettingsRepo } from '../store/settings.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { assemblePush } from '../scenes/assembler.js';
 import { readSafeArea } from './http.js';
+import type { OverlayMessage } from '../overlay/types.js';
 
 export type WsDeps = {
   displays: DisplaysRepo;
@@ -19,6 +20,10 @@ export type WsDeps = {
 export type CosmosWss = WebSocketServer & {
   pushSceneTo(displayId: string, opts?: { explicitTransitionId?: string | null }): Promise<void>;
   pushSettingsChanged(): Promise<void>;
+  pushOverlayTo(displayId: string, overlay: OverlayMessage): void;
+  pushOverlayToAll(overlay: OverlayMessage): void;
+  dismissOverlayFor(displayId: string): void;
+  dismissOverlayForAll(): void;
 };
 
 type ClientMessage = { type: 'hello'; displayName: string };
@@ -127,6 +132,28 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
 
   wss.pushSettingsChanged = async () => {
     for (const displayId of sockets.keys()) await wss.pushSceneTo(displayId);
+  };
+
+  function sendToDisplay(displayId: string, payload: object): void {
+    const set = sockets.get(displayId);
+    if (!set || set.size === 0) return;
+    const msg = JSON.stringify(payload);
+    for (const s of set) {
+      if (s.readyState === s.OPEN) s.send(msg);
+    }
+  }
+
+  wss.pushOverlayTo = (displayId, overlay) => {
+    sendToDisplay(displayId, { type: 'overlay', overlay });
+  };
+  wss.pushOverlayToAll = (overlay) => {
+    for (const id of sockets.keys()) sendToDisplay(id, { type: 'overlay', overlay });
+  };
+  wss.dismissOverlayFor = (displayId) => {
+    sendToDisplay(displayId, { type: 'overlay_dismiss' });
+  };
+  wss.dismissOverlayForAll = () => {
+    for (const id of sockets.keys()) sendToDisplay(id, { type: 'overlay_dismiss' });
   };
 
   return wss;

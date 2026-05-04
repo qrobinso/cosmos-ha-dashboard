@@ -32,3 +32,10 @@ export type SceneState = {
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
 };
+
+export type OverlayMessage = {
+  title: string;
+  body?: string;
+  icon?: string;
+  timeout_ms?: number;
+};
