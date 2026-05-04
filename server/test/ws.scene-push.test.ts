@@ -15,7 +15,7 @@ async function startServer() {
   const settings = createSettingsRepo(db);
   const scenes = createScenesRepo(db);
   const app = await buildHttpApp({ displays, settings, scenes });
-  const wss = attachWsHub(app.server, { displays, scenes });
+  const wss = attachWsHub(app.server, { displays, scenes, settings });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const addr = app.server.address();
   if (typeof addr === 'string' || !addr) throw new Error('no address');

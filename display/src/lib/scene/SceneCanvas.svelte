@@ -22,7 +22,8 @@
   <div
     class="widget-layer"
     style="grid-template-columns: repeat({scene.layout.cols}, 1fr);
-           grid-template-rows: repeat({scene.layout.rows}, 1fr);"
+           grid-template-rows: repeat({scene.layout.rows}, 1fr);
+           padding: {scene.safeArea.top}px {scene.safeArea.right}px {scene.safeArea.bottom}px {scene.safeArea.left}px;"
   >
     {#each scene.widgets as widget (widget.id)}
       <WidgetSlot {widget} let:widget={w}>
@@ -55,7 +56,6 @@
     inset: 0;
     display: grid;
     gap: 1rem;
-    padding: 1rem;
     z-index: 1;
   }
 </style>

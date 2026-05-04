@@ -2,15 +2,19 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { ScenesRepo } from '../store/scenes.js';
+import type { SettingsRepo } from '../store/settings.js';
 import { buildSceneState } from '../scenes/assembler.js';
+import { readSafeArea } from './http.js';
 
 export type WsDeps = {
   displays: DisplaysRepo;
   scenes: ScenesRepo;
+  settings: SettingsRepo;
 };
 
 export type CosmosWss = WebSocketServer & {
   pushSceneTo(displayId: string): void;
+  pushSettingsChanged(): void;
 };
 
 type ClientMessage = { type: 'hello'; displayName: string };
@@ -35,7 +39,8 @@ function sceneMessageFor(displayId: string, deps: WsDeps): string | null {
   if (!sceneId) return null;
   const scene = deps.scenes.get(sceneId);
   if (!scene) return null;
-  return JSON.stringify({ type: 'scene', state: buildSceneState(scene) });
+  const safeArea = readSafeArea(deps.settings);
+  return JSON.stringify({ type: 'scene', state: buildSceneState(scene, safeArea) });
 }
 
 export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
@@ -94,6 +99,10 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     for (const s of set) {
       if (s.readyState === s.OPEN) s.send(sceneMsg);
     }
+  };
+
+  wss.pushSettingsChanged = () => {
+    for (const displayId of sockets.keys()) wss.pushSceneTo(displayId);
   };
 
   return wss;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Scene } from '../src/store/scenes.js';
 import { buildSceneState } from '../src/scenes/assembler.js';
+import { DEFAULT_SAFE_AREA } from '../src/api/http.js';
 
 const baseScene: Scene = {
   id: 'scene-1',
@@ -17,27 +18,28 @@ const baseScene: Scene = {
 };
 
 describe('buildSceneState', () => {
-  it('passes scene metadata through unchanged', () => {
-    const state = buildSceneState(baseScene);
+  it('passes scene metadata through unchanged including safe area', () => {
+    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     expect(state.id).toBe('scene-1');
     expect(state.background).toEqual(baseScene.background);
     expect(state.typography).toEqual(baseScene.typography);
+    expect(state.safeArea).toEqual(DEFAULT_SAFE_AREA);
   });
 
   it('attaches null data to clock widgets', () => {
-    const state = buildSceneState(baseScene);
+    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     const clock = state.widgets.find((w) => w.kind === 'clock')!;
     expect(clock.data).toBeNull();
   });
 
   it('attaches mock weather data to weather widgets', () => {
-    const state = buildSceneState(baseScene);
+    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     const weather = state.widgets.find((w) => w.kind === 'weather')!;
     expect(weather.data).toMatchObject({ current: { temp: 18 }, forecast: expect.any(Array) });
   });
 
   it('attaches mock entity state to entity_tile widgets and falls back for unknown entities', () => {
-    const state = buildSceneState(baseScene);
+    const state = buildSceneState(baseScene, DEFAULT_SAFE_AREA);
     const known = state.widgets.find((w) => w.id === 'w3')!;
     const unknown = state.widgets.find((w) => w.id === 'w4')!;
     expect((known.data as { state: string }).state).toBe('on');

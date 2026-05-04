@@ -18,9 +18,15 @@ async function main() {
   let wssRef: ReturnType<typeof attachWsHub> | null = null;
   const onSceneChanged = (displayId: string) => wssRef?.pushSceneTo(displayId);
 
-  const app = await buildHttpApp({ displays, settings, scenes, onSceneChanged });
+  const app = await buildHttpApp({
+    displays,
+    settings,
+    scenes,
+    onSceneChanged,
+    onSettingsChanged: () => wssRef?.pushSettingsChanged(),
+  });
   await registerStatic(app, config.staticDir);
-  const wss = attachWsHub(app.server, { displays, scenes });
+  const wss = attachWsHub(app.server, { displays, scenes, settings });
   wssRef = wss;
 
   await app.listen({ port: config.port, host: config.host });

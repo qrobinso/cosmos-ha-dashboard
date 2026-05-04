@@ -17,4 +17,7 @@ export type WidgetData = ClockData | WeatherData | EntityTileData;
 
 export type WidgetState = Widget & { data: WidgetData };
 
-export type SceneState = Omit<Scene, 'widgets'> & { widgets: WidgetState[] };
+export type SceneState = Omit<Scene, 'widgets'> & {
+  widgets: WidgetState[];
+  safeArea: { top: number; right: number; bottom: number; left: number };
+};

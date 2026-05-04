@@ -15,7 +15,10 @@ function dataFor(widget: Widget): WidgetData {
   }
 }
 
-export function buildSceneState(scene: Scene): SceneState {
+export function buildSceneState(
+  scene: Scene,
+  safeArea: { top: number; right: number; bottom: number; left: number }
+): SceneState {
   const widgets: WidgetState[] = scene.widgets.map((w) => ({ ...w, data: dataFor(w) }));
   return {
     id: scene.id,
@@ -24,5 +27,6 @@ export function buildSceneState(scene: Scene): SceneState {
     background: scene.background,
     typography: scene.typography,
     widgets,
+    safeArea,
   };
 }
