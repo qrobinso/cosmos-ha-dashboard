@@ -60,7 +60,12 @@ REST highlights:
 - `Fastify({logger: false})` is hardcoded — wire to config when production logging matters.
 - Scene `font_family` strings are matched to CSS variables by stripping spaces (`'Space Grotesk'` → `--cosmos-font-SpaceGrotesk`). Nothing enforces consistency between DB values and CSS variable names. Plan 5's editor UI should validate against an enum (or store a canonical key + map).
 - `Weather.svelte` hardcodes `grid-template-columns: repeat(5, 1fr)` for the forecast row. The mock data is always 5 days, but `WeatherForecastDay[]` has no length constraint. Loosen to `repeat(auto-fill, minmax(...))` or pin the type when Plan 4 wires real HA data.
-- `display/src/lib/ws.ts` reports `error`/`close` but does not retry. Reconnection-with-backoff should land before or alongside Plan 3's transition engine, otherwise a network blip leaves the page on a stale scene.
+- `display/src/lib/ws.ts` reports `error`/`close` but does not retry. **(Plan 3 fixed: now reconnects with exponential backoff capped at 30s.)**
+- `TransitionStage` skips `controller.receive` when the new scene has the same id as the previously rendered scene. On reconnect or REST PUT to the active scene, updated widget data is silently dropped. Will hurt once Plan 4's HA-driven widget data updates start flowing.
+- `bridge.background_morph` in transition descriptors currently only extends bridge-phase duration; it does not drive true CSS color interpolation between gradient palettes (the layered cross-fade reads as a morph but isn't one). Either rename the flag or implement true interpolation in Plan 5.
+- `stagger_ms` is part of `TransitionPhase` types but the CSS only animates the whole stage layer, not per-widget. Implement widget-level stagger or remove the field before Plan 5.
+- Built-in transition descriptors live only inside the migration SQL string; if Plan 5 needs to expose or test them as a constant, extract to `server/src/transitions/builtins.ts`.
+- `assemblePush` is currently synchronous. Plan 4 will need to make it `async` for HA reads — beware of the rapid-fire scene-change race on `lastSceneByDisplay` once `buildPayload` becomes async.
 
 ## Roadmap
 
