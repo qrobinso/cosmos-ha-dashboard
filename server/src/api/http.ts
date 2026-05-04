@@ -36,6 +36,7 @@ export type HttpDeps = {
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
   onSettingsChanged?: () => void;
   onRotationChanged?: (displayId: string) => void;
+  onDisplayConfigChanged?: (displayId: string) => void;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -70,6 +71,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     transitions: deps.transitions,
     onSceneChanged: deps.onSceneChanged,
     onRotationChanged: deps.onRotationChanged,
+    onDisplayConfigChanged: deps.onDisplayConfigChanged,
   });
 
   return app;

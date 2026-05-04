@@ -50,6 +50,18 @@
     }
   }
 
+  async function setOrientation(displayName: string, orientation: 'landscape' | 'portrait') {
+    busy = displayName;
+    try {
+      await api.displays.setOrientation(displayName, orientation);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'orientation update failed');
+    } finally {
+      busy = '';
+    }
+  }
+
   function toggleRotation(displayId: string, sceneId: string) {
     const draft = rotationDraft[displayId];
     if (!draft) return;
@@ -115,6 +127,7 @@
         <th>Name</th>
         <th>Default scene</th>
         <th>Active scene</th>
+        <th>Orientation</th>
         <th>Rotation</th>
         <th>Last seen</th>
         <th>Actions</th>
@@ -126,6 +139,19 @@
           <td>{d.name}</td>
           <td>{sceneName(d.defaultSceneId)}</td>
           <td>{sceneName(d.currentSceneId)}</td>
+          <td>
+            <select
+              value={d.orientation}
+              on:change={(e) => {
+                const v = e.currentTarget.value;
+                if (v === 'landscape' || v === 'portrait') setOrientation(d.name, v);
+              }}
+              disabled={busy === d.name}
+            >
+              <option value="landscape">Landscape</option>
+              <option value="portrait">Portrait</option>
+            </select>
+          </td>
           <td>
             <button
               class="link"
@@ -149,7 +175,7 @@
         </tr>
         {#if openRotation === d.id && rotationDraft[d.id]}
           <tr class="rotation-row">
-            <td colspan="6">
+            <td colspan="7">
               <div class="rotation-panel">
                 <label class="enable-row">
                   <input type="checkbox" bind:checked={rotationDraft[d.id].enabled} />

@@ -27,6 +27,7 @@ export type CosmosWss = WebSocketServer & {
   pushOverlayToAll(overlay: OverlayMessage): void;
   dismissOverlayFor(displayId: string): void;
   dismissOverlayForAll(): void;
+  pushDisplayConfigTo(displayId: string): void;
 };
 
 type ClientMessage = { type: 'hello'; displayName: string };
@@ -118,6 +119,14 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
           })
         );
 
+        // Send the display's current config (orientation, etc.) right after welcome.
+        socket.send(
+          JSON.stringify({
+            type: 'display_config',
+            config: { orientation: display.orientation },
+          })
+        );
+
         // Hello-time push has no previous scene by definition, so no transition.
         lastSceneByDisplay.delete(display.id);
         deps.onDisplayOnline?.(display.id, display.name);
@@ -161,6 +170,15 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   };
   wss.dismissOverlayForAll = () => {
     for (const id of sockets.keys()) sendToDisplay(id, { type: 'overlay_dismiss' });
+  };
+
+  wss.pushDisplayConfigTo = (displayId) => {
+    const display = deps.displays.getById(displayId);
+    if (!display) return;
+    sendToDisplay(displayId, {
+      type: 'display_config',
+      config: { orientation: display.orientation },
+    });
   };
 
   return wss;

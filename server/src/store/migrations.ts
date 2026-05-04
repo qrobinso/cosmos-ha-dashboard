@@ -91,6 +91,12 @@ const migrations: Migration[] = [
       ALTER TABLE displays ADD COLUMN rotation_json TEXT;
     `,
   },
+  {
+    version: 5,
+    up: `
+      ALTER TABLE displays ADD COLUMN orientation TEXT NOT NULL DEFAULT 'landscape';
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

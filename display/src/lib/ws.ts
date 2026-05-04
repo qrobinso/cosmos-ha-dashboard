@@ -1,13 +1,18 @@
 import type { SceneState, OverlayMessage } from './types';
 import type { TransitionDescriptor } from './transitions/types';
 
+export type Orientation = 'landscape' | 'portrait';
+export type DisplayConfig = { orientation: Orientation };
+
 export type WelcomeMessage = { type: 'welcome'; displayId: string; message: string };
+export type DisplayConfigMessage = { type: 'display_config'; config: DisplayConfig };
 export type SceneMessage = { type: 'scene'; state: SceneState; transition?: TransitionDescriptor };
 export type OverlayPushMessage = { type: 'overlay'; overlay: OverlayMessage };
 export type OverlayDismissMessage = { type: 'overlay_dismiss' };
 export type ErrorMessage = { type: 'error'; error: string };
 export type ServerMessage =
   | WelcomeMessage
+  | DisplayConfigMessage
   | SceneMessage
   | OverlayPushMessage
   | OverlayDismissMessage

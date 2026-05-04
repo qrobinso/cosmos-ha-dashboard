@@ -66,14 +66,17 @@ describe('WebSocket scene push', () => {
 
     const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
     await new Promise<void>((r) => ws.once('open', () => r()));
-    const recv = recvN(ws, 2);
+    const recv = recvN(ws, 3);
     ws.send(JSON.stringify({ type: 'hello', displayName: 'Living Room' }));
 
-    const [welcome, scenePush] = (await recv) as [
+    const [welcome, displayConfig, scenePush] = (await recv) as [
       { type: string },
+      { type: string; config: { orientation: string } },
       { type: string; state: { id: string; widgets: { kind: string; data: unknown }[] } }
     ];
     expect(welcome.type).toBe('welcome');
+    expect(displayConfig.type).toBe('display_config');
+    expect(displayConfig.config.orientation).toBe('landscape');
     expect(scenePush.type).toBe('scene');
     expect(scenePush.state.id).toBe(scene.id);
     expect(scenePush.state.widgets[0].kind).toBe('clock');
@@ -89,8 +92,9 @@ describe('WebSocket scene push', () => {
     ws.on('message', (data) => messages.push(JSON.parse(data.toString())));
     ws.send(JSON.stringify({ type: 'hello', displayName: 'Hallway' }));
     await new Promise((r) => setTimeout(r, 100));
-    expect(messages.length).toBe(1);
+    expect(messages.length).toBe(2);
     expect((messages[0] as { type: string }).type).toBe('welcome');
+    expect((messages[1] as { type: string }).type).toBe('display_config');
     ws.close();
   });
 
@@ -101,7 +105,7 @@ describe('WebSocket scene push', () => {
 
     const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
     await new Promise<void>((r) => ws.once('open', () => r()));
-    const initial = recvN(ws, 2);
+    const initial = recvN(ws, 3);
     ws.send(JSON.stringify({ type: 'hello', displayName: 'Kitchen' }));
     await initial;
 

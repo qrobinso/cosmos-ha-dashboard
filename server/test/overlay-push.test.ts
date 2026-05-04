@@ -29,6 +29,20 @@ function nextMsg(ws: WebSocket): Promise<{ type: string } & Record<string, unkno
   return new Promise((resolve) => ws.once('message', (data) => resolve(JSON.parse(data.toString()))));
 }
 
+function recvN(ws: WebSocket, n: number): Promise<unknown[]> {
+  return new Promise((resolve) => {
+    const acc: unknown[] = [];
+    const handler = (data: WebSocket.RawData) => {
+      acc.push(JSON.parse(data.toString()));
+      if (acc.length === n) {
+        ws.off('message', handler);
+        resolve(acc);
+      }
+    };
+    ws.on('message', handler);
+  });
+}
+
 describe('overlay push', () => {
   let ctx: Awaited<ReturnType<typeof startServer>>;
   beforeEach(async () => {
@@ -42,8 +56,9 @@ describe('overlay push', () => {
     const display = ctx.displays.registerByName('Living Room');
     const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
     await new Promise<void>((r) => ws.once('open', () => r()));
+    const initial = recvN(ws, 2);
     ws.send(JSON.stringify({ type: 'hello', displayName: 'Living Room' }));
-    await nextMsg(ws); // consume welcome (no scene assigned)
+    await initial; // welcome + display_config
 
     const recv = nextMsg(ws);
     ctx.wss.pushOverlayTo(display.id, { title: "Dinner's ready", timeout_ms: 5000 });
@@ -59,8 +74,9 @@ describe('overlay push', () => {
     const display = ctx.displays.registerByName('Kitchen');
     const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
     await new Promise<void>((r) => ws.once('open', () => r()));
+    const initial = recvN(ws, 2);
     ws.send(JSON.stringify({ type: 'hello', displayName: 'Kitchen' }));
-    await nextMsg(ws);
+    await initial;
 
     const recv = nextMsg(ws);
     ctx.wss.dismissOverlayFor(display.id);

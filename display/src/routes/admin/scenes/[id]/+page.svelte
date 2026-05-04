@@ -25,10 +25,69 @@
   let transitions: { id: string; name: string }[] = [];
   let entities: { entity_id: string; state: string }[] = [];
 
+  const HELPER_DOMAINS = new Set([
+    'input_boolean',
+    'input_number',
+    'input_text',
+    'input_select',
+    'input_datetime',
+    'input_button',
+    'counter',
+    'timer',
+    'schedule',
+  ]);
+
+  function entityDomain(id: string): string {
+    return id.split('.')[0] ?? '';
+  }
+
+  $: groupedEntities = (() => {
+    const byDomain = new Map<string, { entity_id: string; state: string }[]>();
+    for (const e of entities) {
+      const d = entityDomain(e.entity_id);
+      const arr = byDomain.get(d) ?? [];
+      arr.push(e);
+      byDomain.set(d, arr);
+    }
+    const helperDomains: string[] = [];
+    const otherDomains: string[] = [];
+    for (const d of byDomain.keys()) {
+      (HELPER_DOMAINS.has(d) ? helperDomains : otherDomains).push(d);
+    }
+    helperDomains.sort();
+    otherDomains.sort();
+    return [...otherDomains, ...helperDomains].map((d) => ({
+      domain: d,
+      label: HELPER_DOMAINS.has(d) ? `${d} (helper)` : d,
+      entities: (byDomain.get(d) ?? []).slice().sort((a, b) => a.entity_id.localeCompare(b.entity_id)),
+    }));
+  })();
+
   const FONT_FAMILIES = ['Inter', 'Fraunces', 'JetBrains Mono', 'Space Grotesk'];
   const FONT_SCALES = [0.8, 1.0, 1.25, 1.5, 2.0];
   const GRADIENT_SPEEDS = ['slow', 'medium', 'fast'] as const;
   const GRADIENT_STYLES = ['mesh', 'linear', 'radial'] as const;
+  const GRADIENT_PRESETS: { name: string; colors: string[] }[] = [
+    { name: 'Midnight', colors: ['#1a1a2e', '#16213e', '#0f3460'] },
+    { name: 'Aurora', colors: ['#0b3d2e', '#1d6f5a', '#5fd3a3', '#a0e8af'] },
+    { name: 'Sunset', colors: ['#ff6e7f', '#bfe9ff', '#ffb88c', '#ff5f6d'] },
+    { name: 'Ocean', colors: ['#0f2027', '#203a43', '#2c5364', '#46a0c2'] },
+    { name: 'Lavender Haze', colors: ['#3a1c71', '#6a3093', '#a044ff', '#d76d77'] },
+    { name: 'Peach Glow', colors: ['#ffecd2', '#fcb69f', '#ff9a9e', '#fad0c4'] },
+    { name: 'Forest', colors: ['#0a2818', '#1f4d2c', '#3d8050', '#7fb685'] },
+    { name: 'Cyberpunk', colors: ['#240046', '#5a189a', '#ff006e', '#00f5d4'] },
+    { name: 'Sand & Sky', colors: ['#fceabb', '#f8b500', '#7fb2f0', '#0a85ed'] },
+    { name: 'Monochrome', colors: ['#0d0d0d', '#262626', '#595959', '#8c8c8c'] },
+  ];
+
+  function applyPreset(e: Event) {
+    if (background.type !== 'gradient') return;
+    const idx = Number((e.currentTarget as HTMLSelectElement).value);
+    (e.currentTarget as HTMLSelectElement).value = '';
+    const preset = GRADIENT_PRESETS[idx];
+    if (!preset) return;
+    background = { ...background, colors: [...preset.colors] };
+  }
   const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile'];
 
   onMount(async () => {
@@ -183,6 +242,12 @@
         <input type="color" bind:value={background.color} />
       </Field>
     {:else}
+      <Field label="Preset" hint="Apply a curated palette">
+        <select on:change={applyPreset}>
+          <option value="">Choose preset…</option>
+          {#each GRADIENT_PRESETS as p, i (p.name)}<option value={i}>{p.name}</option>{/each}
+        </select>
+      </Field>
       <Field label="Colors" hint="2–6 colors blend continuously">
         {#each background.colors as _, i}
           <div class="color-row">
@@ -260,7 +325,11 @@
             <Field label="Entity">
               <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
                 <option value="">— Select entity —</option>
-                {#each entities as e (e.entity_id)}<option value={e.entity_id}>{e.entity_id}</option>{/each}
+                {#each groupedEntities as g (g.domain)}
+                  <optgroup label={g.label}>
+                    {#each g.entities as e (e.entity_id)}<option value={e.entity_id}>{e.entity_id}</option>{/each}
+                  </optgroup>
+                {/each}
               </select>
               {#if entities.length === 0}<span class="hint">No entities cached. Set HA_URL/HA_TOKEN or add a real entity to your scene config.</span>{/if}
             </Field>

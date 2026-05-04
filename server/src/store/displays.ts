@@ -7,6 +7,8 @@ export type Rotation = {
   intervalSec: number;
 };
 
+export type Orientation = 'landscape' | 'portrait';
+
 export type Display = {
   id: string;
   name: string;
@@ -14,6 +16,7 @@ export type Display = {
   defaultSceneId: string | null;
   currentSceneId: string | null;
   rotation: Rotation | null;
+  orientation: Orientation;
 };
 
 export type DisplaysRepo = {
@@ -25,6 +28,7 @@ export type DisplaysRepo = {
   setDefaultScene(id: string, sceneId: string | null): void;
   setCurrentScene(id: string, sceneId: string | null): void;
   setRotation(id: string, rotation: Rotation | null): void;
+  setOrientation(id: string, orientation: Orientation): void;
 };
 
 type Row = {
@@ -34,6 +38,7 @@ type Row = {
   default_scene_id: string | null;
   current_scene_id: string | null;
   rotation_json: string | null;
+  orientation: string | null;
 };
 
 function parseRotation(json: string | null): Rotation | null {
@@ -51,6 +56,10 @@ function parseRotation(json: string | null): Rotation | null {
   }
 }
 
+function parseOrientation(value: string | null): Orientation {
+  return value === 'portrait' ? 'portrait' : 'landscape';
+}
+
 function rowToDisplay(r: Row): Display {
   return {
     id: r.id,
@@ -59,10 +68,11 @@ function rowToDisplay(r: Row): Display {
     defaultSceneId: r.default_scene_id,
     currentSceneId: r.current_scene_id,
     rotation: parseRotation(r.rotation_json),
+    orientation: parseOrientation(r.orientation),
   };
 }
 
-const SELECT_COLS = 'id, name, last_seen, default_scene_id, current_scene_id, rotation_json';
+const SELECT_COLS = 'id, name, last_seen, default_scene_id, current_scene_id, rotation_json, orientation';
 
 export function createDisplaysRepo(db: DB): DisplaysRepo {
   const selectByName = db.prepare<[string], Row>(`SELECT ${SELECT_COLS} FROM displays WHERE name = ?`);
@@ -73,6 +83,7 @@ export function createDisplaysRepo(db: DB): DisplaysRepo {
   const updateDefaultScene = db.prepare('UPDATE displays SET default_scene_id = ? WHERE id = ?');
   const updateCurrentScene = db.prepare('UPDATE displays SET current_scene_id = ? WHERE id = ?');
   const updateRotation = db.prepare('UPDATE displays SET rotation_json = ? WHERE id = ?');
+  const updateOrientation = db.prepare('UPDATE displays SET orientation = ? WHERE id = ?');
 
   return {
     registerByName(name) {
@@ -104,6 +115,9 @@ export function createDisplaysRepo(db: DB): DisplaysRepo {
     },
     setRotation(id, rotation) {
       updateRotation.run(rotation ? JSON.stringify(rotation) : null, id);
+    },
+    setOrientation(id, orientation) {
+      updateOrientation.run(orientation, id);
     },
   };
 }

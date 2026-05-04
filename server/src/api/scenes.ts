@@ -21,6 +21,7 @@ export type SceneRoutesDeps = {
   transitions: TransitionsRepo;
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
   onRotationChanged?: (displayId: string) => void;
+  onDisplayConfigChanged?: (displayId: string) => void;
 };
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
@@ -124,6 +125,24 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       }
       deps.displays.setRotation(display.id, { enabled, sceneIds, intervalSec });
       deps.onRotationChanged?.(display.id);
+      return deps.displays.getById(display.id);
+    }
+  );
+
+  app.put<{
+    Params: { name: string };
+    Body: { orientation?: unknown };
+  }>(
+    '/api/displays/:name/orientation',
+    async (req, reply) => {
+      const display = deps.displays.getByName(req.params.name);
+      if (!display) return reply.code(404).send({ error: 'display not found' });
+      const orientation = req.body?.orientation;
+      if (orientation !== 'landscape' && orientation !== 'portrait') {
+        return reply.code(400).send({ error: 'orientation must be landscape or portrait' });
+      }
+      deps.displays.setOrientation(display.id, orientation);
+      deps.onDisplayConfigChanged?.(display.id);
       return deps.displays.getById(display.id);
     }
   );

@@ -47,7 +47,7 @@ export const api = {
     },
   },
   displays: {
-    async list(): Promise<{ id: string; name: string; lastSeen: string | null; defaultSceneId: string | null; currentSceneId: string | null; rotation: { enabled: boolean; sceneIds: string[]; intervalSec: number } | null }[]> {
+    async list(): Promise<{ id: string; name: string; lastSeen: string | null; defaultSceneId: string | null; currentSceneId: string | null; rotation: { enabled: boolean; sceneIds: string[]; intervalSec: number } | null; orientation: 'landscape' | 'portrait' }[]> {
       return jsonOr(await fetch('/api/displays'), []);
     },
     async setRotation(displayName: string, payload: { enabled: boolean; sceneIds: string[]; intervalSec: number }): Promise<void> {
@@ -56,6 +56,15 @@ export const api = {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(payload),
+        })
+      );
+    },
+    async setOrientation(displayName: string, orientation: 'landscape' | 'portrait'): Promise<void> {
+      await ensureOk(
+        await fetch(`/api/displays/${encodeURIComponent(displayName)}/orientation`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ orientation }),
         })
       );
     },

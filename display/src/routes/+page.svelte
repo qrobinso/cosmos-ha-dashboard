@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { getDisplayName, setDisplayName } from '$lib/storage';
-  import { connect, type ServerMessage } from '$lib/ws';
+  import { connect, type ServerMessage, type Orientation } from '$lib/ws';
   import type { SceneState } from '$lib/types';
   import TransitionStage from '$lib/scene/TransitionStage.svelte';
   import type { TransitionDescriptor } from '$lib/transitions/types';
@@ -16,11 +16,18 @@
   let socket: { close(): void } | null = null;
   let pendingTransition: TransitionDescriptor | null = null;
   let overlay: OverlayMessage | null = null;
+  let orientation: Orientation = 'landscape';
+
+  $: if (typeof document !== 'undefined') {
+    document.body.dataset.orientation = orientation;
+  }
 
   function handleMessage(msg: ServerMessage) {
     if (msg.type === 'welcome') {
       greeting = msg.message;
       error = null;
+    } else if (msg.type === 'display_config') {
+      orientation = msg.config.orientation;
     } else if (msg.type === 'scene') {
       pendingTransition = msg.transition ?? null;
       scene = msg.state;

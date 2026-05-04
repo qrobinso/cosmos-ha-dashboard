@@ -116,6 +116,7 @@ async function main() {
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
     onRotationChanged,
+    onDisplayConfigChanged: (displayId) => wssRef?.pushDisplayConfigTo(displayId),
   });
   await registerStatic(app, config.staticDir);
   let publishedDiscoveryFor = new Set<string>();
