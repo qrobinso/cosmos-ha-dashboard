@@ -1,5 +1,9 @@
+import type { SceneState } from './types';
+
 export type WelcomeMessage = { type: 'welcome'; displayId: string; message: string };
-export type ServerMessage = WelcomeMessage | { type: 'error'; error: string };
+export type SceneMessage = { type: 'scene'; state: SceneState };
+export type ErrorMessage = { type: 'error'; error: string };
+export type ServerMessage = WelcomeMessage | SceneMessage | ErrorMessage;
 
 export function connect(displayName: string, onMessage: (msg: ServerMessage) => void): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

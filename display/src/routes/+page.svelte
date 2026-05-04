@@ -2,16 +2,21 @@
   import { onMount, onDestroy } from 'svelte';
   import { getDisplayName, setDisplayName } from '$lib/storage';
   import { connect, type ServerMessage } from '$lib/ws';
+  import type { SceneState } from '$lib/types';
 
   let name: string | null = null;
   let inputName = '';
   let greeting: string | null = null;
+  let scene: SceneState | null = null;
   let error: string | null = null;
   let socket: WebSocket | null = null;
 
   function handleMessage(msg: ServerMessage) {
     if (msg.type === 'welcome') {
       greeting = msg.message;
+      error = null;
+    } else if (msg.type === 'scene') {
+      scene = msg.state;
       error = null;
     } else {
       error = msg.error;
@@ -60,6 +65,8 @@
     </form>
   {:else if error}
     <p style="color:#ff8a8a">Error: {error}</p>
+  {:else if scene}
+    <pre style="text-align:left;max-width:80vw;overflow:auto;font-size:0.75rem">{JSON.stringify(scene, null, 2)}</pre>
   {:else if greeting}
     <h1 style="font-weight:300;font-size:3rem">{greeting}</h1>
   {:else}
