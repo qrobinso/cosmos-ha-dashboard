@@ -5,6 +5,7 @@ import { createDisplaysRepo } from '../src/store/displays.js';
 
 function freshDb() {
   const db = new Database(':memory:');
+  db.pragma('foreign_keys = OFF');
   runMigrations(db);
   return db;
 }
@@ -39,5 +40,19 @@ describe('displays repo', () => {
     repo.touch(d.id);
     const after = repo.list().find((x) => x.id === d.id)!;
     expect(after.lastSeen).not.toBeNull();
+  });
+
+  it('setDefaultScene stores the scene id and getById returns it', () => {
+    const d = repo.registerByName('Office');
+    repo.setDefaultScene(d.id, 'scene-abc');
+    const fetched = repo.getById(d.id);
+    expect(fetched?.defaultSceneId).toBe('scene-abc');
+  });
+
+  it('setCurrentScene stores the active scene id', () => {
+    const d = repo.registerByName('Bedroom');
+    repo.setCurrentScene(d.id, 'scene-xyz');
+    const fetched = repo.getById(d.id);
+    expect(fetched?.currentSceneId).toBe('scene-xyz');
   });
 });
