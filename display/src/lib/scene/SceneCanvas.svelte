@@ -2,6 +2,7 @@
   import type { SceneState } from '$lib/types';
   import WidgetSlot from './WidgetSlot.svelte';
   import Clock from '$lib/widgets/Clock.svelte';
+  import Weather from '$lib/widgets/Weather.svelte';
 
   export let scene: SceneState;
 </script>
@@ -19,6 +20,8 @@
       <WidgetSlot {widget} let:widget={w}>
         {#if w.kind === 'clock'}
           <Clock widget={w} />
+        {:else if w.kind === 'weather'}
+          <Weather widget={w} />
         {/if}
       </WidgetSlot>
     {/each}
