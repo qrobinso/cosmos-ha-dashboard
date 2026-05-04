@@ -22,10 +22,12 @@ export type Scene = {
   layout: Layout;
   background: Background;
   typography: Typography;
+  defaultTransitionId: string | null;
   widgets: Widget[];
 };
 
-export type SceneInput = Omit<Scene, 'id' | 'widgets'> & {
+export type SceneInput = Omit<Scene, 'id' | 'widgets' | 'defaultTransitionId'> & {
+  defaultTransitionId?: string | null;
   widgets: Omit<Widget, 'id'>[];
 };
 
@@ -46,6 +48,7 @@ type SceneRow = {
   layout_json: string;
   background_json: string;
   typography_json: string;
+  default_transition_id: string | null;
 };
 type WidgetRow = {
   id: string;
@@ -62,6 +65,7 @@ function rowToScene(s: SceneRow, widgets: Widget[]): Scene {
     layout: JSON.parse(s.layout_json),
     background: JSON.parse(s.background_json),
     typography: JSON.parse(s.typography_json),
+    defaultTransitionId: s.default_transition_id,
     widgets,
   };
 }
@@ -77,17 +81,17 @@ function rowToWidget(r: WidgetRow): Widget {
 
 export function createScenesRepo(db: DB): ScenesRepo {
   const insertScene = db.prepare(
-    'INSERT INTO scenes (id, name, layout_json, background_json, typography_json) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO scenes (id, name, layout_json, background_json, typography_json, default_transition_id) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const updateScene = db.prepare(
-    "UPDATE scenes SET name = ?, layout_json = ?, background_json = ?, typography_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    "UPDATE scenes SET name = ?, layout_json = ?, background_json = ?, typography_json = ?, default_transition_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
   );
   const deleteScene = db.prepare('DELETE FROM scenes WHERE id = ?');
   const selectSceneById = db.prepare<[string], SceneRow>(
-    'SELECT id, name, layout_json, background_json, typography_json FROM scenes WHERE id = ?'
+    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id FROM scenes WHERE id = ?'
   );
   const selectAllScenes = db.prepare<[], SceneRow>(
-    'SELECT id, name, layout_json, background_json, typography_json FROM scenes ORDER BY name'
+    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id FROM scenes ORDER BY name'
   );
   const insertWidget = db.prepare(
     'INSERT INTO widgets (id, scene_id, kind, position_json, config_json) VALUES (?, ?, ?, ?, ?)'
@@ -103,7 +107,7 @@ export function createScenesRepo(db: DB): ScenesRepo {
     'DELETE FROM scenes_displays WHERE scene_id = ? AND display_id = ?'
   );
   const selectAssignedScenes = db.prepare<[string], SceneRow>(
-    `SELECT s.id, s.name, s.layout_json, s.background_json, s.typography_json
+    `SELECT s.id, s.name, s.layout_json, s.background_json, s.typography_json, s.default_transition_id
      FROM scenes s
      JOIN scenes_displays sd ON sd.scene_id = s.id
      WHERE sd.display_id = ?
@@ -131,10 +135,11 @@ export function createScenesRepo(db: DB): ScenesRepo {
       const layout_json = JSON.stringify(input.layout);
       const background_json = JSON.stringify(input.background);
       const typography_json = JSON.stringify(input.typography);
+      const defaultTransitionId = input.defaultTransitionId ?? null;
       if (isUpdate) {
-        updateScene.run(input.name, layout_json, background_json, typography_json, sceneId);
+        updateScene.run(input.name, layout_json, background_json, typography_json, defaultTransitionId, sceneId);
       } else {
-        insertScene.run(sceneId, input.name, layout_json, background_json, typography_json);
+        insertScene.run(sceneId, input.name, layout_json, background_json, typography_json, defaultTransitionId);
       }
       const widgets = writeWidgets(sceneId, input.widgets);
       db.exec('COMMIT');
@@ -144,6 +149,7 @@ export function createScenesRepo(db: DB): ScenesRepo {
         layout: input.layout,
         background: input.background,
         typography: input.typography,
+        defaultTransitionId,
         widgets,
       };
     } catch (err) {

@@ -85,4 +85,20 @@ describe('scenes repo', () => {
     ctx.scenes.unassignFromDisplay(s.id, d.id);
     expect(ctx.scenes.listAssignedTo(d.id)).toEqual([]);
   });
+
+  it('create + update accept and persist default_transition_id', () => {
+    const ctx = setup();
+    const created = ctx.scenes.create({ ...sample, defaultTransitionId: 'builtin-cross-fade' });
+    expect(created.defaultTransitionId).toBe('builtin-cross-fade');
+    const fetched = ctx.scenes.get(created.id);
+    expect(fetched?.defaultTransitionId).toBe('builtin-cross-fade');
+    const updated = ctx.scenes.update(created.id, { ...sample, defaultTransitionId: 'builtin-dissolve' });
+    expect(updated.defaultTransitionId).toBe('builtin-dissolve');
+  });
+
+  it('default_transition_id is null when not provided', () => {
+    const ctx = setup();
+    const created = ctx.scenes.create(sample);
+    expect(created.defaultTransitionId).toBeNull();
+  });
 });
