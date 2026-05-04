@@ -66,6 +66,7 @@
 
   function removeColor(idx: number) {
     if (background.type !== 'gradient') return;
+    if (background.colors.length <= 2) return; // gradient needs at least 2 colors
     background = { ...background, colors: background.colors.filter((_, i) => i !== idx) };
   }
 
@@ -246,8 +247,10 @@
           {:else if w.kind === 'entity_tile'}
             <Field label="Entity">
               <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
+                <option value="">— Select entity —</option>
                 {#each entities as e (e.entity_id)}<option value={e.entity_id}>{e.entity_id}</option>{/each}
               </select>
+              {#if entities.length === 0}<span class="hint">No entities cached. Set HA_URL/HA_TOKEN or add a real entity to your scene config.</span>{/if}
             </Field>
           {/if}
         </div>
