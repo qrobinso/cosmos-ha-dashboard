@@ -101,4 +101,11 @@ describe('scenes repo', () => {
     const created = ctx.scenes.create(sample);
     expect(created.defaultTransitionId).toBeNull();
   });
+
+  it('getByName returns the scene or null', () => {
+    const ctx = setup();
+    const created = ctx.scenes.create({ ...sample, name: 'NamedOne' });
+    expect(ctx.scenes.getByName('NamedOne')?.id).toBe(created.id);
+    expect(ctx.scenes.getByName('NotExists')).toBeNull();
+  });
 });

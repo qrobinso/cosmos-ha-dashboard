@@ -34,6 +34,7 @@ export type SceneInput = Omit<Scene, 'id' | 'widgets' | 'defaultTransitionId'> &
 export type ScenesRepo = {
   create(input: SceneInput): Scene;
   get(id: string): Scene | null;
+  getByName(name: string): Scene | null;
   list(): Scene[];
   update(id: string, input: SceneInput): Scene;
   delete(id: string): void;
@@ -106,6 +107,9 @@ export function createScenesRepo(db: DB): ScenesRepo {
   const deleteAssignment = db.prepare(
     'DELETE FROM scenes_displays WHERE scene_id = ? AND display_id = ?'
   );
+  const selectSceneByName = db.prepare<[string], SceneRow>(
+    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id FROM scenes WHERE name = ?'
+  );
   const selectAssignedScenes = db.prepare<[string], SceneRow>(
     `SELECT s.id, s.name, s.layout_json, s.background_json, s.typography_json, s.default_transition_id
      FROM scenes s
@@ -166,6 +170,11 @@ export function createScenesRepo(db: DB): ScenesRepo {
       const row = selectSceneById.get(id);
       if (!row) return null;
       return rowToScene(row, loadWidgets(id));
+    },
+    getByName(name) {
+      const row = selectSceneByName.get(name);
+      if (!row) return null;
+      return rowToScene(row, loadWidgets(row.id));
     },
     list() {
       return selectAllScenes.all().map((row) => rowToScene(row, loadWidgets(row.id)));
