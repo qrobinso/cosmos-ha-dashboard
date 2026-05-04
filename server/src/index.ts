@@ -15,10 +15,28 @@ async function main() {
 
   const app = await buildHttpApp({ displays, settings });
   await registerStatic(app, config.staticDir);
-  attachWsHub(app.server, { displays });
+  const wss = attachWsHub(app.server, { displays });
 
   await app.listen({ port: config.port, host: config.host });
   console.log(`cosmos server listening on http://${config.host}:${config.port}`);
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`received ${signal}, shutting down`);
+    try {
+      wss.close();
+      await app.close();
+      db.close();
+    } catch (err) {
+      console.error('error during shutdown', err);
+    } finally {
+      process.exit(0);
+    }
+  };
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
 main().catch((err) => {

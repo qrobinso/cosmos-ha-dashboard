@@ -16,5 +16,13 @@ export function connect(displayName: string, onMessage: (msg: ServerMessage) => 
       onMessage({ type: 'error', error: 'invalid server message' });
     }
   });
+  ws.addEventListener('error', () => {
+    onMessage({ type: 'error', error: 'websocket error' });
+  });
+  ws.addEventListener('close', (event) => {
+    if (!event.wasClean) {
+      onMessage({ type: 'error', error: 'connection lost' });
+    }
+  });
   return ws;
 }
