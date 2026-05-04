@@ -4,6 +4,7 @@ import WebSocket from 'ws';
 import { runMigrations } from '../src/store/migrations.js';
 import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
+import { createScenesRepo } from '../src/store/scenes.js';
 import { buildHttpApp } from '../src/api/http.js';
 import { attachWsHub } from '../src/api/ws.js';
 
@@ -12,12 +13,13 @@ async function startServer() {
   runMigrations(db);
   const displays = createDisplaysRepo(db);
   const settings = createSettingsRepo(db);
-  const app = await buildHttpApp({ displays, settings });
-  attachWsHub(app.server, { displays });
+  const scenes = createScenesRepo(db);
+  const app = await buildHttpApp({ displays, settings, scenes });
+  attachWsHub(app.server, { displays, scenes });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const addr = app.server.address();
   if (typeof addr === 'string' || !addr) throw new Error('no address');
-  return { app, port: addr.port, displays };
+  return { app, port: addr.port, displays, scenes };
 }
 
 function recv(ws: WebSocket): Promise<string> {

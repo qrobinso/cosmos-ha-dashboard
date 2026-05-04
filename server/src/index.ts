@@ -15,9 +15,13 @@ async function main() {
   const settings = createSettingsRepo(db);
   const scenes = createScenesRepo(db);
 
-  const app = await buildHttpApp({ displays, settings, scenes });
+  let wssRef: ReturnType<typeof attachWsHub> | null = null;
+  const onSceneChanged = (displayId: string) => wssRef?.pushSceneTo(displayId);
+
+  const app = await buildHttpApp({ displays, settings, scenes, onSceneChanged });
   await registerStatic(app, config.staticDir);
-  const wss = attachWsHub(app.server, { displays });
+  const wss = attachWsHub(app.server, { displays, scenes });
+  wssRef = wss;
 
   await app.listen({ port: config.port, host: config.host });
   console.log(`cosmos server listening on http://${config.host}:${config.port}`);
