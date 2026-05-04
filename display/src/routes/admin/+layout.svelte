@@ -10,10 +10,12 @@
   ];
 
   $: pathname = $page.url.pathname;
-  function isActive(href: string): boolean {
-    if (href === '/admin') return pathname === '/admin';
-    return pathname.startsWith(href);
-  }
+  // Precompute active state per link reactively. Inlining the comparison here ensures
+  // the template tracks `pathname` as a dependency — a function call would hide it.
+  $: navLinks = links.map((l) => ({
+    ...l,
+    active: l.href === '/admin' ? pathname === '/admin' : pathname.startsWith(l.href),
+  }));
 
   let menuOpen = false;
   function closeMenu() { menuOpen = false; }
@@ -27,8 +29,8 @@
     </a>
 
     <nav class="desktop-nav" aria-label="Primary">
-      {#each links as link (link.href)}
-        <a href={link.href} class:active={isActive(link.href)}>{link.label}</a>
+      {#each navLinks as link (link.href)}
+        <a href={link.href} class:active={link.active} aria-current={link.active ? 'page' : undefined}>{link.label}</a>
       {/each}
     </nav>
 
@@ -47,8 +49,13 @@
 
   {#if menuOpen}
     <div class="mobile-menu" role="dialog" aria-modal="false">
-      {#each links as link (link.href)}
-        <a href={link.href} class:active={isActive(link.href)} on:click={closeMenu}>
+      {#each navLinks as link (link.href)}
+        <a
+          href={link.href}
+          class:active={link.active}
+          aria-current={link.active ? 'page' : undefined}
+          on:click={closeMenu}
+        >
           <span>{link.label}</span>
           <span class="chev" aria-hidden="true">›</span>
         </a>
