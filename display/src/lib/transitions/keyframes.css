@@ -1,0 +1,59 @@
+@keyframes cosmos-out-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes cosmos-in-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes cosmos-out-scale-fade {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.96); }
+}
+@keyframes cosmos-in-scale-fade {
+  from { opacity: 0; transform: scale(1.04); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes cosmos-out-slide-up {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-2rem); }
+}
+@keyframes cosmos-in-slide-up {
+  from { opacity: 0; transform: translateY(2rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cosmos-out-slide-down {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(2rem); }
+}
+@keyframes cosmos-in-slide-down {
+  from { opacity: 0; transform: translateY(-2rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cosmos-out-dissolve {
+  from { opacity: 1; filter: blur(0); }
+  to { opacity: 0; filter: blur(0.4rem); }
+}
+@keyframes cosmos-in-dissolve {
+  from { opacity: 0; filter: blur(0.4rem); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+.cosmos-stage-layer {
+  position: fixed;
+  inset: 0;
+  will-change: opacity, transform, filter;
+}
+
+.cosmos-stage-layer[data-phase='out'] {
+  animation-name: var(--cosmos-out-keyframes);
+  animation-duration: var(--cosmos-out-duration);
+  animation-timing-function: var(--cosmos-out-easing);
+  animation-fill-mode: forwards;
+}
+.cosmos-stage-layer[data-phase='in'] {
+  animation-name: var(--cosmos-in-keyframes);
+  animation-duration: var(--cosmos-in-duration);
+  animation-timing-function: var(--cosmos-in-easing);
+  animation-fill-mode: forwards;
+}

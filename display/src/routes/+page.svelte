@@ -3,7 +3,8 @@
   import { getDisplayName, setDisplayName } from '$lib/storage';
   import { connect, type ServerMessage } from '$lib/ws';
   import type { SceneState } from '$lib/types';
-  import SceneCanvas from '$lib/scene/SceneCanvas.svelte';
+  import TransitionStage from '$lib/scene/TransitionStage.svelte';
+  import type { TransitionDescriptor } from '$lib/transitions/types';
 
   let name: string | null = null;
   let inputName = '';
@@ -11,12 +12,14 @@
   let scene: SceneState | null = null;
   let error: string | null = null;
   let socket: { close(): void } | null = null;
+  let pendingTransition: TransitionDescriptor | null = null;
 
   function handleMessage(msg: ServerMessage) {
     if (msg.type === 'welcome') {
       greeting = msg.message;
       error = null;
     } else if (msg.type === 'scene') {
+      pendingTransition = msg.transition ?? null;
       scene = msg.state;
       error = null;
     } else {
@@ -67,7 +70,7 @@
   {:else if error}
     <p style="color:#ff8a8a">Error: {error}</p>
   {:else if scene}
-    <SceneCanvas {scene} />
+    <TransitionStage {scene} transition={pendingTransition} />
   {:else if greeting}
     <h1 style="font-weight:300;font-size:3rem">{greeting}</h1>
   {:else}
