@@ -21,12 +21,13 @@
   </div>
   <div
     class="widget-layer"
+    class:floating={scene.floatWidgets}
     style="grid-template-columns: repeat({scene.layout.cols}, 1fr);
            grid-template-rows: repeat({scene.layout.rows}, 1fr);
            padding: {scene.safeArea.top}px {scene.safeArea.right}px {scene.safeArea.bottom}px {scene.safeArea.left}px;"
   >
-    {#each scene.widgets as widget (widget.id)}
-      <WidgetSlot {widget} let:widget={w}>
+    {#each scene.widgets as widget, i (widget.id)}
+      <WidgetSlot {widget} floatDelay={(i * 1.37) % 6.5} let:widget={w}>
         {#if w.kind === 'clock'}
           <Clock widget={w} />
         {:else if w.kind === 'weather'}
@@ -57,5 +58,16 @@
     display: grid;
     gap: 1rem;
     z-index: 1;
+  }
+  @keyframes cosmos-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .widget-layer.floating :global(.widget-slot) {
+      animation: cosmos-float 6.5s ease-in-out infinite;
+      animation-delay: var(--cosmos-float-delay, 0s);
+      will-change: transform;
+    }
   }
 </style>

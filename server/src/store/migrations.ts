@@ -97,6 +97,12 @@ const migrations: Migration[] = [
       ALTER TABLE displays ADD COLUMN orientation TEXT NOT NULL DEFAULT 'landscape';
     `,
   },
+  {
+    version: 6,
+    up: `
+      ALTER TABLE scenes ADD COLUMN float_widgets INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

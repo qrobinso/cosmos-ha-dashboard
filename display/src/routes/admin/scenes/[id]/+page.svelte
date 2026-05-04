@@ -19,6 +19,7 @@
   let background: Background = { type: 'solid', color: '#101010' };
   let typography: Typography = { font_family: 'Inter', font_scale: 1.0 };
   let defaultTransitionId: string | null = null;
+  let floatWidgets = false;
   let widgets: Widget[] = [];
   let selectedWidgetIdx: number | null = null;
 
@@ -106,6 +107,7 @@
     background = scene.background;
     typography = scene.typography;
     defaultTransitionId = scene.defaultTransitionId;
+    floatWidgets = scene.floatWidgets ?? false;
     widgets = scene.widgets;
     transitions = txns;
     entities = ents;
@@ -184,6 +186,7 @@
         background,
         typography,
         defaultTransitionId,
+        floatWidgets,
         widgets: widgetsForSave,
       });
       saveStatus = 'saved';
@@ -226,6 +229,12 @@
         <input type="number" min="1" max="48" bind:value={layout.cols} /> ×
         <input type="number" min="1" max="48" bind:value={layout.rows} />
       </div>
+    </Field>
+    <Field label="Float widgets" hint="Gentle bob animation; respects prefers-reduced-motion">
+      <label class="checkbox-row">
+        <input type="checkbox" bind:checked={floatWidgets} />
+        <span>Enable floating motion</span>
+      </label>
     </Field>
   </section>
 
@@ -410,6 +419,13 @@
   .radio-row {
     display: flex;
     gap: 1.25rem;
+  }
+  .checkbox-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
   }
   .grid-input {
     display: flex;

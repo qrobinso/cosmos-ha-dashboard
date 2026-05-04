@@ -38,6 +38,7 @@ export async function buildSceneState(
     background: scene.background,
     typography: scene.typography,
     defaultTransitionId: scene.defaultTransitionId,
+    floatWidgets: scene.floatWidgets,
     widgets,
     safeArea,
   };
