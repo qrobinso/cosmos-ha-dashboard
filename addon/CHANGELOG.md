@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9
+
+- Fix: media-player album art now loads in both direct-HA and add-on installs. Cosmos proxies HA media URLs through `/api/ha-media/*` so the browser doesn't need to reach HA directly. Bare entity_id values returned by some Sonos/Cast players are dropped instead of 404'ing.
+
 ## 0.1.0 - 2026-05-04
 
 Initial release.
