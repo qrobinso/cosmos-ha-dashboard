@@ -3,6 +3,21 @@ import type { StageState, TransitionDescriptor } from './types';
 
 export type StageListener = (s: StageState) => void;
 
+/**
+ * Owns the scene-to-scene transition lifecycle.
+ *
+ * Design notes:
+ * - Out and In animations run **simultaneously**. The two layers are mounted at
+ *   the same time; CSS animations on each play in parallel. Sequential phases
+ *   caused a mid-transition "snap back" where the outgoing layer would flash
+ *   to its default state once its `data-phase` attribute changed.
+ * - The outgoing layer holds `data-phase="out"` for its entire lifetime so the
+ *   `animation-fill-mode: forwards` final state stays applied until unmount.
+ * - Mid-transition reschedules: if a new scene arrives while a transition is
+ *   in progress, the in-progress incoming becomes the new outgoing and a fresh
+ *   transition starts. The previous outgoing is dropped — it was already on
+ *   its way out, so visually the user sees: "old scene faded → new scene".
+ */
 export class TransitionController {
   private state: StageState = {
     phase: 'idle',
@@ -26,41 +41,29 @@ export class TransitionController {
   }
 
   receive(scene: SceneState, transition: TransitionDescriptor | null): void {
+    // First scene of the session, or an instant swap with no transition.
     if (!transition || !this.state.incomingScene) {
-      // First scene of the session, OR an instant swap (no transition).
+      this.cancelTimer();
       this.set({ phase: 'idle', outgoingScene: null, incomingScene: scene, transition: null });
       return;
     }
-    if (transition && this.shouldReduceMotion()) {
+    if (this.shouldReduceMotion()) {
       transition = REDUCED_MOTION_TRANSITION;
     }
-    // Begin Out phase: keep outgoing visible, animate it out
     this.cancelTimer();
     this.set({
-      phase: 'out',
+      phase: 'transitioning',
       outgoingScene: this.state.incomingScene,
       incomingScene: scene,
       transition,
     });
-    this.timer = setTimeout(() => this.advanceToBridge(), transition.out.duration_ms);
-  }
-
-  private advanceToBridge(): void {
-    if (!this.state.transition) return;
-    this.set({ ...this.state, phase: 'bridge' });
-    const bridgeMs = this.state.transition.bridge.background_morph
-      ? Math.round(this.state.transition.in.duration_ms * 0.5)
-      : 16;
-    this.timer = setTimeout(() => this.advanceToIn(), bridgeMs);
-  }
-
-  private advanceToIn(): void {
-    if (!this.state.transition) return;
-    this.set({ ...this.state, phase: 'in' });
-    this.timer = setTimeout(() => this.complete(), this.state.transition.in.duration_ms);
+    // Both animations play in parallel; finish when the longer of the two ends.
+    const totalMs = Math.max(transition.out.duration_ms, transition.in.duration_ms);
+    this.timer = setTimeout(() => this.complete(), totalMs);
   }
 
   private complete(): void {
+    this.timer = null;
     this.set({
       phase: 'idle',
       outgoingScene: null,
@@ -90,7 +93,7 @@ export class TransitionController {
 export const REDUCED_MOTION_TRANSITION: TransitionDescriptor = {
   id: 'reduced-motion-fallback',
   name: 'reduced-motion',
-  out: { keyframes: 'cosmos-out-fade', duration_ms: 100, easing: 'linear' },
+  out: { keyframes: 'cosmos-out-fade', duration_ms: 120, easing: 'linear' },
   bridge: { background_morph: false },
-  in: { keyframes: 'cosmos-in-fade', duration_ms: 100, easing: 'linear' },
+  in: { keyframes: 'cosmos-in-fade', duration_ms: 120, easing: 'linear' },
 };

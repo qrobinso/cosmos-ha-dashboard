@@ -42,7 +42,12 @@
 .cosmos-stage-layer {
   position: fixed;
   inset: 0;
+  /* Lift each layer onto its own compositor layer so opacity/transform/filter
+     animations run on the GPU. Without this, the layer falls back to paint on
+     every frame and the fade reads as choppy on slower hardware. */
   will-change: opacity, transform, filter;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .cosmos-stage-layer[data-phase='out'] {

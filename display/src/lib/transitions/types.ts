@@ -13,7 +13,7 @@ export type TransitionDescriptor = {
   in: TransitionPhase;
 };
 
-export type StagePhase = 'idle' | 'out' | 'bridge' | 'in';
+export type StagePhase = 'idle' | 'transitioning';
 
 export type StageState = {
   phase: StagePhase;

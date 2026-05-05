@@ -24,30 +24,44 @@
   function styleFor(role: 'outgoing' | 'incoming'): string {
     if (!stageState.transition) return '';
     const phase = role === 'outgoing' ? stageState.transition.out : stageState.transition.in;
+    const prefix = role === 'outgoing' ? 'out' : 'in';
     return [
-      `--cosmos-${role === 'outgoing' ? 'out' : 'in'}-keyframes: ${phase.keyframes};`,
-      `--cosmos-${role === 'outgoing' ? 'out' : 'in'}-duration: ${phase.duration_ms}ms;`,
-      `--cosmos-${role === 'outgoing' ? 'out' : 'in'}-easing: ${phase.easing};`,
+      `--cosmos-${prefix}-keyframes: ${phase.keyframes};`,
+      `--cosmos-${prefix}-duration: ${phase.duration_ms}ms;`,
+      `--cosmos-${prefix}-easing: ${phase.easing};`,
     ].join(' ');
   }
 
   $: outgoing = stageState.outgoingScene;
   $: incoming = stageState.incomingScene;
-  $: outPhase = stageState.phase === 'out' ? 'out' : null;
-  $: inPhase = stageState.phase === 'in' ? 'in' : null;
+  $: transitioning = stageState.phase === 'transitioning';
 </script>
 
-{#if outgoing && stageState.phase !== 'idle'}
-  <div class="cosmos-stage-layer" data-phase={outPhase} style={styleFor('outgoing')}>
+<!--
+  Both layers mount simultaneously while transitioning; CSS animations on each
+  run in parallel. The outgoing layer keeps `data-phase="out"` for its entire
+  lifetime so `animation-fill-mode: forwards` keeps the final keyframe state
+  applied right up until unmount — preventing the snap-back-to-default flash.
+-->
+{#if outgoing && transitioning}
+  <div class="cosmos-stage-layer outgoing" data-phase="out" style={styleFor('outgoing')}>
     <SceneCanvas scene={outgoing} />
   </div>
 {/if}
 {#if incoming}
   <div
-    class="cosmos-stage-layer"
-    data-phase={stageState.phase === 'idle' ? null : inPhase}
-    style={stageState.phase === 'idle' ? '' : styleFor('incoming')}
+    class="cosmos-stage-layer incoming"
+    data-phase={transitioning ? 'in' : null}
+    style={transitioning ? styleFor('incoming') : ''}
   >
     <SceneCanvas scene={incoming} />
   </div>
 {/if}
+
+<style>
+  /* The outgoing layer sits above the incoming during a transition so its
+     fade-out reads correctly. (z-index inside `.cosmos-stage-layer`'s own
+     position:fixed context — harmless when only one layer is mounted.) */
+  .cosmos-stage-layer.outgoing { z-index: 2; }
+  .cosmos-stage-layer.incoming { z-index: 1; }
+</style>
