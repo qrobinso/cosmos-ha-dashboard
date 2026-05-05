@@ -6,6 +6,7 @@
   import TransitionStage from '$lib/scene/TransitionStage.svelte';
   import type { TransitionDescriptor } from '$lib/transitions/types';
   import MessageOverlay from '$lib/overlay/MessageOverlay.svelte';
+  import FullscreenButton from '$lib/scene/FullscreenButton.svelte';
   import type { OverlayMessage } from '$lib/types';
 
   let name: string | null = null;
@@ -100,3 +101,7 @@
     <p style="opacity:0.6">Connecting…</p>
   {/if}
 </main>
+
+{#if name}
+  <FullscreenButton />
+{/if}
