@@ -53,10 +53,27 @@ function activeSceneId(displayId: string, deps: WsDeps): string | null {
   return d.currentSceneId ?? d.defaultSceneId ?? null;
 }
 
+// App-level heartbeat: send a small JSON ping every 25s so clients have a
+// steady inbound signal (their liveness timer will trip on long silence) and
+// to keep NAT mappings warm. Browser WS API doesn't expose protocol pings.
+const PING_INTERVAL_MS = 25_000;
+
 export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   const wss = new WebSocketServer({ server, path: '/ws' }) as CosmosWss;
   const sockets = new Map<string, Set<WebSocket>>();
   const lastSceneByDisplay = new Map<string, string>();
+
+  const pingMsg = JSON.stringify({ type: 'ping' });
+  const heartbeat = setInterval(() => {
+    for (const set of sockets.values()) {
+      for (const s of set) {
+        if (s.readyState === s.OPEN) {
+          try { s.send(pingMsg); } catch { /* socket dying — close handler will clean up */ }
+        }
+      }
+    }
+  }, PING_INTERVAL_MS);
+  wss.on('close', () => clearInterval(heartbeat));
 
   async function buildPayload(displayId: string, explicitTransitionId?: string | null): Promise<string | null> {
     const sceneId = activeSceneId(displayId, deps);

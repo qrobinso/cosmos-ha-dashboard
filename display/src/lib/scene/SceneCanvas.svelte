@@ -25,7 +25,10 @@
     <Background background={scene.background} />
   </div>
   {#if scene.resolvedMood}
-    {#key scene.id}
+    <!-- Key on the resolved URL, not scene.id, so navigating between scenes
+         that share a mood video doesn't retear the <video> element (which
+         would force a fresh decode + buffer fetch). -->
+    {#key scene.resolvedMood.url}
       <MoodLayer mood={scene.resolvedMood} />
     {/key}
   {/if}

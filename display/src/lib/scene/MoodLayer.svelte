@@ -27,7 +27,8 @@
   loop
   muted
   playsinline
-  preload="auto"
+  preload="metadata"
+  disableremoteplayback
   style="--mood-blend: {mood.blend}; opacity: {layerOpacity};"
 />
 

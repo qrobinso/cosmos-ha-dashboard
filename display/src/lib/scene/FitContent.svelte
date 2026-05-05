@@ -7,6 +7,7 @@
   let resizeObs: ResizeObserver | undefined;
   let mutObs: MutationObserver | undefined;
   let raf = 0;
+  let pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
   // Safety margin for subpixel rounding so glyph anti-aliasing never spills past the cell edge.
   const SAFETY = 0.985;
 
@@ -38,10 +39,10 @@
   function fitWithRetries() {
     fit();
     // Multiple delayed passes to catch late layout work (font swap, orientation
-    // rotation, transition end). Each call is a no-op if nothing changed.
-    setTimeout(fit, 50);
-    setTimeout(fit, 200);
-    setTimeout(fit, 500);
+    // rotation, transition end). Cancel any prior pending retries first so
+    // rapid re-entries (orientationchange storms) don't queue unbounded work.
+    for (const id of pendingTimeouts) clearTimeout(id);
+    pendingTimeouts = [50, 200, 500].map((d) => setTimeout(fit, d));
   }
 
   onMount(() => {
@@ -66,6 +67,8 @@
     window.removeEventListener('resize', fit);
     window.removeEventListener('orientationchange', fitWithRetries);
     if (raf) cancelAnimationFrame(raf);
+    for (const id of pendingTimeouts) clearTimeout(id);
+    pendingTimeouts = [];
   });
 </script>
 

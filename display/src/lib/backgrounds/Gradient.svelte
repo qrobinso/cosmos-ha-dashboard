@@ -20,30 +20,43 @@
   }
 </script>
 
-<div
-  class="gradient-bg"
-  style={`--cosmos-grad: ${gradientCss(cssColors, style)}; --cosmos-grad-duration: ${durationS}s;`}
-></div>
+<div class="gradient-clip">
+  <div
+    class="gradient-bg"
+    style={`background-image: ${gradientCss(cssColors, style)}; --cosmos-grad-duration: ${durationS}s;`}
+  ></div>
+</div>
 
 <style>
-  .gradient-bg {
+  /* The animation drives `transform` (a composite-only property) on an
+     oversized inner layer so the GPU compositor handles motion without
+     repainting the gradient every frame — important for 24/7 displays. */
+  .gradient-clip {
     position: absolute;
     inset: 0;
-    background-image: var(--cosmos-grad);
-    background-size: 200% 200%;
-    background-position: 0% 0%;
+    overflow: hidden;
+  }
+  .gradient-bg {
+    position: absolute;
+    /* 1.4× viewport so we can drift up to ~20% in any direction without exposing edges. */
+    top: -20%;
+    left: -20%;
+    width: 140%;
+    height: 140%;
+    background-size: 100% 100%;
+    transform: translate3d(0, 0, 0);
     animation: cosmos-gradient-drift var(--cosmos-grad-duration) ease-in-out infinite alternate;
-    will-change: background-position;
+    will-change: transform;
   }
   @keyframes cosmos-gradient-drift {
-    0%   { background-position: 0% 0%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 50% 100%; }
+    0%   { transform: translate3d(0%, 0%, 0); }
+    50%  { transform: translate3d(8%, 4%, 0); }
+    100% { transform: translate3d(-4%, 8%, 0); }
   }
   @media (prefers-reduced-motion: reduce) {
     .gradient-bg {
       animation: none;
-      background-position: 0% 0%;
+      transform: translate3d(0, 0, 0);
     }
   }
 </style>

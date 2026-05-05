@@ -7,6 +7,7 @@
   import type { TransitionDescriptor } from '$lib/transitions/types';
   import MessageOverlay from '$lib/overlay/MessageOverlay.svelte';
   import FullscreenButton from '$lib/scene/FullscreenButton.svelte';
+  import { scheduleNightlyReload } from '$lib/scene/nightlyReload';
   import type { OverlayMessage } from '$lib/types';
 
   let name: string | null = null;
@@ -55,6 +56,8 @@
     start(trimmed);
   }
 
+  let cancelNightlyReload: (() => void) | null = null;
+
   onMount(() => {
     // ?display=<name> launches a one-shot preview without overwriting the
     // device's saved display name. Useful for the admin Preview button.
@@ -65,11 +68,17 @@
       return;
     }
     const stored = getDisplayName();
-    if (stored) start(stored);
+    if (stored) {
+      start(stored);
+      // Only run the nightly reload on real wall-mounted displays, not in
+      // preview / admin iframes.
+      cancelNightlyReload = scheduleNightlyReload();
+    }
   });
 
   onDestroy(() => {
     socket?.close();
+    cancelNightlyReload?.();
   });
 </script>
 

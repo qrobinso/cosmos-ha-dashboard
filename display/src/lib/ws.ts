@@ -10,13 +10,15 @@ export type SceneMessage = { type: 'scene'; state: SceneState; transition?: Tran
 export type OverlayPushMessage = { type: 'overlay'; overlay: OverlayMessage };
 export type OverlayDismissMessage = { type: 'overlay_dismiss' };
 export type ErrorMessage = { type: 'error'; error: string };
+export type PingMessage = { type: 'ping' };
 export type ServerMessage =
   | WelcomeMessage
   | DisplayConfigMessage
   | SceneMessage
   | OverlayPushMessage
   | OverlayDismissMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | PingMessage;
 
 export type CosmosConnection = {
   close(): void;
@@ -24,12 +26,24 @@ export type CosmosConnection = {
 
 const INITIAL_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 30_000;
+// Server pings every 25s. If we see nothing (no message + no ping) for 60s,
+// the link is dead — force-close so the OS doesn't sit in TCP-FIN limbo.
+const LIVENESS_TIMEOUT_MS = 60_000;
 
 export function connect(displayName: string, onMessage: (msg: ServerMessage) => void): CosmosConnection {
   let socket: WebSocket | null = null;
   let backoff = INITIAL_BACKOFF_MS;
   let closed = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let livenessTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function bumpLiveness() {
+    if (livenessTimer) clearTimeout(livenessTimer);
+    livenessTimer = setTimeout(() => {
+      // Browsers don't expose ws ping frames; this fires only on long silence.
+      socket?.close();
+    }, LIVENESS_TIMEOUT_MS);
+  }
 
   function open() {
     if (closed) return;
@@ -39,11 +53,16 @@ export function connect(displayName: string, onMessage: (msg: ServerMessage) => 
 
     socket.addEventListener('open', () => {
       backoff = INITIAL_BACKOFF_MS;
+      bumpLiveness();
       socket?.send(JSON.stringify({ type: 'hello', displayName }));
     });
     socket.addEventListener('message', (event) => {
+      // Any inbound server message (including app-level pings) resets liveness.
+      bumpLiveness();
       try {
-        onMessage(JSON.parse(event.data) as ServerMessage);
+        const msg = JSON.parse(event.data) as ServerMessage;
+        if (msg.type === 'ping') return; // keepalive only — don't surface
+        onMessage(msg);
       } catch {
         onMessage({ type: 'error', error: 'invalid server message' });
       }
@@ -53,6 +72,7 @@ export function connect(displayName: string, onMessage: (msg: ServerMessage) => 
     });
     socket.addEventListener('close', (event) => {
       socket = null;
+      if (livenessTimer) { clearTimeout(livenessTimer); livenessTimer = null; }
       if (closed) return;
       if (!event.wasClean) {
         onMessage({ type: 'error', error: 'connection lost — reconnecting' });
@@ -70,6 +90,7 @@ export function connect(displayName: string, onMessage: (msg: ServerMessage) => 
     close() {
       closed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (livenessTimer) clearTimeout(livenessTimer);
       socket?.close();
     },
   };

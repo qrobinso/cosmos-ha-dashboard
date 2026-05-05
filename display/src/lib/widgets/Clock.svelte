@@ -7,7 +7,8 @@
   export let widget: WidgetState;
 
   let now = new Date();
-  let timer: ReturnType<typeof setInterval>;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let activeMode: 'seconds' | 'minutes' | null = null;
 
   $: format = (widget.config as { format?: string }).format ?? '24h';
   $: showSeconds = (widget.config as { show_seconds?: boolean }).show_seconds === true;
@@ -27,15 +28,30 @@
     return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   }
 
-  function startTimer(intervalMs: number) {
-    clearInterval(timer);
-    timer = setInterval(() => (now = new Date()), intervalMs);
+  // Schedule the next tick aligned to the next second (seconds mode) or the next
+  // minute boundary (minutes mode). A chained setTimeout — not setInterval — so a
+  // device sleep/wake doesn't queue catch-up callbacks; we just resync on resume.
+  function scheduleTick(mode: 'seconds' | 'minutes') {
+    if (timer) clearTimeout(timer);
+    activeMode = mode;
+    const d = new Date();
+    const delay = mode === 'seconds'
+      ? 1000 - d.getMilliseconds()
+      : (60 - d.getSeconds()) * 1000 - d.getMilliseconds();
+    timer = setTimeout(() => {
+      now = new Date();
+      if (activeMode === mode) scheduleTick(mode);
+    }, Math.max(50, delay));
   }
 
-  onMount(() => startTimer(showSeconds ? 1000 : 30 * 1000));
-  onDestroy(() => clearInterval(timer));
+  onMount(() => scheduleTick(showSeconds ? 'seconds' : 'minutes'));
+  onDestroy(() => { if (timer) clearTimeout(timer); });
 
-  $: if (timer !== undefined) startTimer(showSeconds ? 1000 : 30 * 1000);
+  // Only restart when the mode actually flips, not on every WS push.
+  $: {
+    const wanted: 'seconds' | 'minutes' = showSeconds ? 'seconds' : 'minutes';
+    if (activeMode !== null && activeMode !== wanted) scheduleTick(wanted);
+  }
 
   function tickIn(_node: Element, { duration = 350 }: { duration?: number } = {}) {
     return {
