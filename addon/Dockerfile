@@ -12,7 +12,12 @@ RUN apk add --no-cache python3 make g++ git
 # HA Supervisor pins the Docker build context to this `addon/` directory,
 # but the actual app source lives at the repo root. Clone a fresh copy of
 # the requested ref into /build instead of relying on COPY.
+#
+# The `ADD <github-api-url>` line busts the BuildKit layer cache when the
+# tip of BUILD_REF moves: Docker hashes the response body, so a new commit
+# on main produces a different hash and the subsequent git clone re-runs.
 ARG BUILD_REF
+ADD https://api.github.com/repos/qrobinso/cosmos-ha-dashboard/commits/${BUILD_REF} /tmp/.git-ref
 RUN git clone --depth 1 --branch ${BUILD_REF} \
     https://github.com/qrobinso/cosmos-ha-dashboard.git /build
 
