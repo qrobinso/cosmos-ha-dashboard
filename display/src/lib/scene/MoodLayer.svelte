@@ -4,49 +4,82 @@
 
   export let mood: ResolvedMood;
 
-  /** Seconds at each end of the clip during which we fade to hide the loop seam. */
-  const FADE_S = 0.5;
-
-  let videoEl: HTMLVideoElement;
+  let videoA: HTMLVideoElement;
+  let videoB: HTMLVideoElement;
+  let opA = 1;
+  let opB = 0;
+  let bOffsetApplied = false;
   let reduce = false;
-  let opacity = 1;
+
+  /** Triangle wave: 0 at the seam (phase 0 / 1), peaks at 1 at phase 0.5. */
+  function tri(phase: number): number {
+    const p = ((phase % 1) + 1) % 1;
+    return Math.max(0, 1 - 2 * Math.abs(p - 0.5));
+  }
 
   function recompute() {
-    if (!videoEl || reduce) {
-      opacity = 1;
+    if (!videoA || !videoB) return;
+    if (reduce) {
+      opA = 1;
+      opB = 0;
       return;
     }
-    const t = videoEl.currentTime;
-    const d = videoEl.duration;
-    if (!Number.isFinite(d) || d <= FADE_S * 2) {
-      opacity = 1;
+    const d = videoA.duration;
+    if (!Number.isFinite(d) || d <= 0) {
+      opA = 1;
+      opB = 0;
       return;
     }
-    const fadeIn = Math.min(1, t / FADE_S);
-    const fadeOut = Math.min(1, (d - t) / FADE_S);
-    opacity = Math.max(0, Math.min(fadeIn, fadeOut));
+    if (!bOffsetApplied) {
+      try {
+        videoB.currentTime = d / 2;
+        bOffsetApplied = true;
+      } catch {
+        /* seek may throw before metadata is fully ready */
+      }
+    }
+    opA = tri(videoA.currentTime / d);
+    opB = tri(videoB.currentTime / d);
   }
 
   onMount(() => {
     if (typeof window !== 'undefined' && window.matchMedia) {
       reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }
-    if (reduce && videoEl) videoEl.pause();
+    if (reduce) {
+      videoA?.pause();
+      videoB?.pause();
+      opA = 1;
+      opB = 0;
+    }
   });
 </script>
 
 <video
   class="mood-video"
-  bind:this={videoEl}
+  bind:this={videoA}
   src={mood.url}
   autoplay={!reduce}
   loop
   muted
   playsinline
   preload="auto"
-  on:timeupdate={recompute}
   on:loadedmetadata={recompute}
-  style="--mood-blend: {mood.blend}; opacity: {opacity};"
+  on:timeupdate={recompute}
+  style="--mood-blend: {mood.blend}; opacity: {opA};"
+/>
+<video
+  class="mood-video"
+  bind:this={videoB}
+  src={mood.url}
+  autoplay={!reduce}
+  loop
+  muted
+  playsinline
+  preload="auto"
+  on:loadedmetadata={recompute}
+  on:timeupdate={recompute}
+  style="--mood-blend: {mood.blend}; opacity: {opB};"
 />
 
 <style>
