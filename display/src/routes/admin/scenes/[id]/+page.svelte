@@ -5,7 +5,7 @@
   import { api } from '$lib/admin/api';
   import Field from '$lib/admin/Field.svelte';
   import WidgetCanvas from '$lib/admin/WidgetCanvas.svelte';
-  import type { Background, Typography, WidgetKind, WidgetState, Layout } from '$lib/types';
+  import type { Background, Typography, WidgetKind, WidgetState, Layout, MoodConfig } from '$lib/types';
 
   type Widget = WidgetState;
 
@@ -20,11 +20,15 @@
   let typography: Typography = { font_family: 'Inter', font_scale: 1.0 };
   let defaultTransitionId: string | null = null;
   let floatWidgets = false;
+  let mood: MoodConfig = { enabled: false, strategy: 'manual' };
   let widgets: Widget[] = [];
   let selectedWidgetIdx: number | null = null;
 
   let transitions: { id: string; name: string }[] = [];
   let entities: { entity_id: string; state: string }[] = [];
+  let moodCatalog: { id: string; label: string; tags: string[] }[] = [];
+
+  $: weatherEntities = entities.filter((e) => e.entity_id.startsWith('weather.'));
 
   const HELPER_DOMAINS = new Set([
     'input_boolean',
@@ -101,10 +105,11 @@
   };
 
   onMount(async () => {
-    const [scene, txns, ents] = await Promise.all([
+    const [scene, txns, ents, moods] = await Promise.all([
       api.scenes.get(id),
       api.transitions.list(),
       api.ha.listEntities(),
+      api.moods.list(),
     ]);
     if (!scene) {
       alert('Scene not found');
@@ -117,9 +122,11 @@
     typography = scene.typography;
     defaultTransitionId = scene.defaultTransitionId;
     floatWidgets = scene.floatWidgets ?? false;
+    mood = scene.mood ?? { enabled: false, strategy: 'manual' };
     widgets = scene.widgets;
     transitions = txns;
     entities = ents;
+    moodCatalog = moods;
     loaded = true;
   });
 
@@ -235,6 +242,13 @@
     return cfg[key] === true;
   }
 
+  function cleanMood(m: MoodConfig): MoodConfig {
+    const out: MoodConfig = { enabled: m.enabled, strategy: m.strategy };
+    if (m.strategy === 'manual' && m.moodId) out.moodId = m.moodId;
+    if (m.strategy === 'weather' && m.weatherEntity) out.weatherEntity = m.weatherEntity;
+    return out;
+  }
+
   async function save() {
     saving = true;
     saveStatus = null;
@@ -248,6 +262,7 @@
         typography,
         defaultTransitionId,
         floatWidgets,
+        mood: cleanMood(mood),
         widgets: widgetsForSave,
       });
       saveStatus = 'saved';
@@ -337,6 +352,53 @@
           {#each GRADIENT_STYLES as s (s)}<option value={s}>{s}</option>{/each}
         </select>
       </Field>
+    {/if}
+  </section>
+
+  <section class="panel">
+    <h2>Mood</h2>
+    <p class="panel-hint">Adds a looping video atmosphere over the background. Videos use a black background and screen-blend, so the brighter parts (clouds, rain, embers) glow over your scene.</p>
+    <Field label="Enable mood layer">
+      <label class="inline-check">
+        <input type="checkbox" bind:checked={mood.enabled} />
+        <span>{mood.enabled ? 'On' : 'Off'}</span>
+      </label>
+    </Field>
+    {#if mood.enabled}
+      <Field label="Strategy">
+        <select bind:value={mood.strategy}>
+          <option value="manual">Pick one mood</option>
+          <option value="time">Auto by time of day</option>
+          <option value="weather">Auto by weather</option>
+        </select>
+      </Field>
+
+      {#if mood.strategy === 'manual'}
+        <Field label="Mood">
+          <select bind:value={mood.moodId}>
+            <option value="">Select…</option>
+            {#each moodCatalog as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
+          </select>
+        </Field>
+      {:else if mood.strategy === 'time'}
+        <p class="panel-hint">
+          Uses Home Assistant's <code>sun.sun</code> entity. Sunrise mood plays within 45 min of dawn,
+          embers within 45 min of dusk, clouds during the day, stars at night. Falls back to local
+          clock when HA is disabled.
+        </p>
+      {:else if mood.strategy === 'weather'}
+        <Field label="Weather entity">
+          <select bind:value={mood.weatherEntity}>
+            <option value="">Select…</option>
+            {#each weatherEntities as e (e.entity_id)}
+              <option value={e.entity_id}>{e.entity_id}</option>
+            {/each}
+          </select>
+        </Field>
+        {#if weatherEntities.length === 0}
+          <p class="panel-hint">No <code>weather.*</code> entities found in HA. Add one to use this strategy.</p>
+        {/if}
+      {/if}
     {/if}
   </section>
 
@@ -626,6 +688,24 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1rem;
+  }
+  .panel-hint {
+    color: #999;
+    font-size: 0.85rem;
+    margin: 0 0 0.85rem;
+    line-height: 1.45;
+  }
+  .panel-hint code {
+    background: #0a0a0a;
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.85em;
+  }
+  .inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #ccc;
   }
   input, select {
     background: #0a0a0a;

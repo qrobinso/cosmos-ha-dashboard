@@ -113,4 +113,9 @@ export const api = {
       return jsonOr(await fetch(url), []);
     },
   },
+  moods: {
+    async list(): Promise<{ id: string; label: string; tags: string[] }[]> {
+      return jsonOr(await fetch('/api/moods'), []);
+    },
+  },
 };
