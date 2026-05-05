@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { WidgetState, EntityState } from '$lib/types';
+  import FitContent from '$lib/scene/FitContent.svelte';
   export let widget: WidgetState;
 
   $: entity = widget.data as EntityState | null;
@@ -17,34 +18,38 @@
 </script>
 
 <div class="tile" class:transparent data-domain={domain}>
-  {#if !entity}
-    <div class="value">—</div>
-  {:else if domain === 'light'}
-    {@const swatch = rgbCss(entity.attributes.rgb_color)}
-    <div class="row">
-      <div class="pill" data-on={entity.state === 'on'}>{entity.state}</div>
-      {#if swatch}
-        <div class="swatch" style="background:{swatch}"></div>
+  <FitContent>
+    <div class="tile-body">
+      {#if !entity}
+        <div class="value">—</div>
+      {:else if domain === 'light'}
+        {@const swatch = rgbCss(entity.attributes.rgb_color)}
+        <div class="row">
+          <div class="pill" data-on={entity.state === 'on'}>{entity.state}</div>
+          {#if swatch}
+            <div class="swatch" style="background:{swatch}"></div>
+          {/if}
+        </div>
+        <div class="sub">{fmtBrightness(entity.attributes.brightness)}</div>
+      {:else if domain === 'switch' || domain === 'binary_sensor'}
+        <div class="pill" data-on={entity.state === 'on'}>{entity.state}</div>
+      {:else if domain === 'sensor'}
+        <div class="value">{entity.state}<span class="unit">{entity.attributes.unit_of_measurement ?? ''}</span></div>
+      {:else if domain === 'climate'}
+        <div class="value">{entity.attributes.current_temperature ?? '—'}°</div>
+        <div class="sub">target {entity.attributes.temperature ?? '—'}° · {entity.state}</div>
+      {:else if domain === 'lock'}
+        <div class="pill" data-on={entity.state === 'locked'}>{entity.state}</div>
+      {:else if domain === 'cover'}
+        <div class="pill" data-on={entity.state === 'open'}>{entity.state}</div>
+        {#if typeof entity.attributes.current_position === 'number'}
+          <div class="sub">{entity.attributes.current_position}%</div>
+        {/if}
+      {:else}
+        <div class="value">{entity.state}</div>
       {/if}
     </div>
-    <div class="sub">{fmtBrightness(entity.attributes.brightness)}</div>
-  {:else if domain === 'switch' || domain === 'binary_sensor'}
-    <div class="pill" data-on={entity.state === 'on'}>{entity.state}</div>
-  {:else if domain === 'sensor'}
-    <div class="value">{entity.state}<span class="unit">{entity.attributes.unit_of_measurement ?? ''}</span></div>
-  {:else if domain === 'climate'}
-    <div class="value">{entity.attributes.current_temperature ?? '—'}°</div>
-    <div class="sub">target {entity.attributes.temperature ?? '—'}° · {entity.state}</div>
-  {:else if domain === 'lock'}
-    <div class="pill" data-on={entity.state === 'locked'}>{entity.state}</div>
-  {:else if domain === 'cover'}
-    <div class="pill" data-on={entity.state === 'open'}>{entity.state}</div>
-    {#if typeof entity.attributes.current_position === 'number'}
-      <div class="sub">{entity.attributes.current_position}%</div>
-    {/if}
-  {:else}
-    <div class="value">{entity.state}</div>
-  {/if}
+  </FitContent>
 </div>
 
 <style>
@@ -71,6 +76,17 @@
   }
   .tile.transparent .swatch {
     border: none;
+  }
+  /* FitContent measures this body's natural size and scales it down when
+   * content (long sensor values, input_text states, etc.) exceeds the cell. */
+  .tile-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-align: center;
+    white-space: nowrap;
   }
   .value {
     font-size: calc(min(20cqmin, 32cqh) * var(--cosmos-font-scale, 1));

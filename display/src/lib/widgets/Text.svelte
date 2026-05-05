@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { WidgetState } from '$lib/types';
+  import FitContent from '$lib/scene/FitContent.svelte';
   export let widget: WidgetState;
 
   $: cfg = widget.config as Record<string, unknown>;
@@ -9,7 +10,9 @@
 </script>
 
 <div class="text-widget" style="text-align: {align}; font-weight: {weight};">
-  <div class="text-content">{content}</div>
+  <FitContent>
+    <div class="text-content">{content}</div>
+  </FitContent>
 </div>
 
 <style>
@@ -24,13 +27,12 @@
   }
   .text-content {
     /* Sized relative to the widget cell so users can scale via the
-     * font_scale slider. Wraps on word boundaries; long unbroken
-     * tokens (URLs, hashes) still break cleanly via overflow-wrap. */
+     * font_scale slider. FitContent then scales the whole block down
+     * (never up) so long content always fits the bounds. */
     font-size: calc(min(10cqmin, 16cqh) * var(--cosmos-font-scale, 1));
     line-height: 1.25;
     white-space: pre-wrap;
     word-break: normal;
     overflow-wrap: anywhere;
-    max-width: 100%;
   }
 </style>
