@@ -17,4 +17,4 @@ npm test
 
 In Home Assistant, go to **Settings → Apps → App Store → ⋮ menu → Repositories**. Add `https://github.com/qrobinso/cosmos-ha-dashboard`. Cosmos will appear under "Local apps" / "Cosmos". Install it. The Cosmos sidebar panel appears after install.
 
-For details, see [`DOCS.md`](DOCS.md).
+For details, see [`addon/DOCS.md`](addon/DOCS.md).

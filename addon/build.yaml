@@ -1,0 +1,8 @@
+build_from:
+  amd64: ghcr.io/hassio-addons/base:15.0.7
+  aarch64: ghcr.io/hassio-addons/base:15.0.7
+args:
+  # Branch/tag/commit of cosmos-ha-dashboard to clone during build.
+  # Bump alongside config.yaml `version:` to invalidate Supervisor's
+  # build cache and pull the latest source.
+  BUILD_REF: main

@@ -1,22 +1,24 @@
 ARG BUILD_FROM
+# Branch / tag / commit of cosmos-ha-dashboard to bake into the image.
+# Override per-version via addon/build.yaml `args:`.
+ARG BUILD_REF=main
+
 # --- builder stage ---
 FROM node:20-alpine AS builder
 
-# Native deps for better-sqlite3
-RUN apk add --no-cache python3 make g++
+# Native deps for better-sqlite3, plus git so we can fetch source.
+RUN apk add --no-cache python3 make g++ git
+
+# HA Supervisor pins the Docker build context to this `addon/` directory,
+# but the actual app source lives at the repo root. Clone a fresh copy of
+# the requested ref into /build instead of relying on COPY.
+ARG BUILD_REF
+RUN git clone --depth 1 --branch ${BUILD_REF} \
+    https://github.com/qrobinso/cosmos-ha-dashboard.git /build
 
 WORKDIR /build
-COPY package.json package-lock.json ./
-COPY server/package.json server/
-COPY display/package.json display/
 RUN npm ci
-
-# Copy sources and build both packages
-COPY server ./server
-COPY display ./display
 RUN npm run build
-
-# Prune devDependencies for the runtime image
 RUN npm prune --workspace server --omit=dev
 
 # --- runtime stage ---
@@ -36,7 +38,7 @@ COPY --from=builder /build/server/node_modules /app/server/node_modules
 # Display static build
 COPY --from=builder /build/display/build /app/display/build
 
-# App entrypoint
+# App entrypoint (lives next to this Dockerfile in addon/)
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
