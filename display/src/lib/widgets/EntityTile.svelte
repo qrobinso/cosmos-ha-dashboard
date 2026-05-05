@@ -62,8 +62,15 @@
     border-radius: 0.75rem;
     text-align: center;
   }
-  .tile.transparent {
+  /* Transparent mode: drop the card AND the inner state pills + swatch
+   * border so the widget shows just text/value floating on the scene. */
+  .tile.transparent,
+  .tile.transparent .pill,
+  .tile.transparent .pill[data-on='true'] {
     background: transparent;
+  }
+  .tile.transparent .swatch {
+    border: none;
   }
   .value {
     font-size: calc(min(20cqmin, 32cqh) * var(--cosmos-font-scale, 1));
