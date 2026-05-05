@@ -112,24 +112,26 @@ describe('scenes repo', () => {
   it('mood defaults to disabled manual when not provided', () => {
     const ctx = setup();
     const created = ctx.scenes.create(sample);
-    expect(created.mood).toEqual({ enabled: false, strategy: 'manual' });
+    expect(created.mood.enabled).toBe(false);
+    expect(created.mood.strategy).toBe('manual');
     const fetched = ctx.scenes.get(created.id);
-    expect(fetched?.mood).toEqual({ enabled: false, strategy: 'manual' });
+    expect(fetched?.mood.enabled).toBe(false);
+    expect(fetched?.mood.strategy).toBe('manual');
   });
 
   it('create + update round-trip a mood config', () => {
     const ctx = setup();
     const created = ctx.scenes.create({
       ...sample,
-      mood: { enabled: true, strategy: 'manual', moodId: 'clouds' },
+      mood: { enabled: true, strategy: 'manual', moodId: 'clouds', opacity: 0.5 },
     });
-    expect(created.mood).toEqual({ enabled: true, strategy: 'manual', moodId: 'clouds' });
+    expect(created.mood).toMatchObject({ enabled: true, strategy: 'manual', moodId: 'clouds', opacity: 0.5 });
     const fetched = ctx.scenes.get(created.id);
-    expect(fetched?.mood).toEqual({ enabled: true, strategy: 'manual', moodId: 'clouds' });
+    expect(fetched?.mood).toMatchObject({ enabled: true, strategy: 'manual', moodId: 'clouds', opacity: 0.5 });
     const updated = ctx.scenes.update(created.id, {
       ...sample,
-      mood: { enabled: true, strategy: 'weather', weatherEntity: 'weather.home' },
+      mood: { enabled: true, strategy: 'weather', weatherEntity: 'weather.home', opacity: 0.8 },
     });
-    expect(updated.mood).toEqual({ enabled: true, strategy: 'weather', weatherEntity: 'weather.home' });
+    expect(updated.mood).toMatchObject({ enabled: true, strategy: 'weather', weatherEntity: 'weather.home', opacity: 0.8 });
   });
 });

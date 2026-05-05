@@ -18,8 +18,7 @@
 <div
   class="scene-canvas"
   style="font-family: {fontVar(scene.typography.font_family)};
-         --cosmos-font-scale: {scene.typography.font_scale};
-         color: {scene.typography.color ?? '#ffffff'};"
+         --cosmos-font-scale: {scene.typography.font_scale};"
 >
   <div class="background-layer" data-bg-type={scene.background.type}>
     <Background background={scene.background} />

@@ -61,7 +61,7 @@ describe('buildSceneState', () => {
       mood: { enabled: true, strategy: 'manual', moodId: 'clouds' },
     };
     const state = await buildSceneState(sceneWithMood, DEFAULT_SAFE_AREA);
-    expect(state.resolvedMood).toEqual({ url: '/moods/clouds.mp4', blend: 'screen' });
+    expect(state.resolvedMood).toEqual({ url: '/moods/clouds.mp4', blend: 'screen', opacity: 1 });
   });
 
   it('passes the readEntitySync hook through to the mood resolver', async () => {

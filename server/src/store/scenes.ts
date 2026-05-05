@@ -7,7 +7,7 @@ export type Layout = { cols: number; rows: number; items: { widget_id: string; c
 export type Background =
   | { type: 'solid'; color: string }
   | { type: 'gradient'; colors: string[]; speed: 'slow' | 'medium' | 'fast'; style: 'mesh' | 'linear' | 'radial' };
-export type Typography = { font_family: string; font_scale: number; color?: string };
+export type Typography = { font_family: string; font_scale: number };
 export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics';
 
 export type Widget = {
@@ -72,11 +72,16 @@ function parseMood(json: string | null | undefined): MoodConfig {
   if (!json) return { ...DEFAULT_MOOD };
   try {
     const parsed = JSON.parse(json) as Partial<MoodConfig>;
+    const opacity =
+      typeof parsed.opacity === 'number' && Number.isFinite(parsed.opacity)
+        ? Math.max(0, Math.min(1, parsed.opacity))
+        : 1;
     return {
       enabled: !!parsed.enabled,
       strategy: parsed.strategy === 'time' || parsed.strategy === 'weather' ? parsed.strategy : 'manual',
       moodId: typeof parsed.moodId === 'string' ? parsed.moodId : undefined,
       weatherEntity: typeof parsed.weatherEntity === 'string' ? parsed.weatherEntity : undefined,
+      opacity,
     };
   } catch {
     return { ...DEFAULT_MOOD };

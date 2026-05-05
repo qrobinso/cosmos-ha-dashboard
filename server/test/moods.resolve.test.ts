@@ -24,7 +24,7 @@ describe('resolveMood', () => {
     it('resolves a known mood id to a /moods/<file> url with screen blend', () => {
       const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'clouds' };
       const resolved = resolveMood(cfg, ctx(new Date()));
-      expect(resolved).toEqual({ url: '/moods/clouds.mp4', blend: 'screen' });
+      expect(resolved).toEqual({ url: '/moods/clouds.mp4', blend: 'screen', opacity: 1 });
     });
 
     it('returns null when moodId is missing', () => {
@@ -34,7 +34,19 @@ describe('resolveMood', () => {
 
     it('builds a /moods/<id>.mp4 url for any moodId (file existence is checked client-side)', () => {
       const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'my-custom' };
-      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ url: '/moods/my-custom.mp4', blend: 'screen' });
+      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ url: '/moods/my-custom.mp4', blend: 'screen', opacity: 1 });
+    });
+
+    it('threads a custom opacity through to the resolved mood', () => {
+      const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'clouds', opacity: 0.4 };
+      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ url: '/moods/clouds.mp4', blend: 'screen', opacity: 0.4 });
+    });
+
+    it('clamps opacity outside 0..1', () => {
+      const high: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'clouds', opacity: 5 };
+      const low: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'clouds', opacity: -1 };
+      expect(resolveMood(high, ctx(new Date()))?.opacity).toBe(1);
+      expect(resolveMood(low, ctx(new Date()))?.opacity).toBe(0);
     });
 
     it('rejects moodIds with path separators', () => {

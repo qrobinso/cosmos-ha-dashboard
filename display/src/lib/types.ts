@@ -3,7 +3,7 @@ export type Layout = { cols: number; rows: number; items: { widget_id: string; c
 export type Background =
   | { type: 'solid'; color: string }
   | { type: 'gradient'; colors: string[]; speed: 'slow' | 'medium' | 'fast'; style: 'mesh' | 'linear' | 'radial' };
-export type Typography = { font_family: string; font_scale: number; color?: string };
+export type Typography = { font_family: string; font_scale: number };
 export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics';
 
 export type WeatherCurrent = { temp: number; unit: 'C' | 'F'; condition: string; icon: string };
@@ -82,8 +82,10 @@ export type MoodConfig = {
   strategy: MoodStrategy;
   moodId?: string;
   weatherEntity?: string;
+  /** 0..1; defaults to 1 when missing. */
+  opacity?: number;
 };
-export type ResolvedMood = { url: string; blend: 'screen' | 'lighten' };
+export type ResolvedMood = { url: string; blend: 'screen' | 'lighten'; opacity: number };
 
 export type SceneState = {
   id: string;

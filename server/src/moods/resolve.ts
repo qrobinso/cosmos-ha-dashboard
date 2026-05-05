@@ -10,9 +10,14 @@ export type ResolveContext = {
 
 const DEFAULT_BLEND: ResolvedMood['blend'] = 'screen';
 
-function buildResolved(moodId: string): ResolvedMood | null {
+function clampOpacity(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
+  return Math.max(0, Math.min(1, v));
+}
+
+function buildResolved(moodId: string, opacity: number): ResolvedMood | null {
   if (!moodId || /[\\/]/.test(moodId)) return null;
-  return { url: `/moods/${moodId}.mp4`, blend: DEFAULT_BLEND };
+  return { url: `/moods/${moodId}.mp4`, blend: DEFAULT_BLEND, opacity };
 }
 
 /**
@@ -56,17 +61,18 @@ export function timeOfDay(now: Date, sun: EntityState | null): TimeOfDay {
 
 export function resolveMood(config: MoodConfig | null | undefined, ctx: ResolveContext): ResolvedMood | null {
   if (!config || !config.enabled) return null;
+  const opacity = clampOpacity(config.opacity);
 
   if (config.strategy === 'manual') {
     if (!config.moodId) return null;
-    return buildResolved(config.moodId);
+    return buildResolved(config.moodId, opacity);
   }
 
   if (config.strategy === 'time') {
     const sun = ctx.readEntity('sun.sun');
     const bucket = timeOfDay(ctx.now, sun);
     const moodId = TIME_TO_MOOD[bucket];
-    return buildResolved(moodId);
+    return buildResolved(moodId, opacity);
   }
 
   if (config.strategy === 'weather') {
@@ -75,7 +81,7 @@ export function resolveMood(config: MoodConfig | null | undefined, ctx: ResolveC
     if (!ent) return null;
     const condition = (ent.state || '').toLowerCase();
     const moodId = WEATHER_TO_MOOD[condition] ?? 'clouds';
-    return buildResolved(moodId);
+    return buildResolved(moodId, opacity);
   }
 
   return null;

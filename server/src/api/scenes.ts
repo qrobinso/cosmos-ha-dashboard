@@ -20,6 +20,11 @@ function validateMood(mood: unknown): string | null {
       return 'mood.weatherEntity must be a weather.* entity id';
     }
   }
+  if (m.opacity !== undefined) {
+    if (typeof m.opacity !== 'number' || !Number.isFinite(m.opacity) || m.opacity < 0 || m.opacity > 1) {
+      return 'mood.opacity must be a number between 0 and 1';
+    }
+  }
   return null;
 }
 

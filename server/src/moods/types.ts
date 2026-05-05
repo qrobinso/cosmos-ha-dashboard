@@ -7,11 +7,15 @@ export interface MoodConfig {
   moodId?: string;
   /** Required when strategy === 'weather' (e.g. "weather.home"). */
   weatherEntity?: string;
+  /** 0..1. How strongly the mood layer overlays the scene. Default 1. */
+  opacity?: number;
 }
 
 export interface ResolvedMood {
   url: string;
   blend: 'screen' | 'lighten';
+  /** 0..1. Multiplied into the layer's effective opacity on the display. */
+  opacity: number;
 }
 
 export interface MoodCatalogEntry {
