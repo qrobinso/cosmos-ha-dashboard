@@ -29,7 +29,7 @@ you want to extend the library.
 - Length: ≥10 seconds. Loop seamlessly — first frame should match the last.
   The video element loops with `loop` attribute, so a hard cut between end
   and start will be visible.
-- File size: target ≤10 MB per clip. These get baked into the add-on Docker
+- File size: target ≤10 MB per clip. These get baked into the app Docker
   image, so they directly affect install size for HA users.
 - No audio. The `<video>` element is muted, but stripping audio shrinks
   the file.

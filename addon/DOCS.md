@@ -2,10 +2,12 @@
 
 A beautiful wall dashboard for Home Assistant. Configure scenes, widgets, transitions, and triggers from inside HA, then point any tablet at Cosmos to use it as a kiosk display.
 
+> Home Assistant renamed "add-ons" to "apps" in 2026. The instructions below use the current terminology; older HA versions called them add-ons.
+
 ## Installation
 
-1. Install this add-on. The Cosmos sidebar panel appears in HA after install.
-2. **(Optional but recommended)** Install the **Mosquitto broker** add-on. Cosmos auto-discovers it via Supervisor and uses it for the message-overlay command topics. Without MQTT, you can still use scenes/widgets/transitions, but `cosmos/<display>/message/set` automations won't work.
+1. Install this app. The Cosmos sidebar panel appears in HA after install.
+2. **(Optional but recommended)** Install the **Mosquitto broker** app. Cosmos auto-discovers it via Supervisor and uses it for the message-overlay command topics. Without MQTT, you can still use scenes/widgets/transitions, but `cosmos/<display>/message/set` automations won't work.
 3. Open the **Cosmos** sidebar panel and create your first scene.
 
 ## Connecting a tablet
@@ -14,7 +16,7 @@ Find your HA host's LAN IP. On the tablet's browser, open `http://<HA_IP>:8099/`
 
 ## Configuration via HA automations
 
-The MQTT command topics work out-of-the-box once the Mosquitto add-on is running:
+The MQTT command topics work out-of-the-box once the Mosquitto app is running:
 
 ```yaml
 # Show a toast on the Living Room display
@@ -44,8 +46,8 @@ data:
 
 ## Persistence
 
-All scenes, displays, transitions, and settings live in `/data/cosmos.db` inside the add-on. HA persists `/data` across add-on restarts and updates.
+All scenes, displays, transitions, and settings live in `/data/cosmos.db` inside the app. HA persists `/data` across app restarts and updates.
 
 ## Support
 
-Report issues at <https://github.com/qrobinso/cosmos-dashboard>.
+Report issues at <https://github.com/qrobinso/cosmos-ha-dashboard>.

@@ -11,8 +11,10 @@ npm run dev:display  # http://localhost:5173
 npm test
 ```
 
-## Install as a Home Assistant add-on
+## Install as a Home Assistant app
 
-In Home Assistant, go to **Settings → Add-ons → Add-on Store → ⋮ menu → Repositories**. Add `https://github.com/qrobinso/cosmos-dashboard`. Cosmos will appear under "Local add-ons" / "Cosmos". Install it. The Cosmos sidebar panel appears after install.
+> Home Assistant renamed "add-ons" to "apps" in 2026. The terminology below reflects the current UI; older versions used the **Settings → Add-ons** path.
+
+In Home Assistant, go to **Settings → Apps → App Store → ⋮ menu → Repositories**. Add `https://github.com/qrobinso/cosmos-ha-dashboard`. Cosmos will appear under "Local apps" / "Cosmos". Install it. The Cosmos sidebar panel appears after install.
 
 For details, see [`addon/DOCS.md`](addon/DOCS.md).
