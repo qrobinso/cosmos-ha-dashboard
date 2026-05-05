@@ -109,6 +109,38 @@ const migrations: Migration[] = [
       ALTER TABLE scenes ADD COLUMN mood_json TEXT NOT NULL DEFAULT '{"enabled":false,"strategy":"manual"}';
     `,
   },
+  {
+    /**
+     * Slow + soften the built-in transitions. Now that out + in animations
+     * run in parallel (display-side fix), the overall duration is just the
+     * longer of the two. The originals (300–600ms) felt fine when sequential
+     * but blink past too quickly running at the same time. Cinematic easing
+     * `cubic-bezier(0.65, 0, 0.35, 1)` replaces the bare `ease`/`ease-in/out`
+     * for a more deliberate, intentional feel.
+     */
+    version: 8,
+    up: `
+      INSERT OR REPLACE INTO transitions (id, name, descriptor_json, builtin) VALUES
+        ('builtin-cross-fade', 'cross-fade',
+          '{"id":"builtin-cross-fade","name":"cross-fade","out":{"keyframes":"cosmos-out-fade","duration_ms":900,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-fade","duration_ms":900,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"}}',
+          1),
+        ('builtin-scale-fade', 'scale-fade',
+          '{"id":"builtin-scale-fade","name":"scale-fade","out":{"keyframes":"cosmos-out-scale-fade","duration_ms":1000,"easing":"cubic-bezier(0.4, 0, 0.2, 1)"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-scale-fade","duration_ms":1000,"easing":"cubic-bezier(0.4, 0, 0.2, 1)"}}',
+          1),
+        ('builtin-slide-up', 'slide-up',
+          '{"id":"builtin-slide-up","name":"slide-up","out":{"keyframes":"cosmos-out-slide-up","duration_ms":1100,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-slide-up","duration_ms":1100,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"}}',
+          1),
+        ('builtin-slide-down', 'slide-down',
+          '{"id":"builtin-slide-down","name":"slide-down","out":{"keyframes":"cosmos-out-slide-down","duration_ms":1100,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-slide-down","duration_ms":1100,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"}}',
+          1),
+        ('builtin-dissolve', 'dissolve',
+          '{"id":"builtin-dissolve","name":"dissolve","out":{"keyframes":"cosmos-out-dissolve","duration_ms":1300,"easing":"cubic-bezier(0.4, 0, 0.2, 1)","stagger_ms":40},"bridge":{"background_morph":false},"in":{"keyframes":"cosmos-in-dissolve","duration_ms":1300,"easing":"cubic-bezier(0.4, 0, 0.2, 1)","stagger_ms":40}}',
+          1),
+        ('builtin-gradient-morph', 'gradient-morph',
+          '{"id":"builtin-gradient-morph","name":"gradient-morph","out":{"keyframes":"cosmos-out-fade","duration_ms":1600,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"},"bridge":{"background_morph":true},"in":{"keyframes":"cosmos-in-fade","duration_ms":1600,"easing":"cubic-bezier(0.65, 0, 0.35, 1)"}}',
+          1);
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {
