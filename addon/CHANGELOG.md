@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.21
+
+- Feat: New Camera widget renders an HA `camera.*` entity snapshot with a configurable refresh cadence, plus MQTT discovery + control topics.
+- Feat: Searchable entity picker (HA-style combobox) on every entity dropdown in the scene editor — type to filter by entity_id or friendly name, keyboard-navigable, ×-clear.
+- Feat: Clock can now show AM/PM in 12h mode (default on; hidden in 24h).
+- Feat: Widget card border-radius reads `--cosmos-widget-radius` so themes can override corner roundness scene-wide.
+
 ## 0.1.20
 
 - Fix: Text and entity-tile widgets now auto-shrink long content to fit their cell. Wraps the rendered body in FitContent so sensor states like `input_text` values, long titles, or paragraph-length text widgets no longer overflow the widget bounds.
