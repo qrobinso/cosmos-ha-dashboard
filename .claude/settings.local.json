@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(awk '/fitWithRetries\\\\\\(\\\\\\)/ {print NR\": \"$0}' lib/scene/FitContent.svelte)"
-    ]
-  }
-}
