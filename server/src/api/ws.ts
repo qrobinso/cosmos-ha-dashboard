@@ -18,6 +18,8 @@ export type WsDeps = {
   resolveCalendarEvents?: import('../scenes/assembler.js').DataResolvers['resolveCalendarEvents'];
   resolveHistory?: import('../scenes/assembler.js').DataResolvers['resolveHistory'];
   readEntitySync?: import('../scenes/assembler.js').DataResolvers['readEntitySync'];
+  /** HA base URL — used to absolutize relative media-player art paths. */
+  mediaUrlBase?: string;
   onDisplayOnline?: (displayId: string, name: string) => void;
   onDisplayOffline?: (displayId: string, name: string) => void;
   onSceneActivated?: (displayId: string, sceneName: string | null) => void;
@@ -73,6 +75,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       resolveCalendarEvents: deps.resolveCalendarEvents,
       resolveHistory: deps.resolveHistory,
       readEntitySync: deps.readEntitySync,
+      mediaUrlBase: deps.mediaUrlBase,
     });
     lastSceneByDisplay.set(displayId, scene.id);
     deps.onSceneActivated?.(displayId, scene.name);

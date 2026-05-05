@@ -35,7 +35,38 @@ export type DataResolvers = {
   /** Synchronous read of a cached entity, used by the mood resolver
    *  (sun.sun, weather entity). Returns null when not present. */
   readEntitySync?: (entityId: string) => EntityState | null;
+  /** Base URL of the HA instance (e.g. `http://homeassistant.local:8123`).
+   *  Used to absolutize relative `entity_picture` paths returned by HA so
+   *  the browser fetches album art / camera snapshots from HA directly
+   *  rather than from the Cosmos server. */
+  mediaUrlBase?: string;
 };
+
+/**
+ * Make HA's relative media URLs absolute.
+ *
+ * HA's `entity_picture` attribute is typically a relative path like
+ * `/api/media_player_proxy/<entity>?token=…`. The browser, loading the kiosk
+ * from `http://cosmos:8099`, would resolve that against `:8099` and get a 404.
+ * Prefix it with the HA base so the request goes to HA directly.
+ *
+ * Also discards obvious junk: some players (Sonos, Cast) report the
+ * `entity_id` itself as `entity_picture` when no album art is available — a
+ * non-URL string that would resolve as a relative path against the current
+ * page and 404 the same way.
+ */
+export function absolutizeMediaUrl(url: string | undefined, base: string | undefined): string | undefined {
+  if (!url) return undefined;
+  // Already an absolute URL (http://, https://, data:, blob:, etc.) — pass through.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
+  // Leading slash → HA-relative path. Prefix with the configured HA base.
+  if (url.startsWith('/')) {
+    if (!base) return url;
+    return base.replace(/\/+$/, '') + url;
+  }
+  // No protocol, no leading slash → not a usable URL (e.g. a bare entity_id).
+  return undefined;
+}
 
 export const mockEntityResolver: EntityResolver = (entityId) => mockEntity(entityId);
 
@@ -80,7 +111,11 @@ async function calendarData(widget: Widget, deps: DataResolvers): Promise<Calend
   };
 }
 
-async function mediaPlayerData(widget: Widget, resolver: EntityResolver): Promise<MediaPlayerData> {
+async function mediaPlayerData(
+  widget: Widget,
+  resolver: EntityResolver,
+  mediaUrlBase: string | undefined
+): Promise<MediaPlayerData> {
   const cfg = widget.config as Record<string, unknown>;
   const entityId = readString(cfg, 'entity_id');
   if (!entityId) return mockMediaPlayer('media_player.unknown');
@@ -105,7 +140,8 @@ async function mediaPlayerData(widget: Widget, resolver: EntityResolver): Promis
   // HA media_player supported_features bitmask (subset)
   const PAUSE = 1, PLAY = 16384, PREV = 16, NEXT = 32, VOLUME_SET = 4, SELECT_SOURCE = 2048;
 
-  const mediaArtUrl = typeof a.entity_picture === 'string' ? a.entity_picture : undefined;
+  const rawArt = typeof a.entity_picture === 'string' ? a.entity_picture : undefined;
+  const mediaArtUrl = absolutizeMediaUrl(rawArt, mediaUrlBase);
   const muted = typeof a.is_volume_muted === 'boolean' ? a.is_volume_muted : undefined;
 
   return {
@@ -197,7 +233,7 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
     case 'calendar':
       return await calendarData(widget, deps);
     case 'media_player':
-      return await mediaPlayerData(widget, resolver);
+      return await mediaPlayerData(widget, resolver, deps.mediaUrlBase);
     case 'statistics':
       return await statisticsData(widget, deps, resolver);
   }
@@ -254,6 +290,8 @@ export type AssemblePushArgs = {
   resolveHistory?: DataResolvers['resolveHistory'];
   /** Synchronous entity reader for the mood engine (sun.sun, weather.*). */
   readEntitySync?: DataResolvers['readEntitySync'];
+  /** Base URL of the HA instance for absolutizing media art paths. */
+  mediaUrlBase?: string;
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -274,6 +312,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
     resolveCalendarEvents: args.resolveCalendarEvents,
     resolveHistory: args.resolveHistory,
     readEntitySync: args.readEntitySync,
+    mediaUrlBase: args.mediaUrlBase,
   });
   const transition = resolveTransition(args);
   return transition ? { type: 'scene', state, transition } : { type: 'scene', state };

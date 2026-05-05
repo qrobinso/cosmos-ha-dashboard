@@ -164,12 +164,19 @@ async function main() {
     mqttClient?.publish(`cosmos/${displayId}/current_scene`, sceneName ?? '', { retain: true });
   }
 
+  // Browser-reachable HA URL for media art absolutization. Only set when
+  // HA was configured directly (not via Supervisor) — `http://supervisor/core`
+  // is server-side only and unreachable from a tablet's browser. In add-on
+  // setups we'd need a Cosmos-side proxy endpoint instead.
+  const browserMediaBase = config.haUrl ?? null;
+
   const wss = attachWsHub(app.server, {
     displays, scenes, settings, transitions, overrides,
     resolveEntity,
     resolveCalendarEvents,
     resolveHistory,
     readEntitySync,
+    mediaUrlBase: browserMediaBase ?? undefined,
     onDisplayOnline: publishOnline,
     onDisplayOffline: publishOffline,
     onSceneActivated: publishSceneState,
