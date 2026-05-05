@@ -8,6 +8,7 @@
   import MediaPlayer from '$lib/widgets/MediaPlayer.svelte';
   import Statistics from '$lib/widgets/Statistics.svelte';
   import Background from '$lib/backgrounds/Background.svelte';
+  import MoodLayer from './MoodLayer.svelte';
 
   export let scene: SceneState;
 
@@ -22,6 +23,11 @@
   <div class="background-layer" data-bg-type={scene.background.type}>
     <Background background={scene.background} />
   </div>
+  {#if scene.resolvedMood}
+    {#key scene.id}
+      <MoodLayer mood={scene.resolvedMood} />
+    {/key}
+  {/if}
   <div
     class="widget-layer"
     class:floating={scene.floatWidgets}
@@ -66,7 +72,7 @@
     inset: 0;
     display: grid;
     gap: 1rem;
-    z-index: 1;
+    z-index: 2;
   }
   @keyframes cosmos-float {
     0%, 100% { transform: translateY(0); }

@@ -111,6 +111,14 @@
     return `${r.sceneIds.length} scenes · every ${r.intervalSec}s`;
   }
 
+  function previewDisplay(displayName: string, orientation: 'landscape' | 'portrait') {
+    const url = `/?display=${encodeURIComponent(displayName)}`;
+    const portrait = orientation === 'portrait';
+    const w = portrait ? 540 : 960;
+    const h = portrait ? 960 : 540;
+    window.open(url, `cosmos-preview-${displayName}`, `width=${w},height=${h},noopener`);
+  }
+
   onMount(refresh);
 </script>
 
@@ -170,6 +178,7 @@
           </td>
           <td>{d.lastSeen ?? '—'}</td>
           <td>
+            <button class="ghost" type="button" on:click={() => previewDisplay(d.name, d.orientation)}>Preview</button>
             <select on:change={(e) => assign(d.name, e.currentTarget.value, true)} disabled={busy === d.name}>
               <option value="">Set default…</option>
               {#each scenes as s (s.id)}<option value={s.id}>{s.name}</option>{/each}

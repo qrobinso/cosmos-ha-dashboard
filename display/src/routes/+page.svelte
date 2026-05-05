@@ -55,6 +55,14 @@
   }
 
   onMount(() => {
+    // ?display=<name> launches a one-shot preview without overwriting the
+    // device's saved display name. Useful for the admin Preview button.
+    const params = new URLSearchParams(window.location.search);
+    const previewName = params.get('display')?.trim();
+    if (previewName) {
+      start(previewName);
+      return;
+    }
     const stored = getDisplayName();
     if (stored) start(stored);
   });

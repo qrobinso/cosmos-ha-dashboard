@@ -60,14 +60,30 @@
       : data.state === 'off' ? 'Off'
       : data.state.charAt(0).toUpperCase() + data.state.slice(1)
     : 'Unknown';
+
+  // "No music playing" covers: no data at all, source off/idle/unknown, or
+  // an active state with no track metadata (some integrations report 'on'
+  // with empty title when nothing is queued).
+  $: idleStates = new Set(['idle', 'off', 'standby', 'unknown', 'unavailable', 'none']);
+  $: noMusic = !data || idleStates.has(data.state) || !(data.title && data.title.trim());
+  const NO_MUSIC_LABEL = 'No music playing';
 </script>
 
 <div class="media" class:compact data-theme={theme} data-state={data?.state ?? 'unknown'}>
-  {#if blurBackground && data?.album_art_url}
+  {#if blurBackground && data?.album_art_url && !noMusic}
     <div class="bg" style="background-image:url({data.album_art_url})"></div>
   {/if}
 
-  {#if theme === 'default'}
+  {#if noMusic}
+    <div class="no-music" aria-label={NO_MUSIC_LABEL}>
+      <svg class="no-music-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+        <path d="M9 18V5l12-2v13"/>
+        <circle cx="6" cy="18" r="3"/>
+        <circle cx="18" cy="16" r="3"/>
+      </svg>
+      <div class="no-music-label">{NO_MUSIC_LABEL}</div>
+    </div>
+  {:else if theme === 'default'}
     <div class="content">
       {#if showAlbumArt}
         {#if data?.album_art_url}
@@ -223,6 +239,34 @@
       linear-gradient(to bottom, transparent 0, black var(--cosmos-edge-fade), black calc(100% - var(--cosmos-edge-fade)), transparent 100%);
     -webkit-mask-composite: source-in;
     mask-composite: intersect;
+  }
+  .no-music {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    box-sizing: border-box;
+    color: inherit;
+    opacity: 0.7;
+    text-align: center;
+  }
+  .no-music-icon {
+    width: calc(min(22cqmin, 30cqh) * var(--cosmos-font-scale, 1));
+    height: auto;
+    max-width: 40%;
+    max-height: 40%;
+    opacity: 0.7;
+  }
+  .no-music-label {
+    font-size: calc(min(8cqmin, 12cqh) * var(--cosmos-font-scale, 1));
+    font-weight: 500;
+    letter-spacing: 0.02em;
   }
   .media .bg {
     position: absolute;

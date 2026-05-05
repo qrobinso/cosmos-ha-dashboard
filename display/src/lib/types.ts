@@ -76,6 +76,15 @@ export type WidgetState = {
   data: WidgetData;
 };
 
+export type MoodStrategy = 'manual' | 'time' | 'weather';
+export type MoodConfig = {
+  enabled: boolean;
+  strategy: MoodStrategy;
+  moodId?: string;
+  weatherEntity?: string;
+};
+export type ResolvedMood = { url: string; blend: 'screen' | 'lighten' };
+
 export type SceneState = {
   id: string;
   name: string;
@@ -84,8 +93,10 @@ export type SceneState = {
   typography: Typography;
   defaultTransitionId: string | null;
   floatWidgets: boolean;
+  mood: MoodConfig;
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
+  resolvedMood?: ResolvedMood;
 };
 
 export type OverlayMessage = {
