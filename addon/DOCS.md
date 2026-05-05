@@ -14,9 +14,36 @@ A beautiful wall dashboard for Home Assistant. Configure scenes, widgets, transi
 
 Find your HA host's LAN IP. On the tablet's browser, open `http://<HA_IP>:8099/`. The first time, you'll be asked to name the display (e.g. "Living Room"). After that the tablet auto-connects.
 
-## Configuration via HA automations
+## Use Cosmos in HA automations
 
-The MQTT command topics work out-of-the-box once the Mosquitto app is running:
+Cosmos publishes MQTT discovery payloads, so each display shows up as a HA **device** with five entities you can drop straight into automations — no MQTT-publish boilerplate required:
+
+| Entity                                    | Type           | Use in automations                                   |
+|-------------------------------------------|----------------|------------------------------------------------------|
+| `select.<display>_active_scene`           | Select         | **Action: Select option** → pick a scene to switch.  |
+| `notify.<display>_show_message`           | Notify service | **Action: Notification** → push a banner with title + message. |
+| `button.<display>_dismiss_message`        | Button         | **Action: Press button** → clear any visible banner. |
+| `sensor.<display>_scene`                  | Sensor         | Trigger / condition on the current scene name.       |
+| `binary_sensor.<display>_online`          | Connectivity   | Trigger / condition on display online state.         |
+
+Example automation: switch the Kitchen display to a "Cooking" scene when the oven turns on:
+
+```yaml
+trigger:
+  platform: state
+  entity_id: switch.oven
+  to: 'on'
+action:
+  service: select.select_option
+  target:
+    entity_id: select.kitchen_active_scene
+  data:
+    option: Cooking
+```
+
+### Direct MQTT (advanced)
+
+If you'd rather skip the discovery entities, the raw command topics still work:
 
 ```yaml
 # Show a toast on the Living Room display

@@ -48,13 +48,18 @@ export type SceneRoutesDeps = {
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
   onRotationChanged?: (displayId: string) => void;
   onDisplayConfigChanged?: (displayId: string) => void;
+  /** Fired when a scene is created, renamed, or deleted — used to
+   *  refresh MQTT discovery's scene-select options list. */
+  onScenesListChanged?: () => void;
 };
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
   app.post('/api/scenes', async (req, reply) => {
     const v = validateSceneInput(req.body);
     if (!v.ok) return reply.code(400).send({ error: v.error });
-    return deps.scenes.create(v.value);
+    const created = deps.scenes.create(v.value);
+    deps.onScenesListChanged?.();
+    return created;
   });
 
   app.get('/api/scenes', async () => deps.scenes.list());
@@ -72,6 +77,7 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     if (!existing) return reply.code(404).send({ error: 'not found' });
     const updated = deps.scenes.update(req.params.id, v.value);
     notifyAffectedDisplays(req.params.id, deps);
+    if (existing.name !== updated.name) deps.onScenesListChanged?.();
     return updated;
   });
 
@@ -79,6 +85,7 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     const existing = deps.scenes.get(req.params.id);
     if (!existing) return reply.code(404).send({ error: 'not found' });
     deps.scenes.delete(req.params.id);
+    deps.onScenesListChanged?.();
     return reply.code(204).send();
   });
 

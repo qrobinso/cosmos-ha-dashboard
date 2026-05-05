@@ -147,21 +147,28 @@ async function main() {
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
     onRotationChanged,
     onDisplayConfigChanged: (displayId) => wssRef?.pushDisplayConfigTo(displayId),
+    onScenesListChanged,
   });
   await registerStatic(app, config.staticDir);
-  let publishedDiscoveryFor = new Set<string>();
+  async function publishDiscovery(): Promise<void> {
+    if (!mqttClient) return;
+    const { buildDiscoveryPayloads } = await import('./mqtt/discovery.js');
+    const list = displays.list().map((d) => ({ id: d.id, name: d.name }));
+    const sceneNames = scenes.list().map((s) => s.name);
+    for (const p of buildDiscoveryPayloads(list, sceneNames)) {
+      mqttClient.publish(p.topic, p.payload, { retain: p.retain });
+    }
+  }
+  let publishedDiscoveryOnce = false;
   function publishOnline(displayId: string, _name: string) {
     mqttClient?.publish(`cosmos/${displayId}/online`, 'online', { retain: true });
-    if (mqttClient && !publishedDiscoveryFor.has(displayId)) {
-      publishedDiscoveryFor.add(displayId);
-      void (async () => {
-        const { buildDiscoveryPayloads } = await import('./mqtt/discovery.js');
-        const list = displays.list().map((d) => ({ id: d.id, name: d.name }));
-        for (const p of buildDiscoveryPayloads(list)) {
-          mqttClient!.publish(p.topic, p.payload, { retain: p.retain });
-        }
-      })();
+    if (mqttClient && !publishedDiscoveryOnce) {
+      publishedDiscoveryOnce = true;
+      void publishDiscovery().catch((err) => console.error('publishDiscovery failed', err));
     }
+  }
+  function onScenesListChanged() {
+    void publishDiscovery().catch((err) => console.error('publishDiscovery failed', err));
   }
   function publishOffline(displayId: string, _name: string) {
     mqttClient?.publish(`cosmos/${displayId}/online`, 'offline', { retain: true });

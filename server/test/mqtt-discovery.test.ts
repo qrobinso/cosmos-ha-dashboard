@@ -2,19 +2,22 @@ import { describe, it, expect } from 'vitest';
 import { buildDiscoveryPayloads, COSMOS_DEVICE_ID } from '../src/mqtt/discovery.js';
 
 describe('buildDiscoveryPayloads', () => {
-  it('emits a sensor + binary_sensor pair per display, with shared device metadata', () => {
-    const out = buildDiscoveryPayloads([
-      { id: 'd1', name: 'Living Room' },
-      { id: 'd2', name: 'Kitchen' },
-    ]);
+  it('emits 5 entities per display (sensor, binary_sensor, notify, button, select)', () => {
+    const out = buildDiscoveryPayloads(
+      [
+        { id: 'd1', name: 'Living Room' },
+        { id: 'd2', name: 'Kitchen' },
+      ],
+      ['Morning', 'Evening']
+    );
 
-    // 2 displays * 2 entities = 4 discovery topics
-    expect(out.length).toBe(4);
+    expect(out.length).toBe(10); // 2 displays * 5 entities
 
-    const sensorTopics = out.filter((p) => p.topic.includes('/sensor/'));
-    expect(sensorTopics.length).toBe(2);
-    const binTopics = out.filter((p) => p.topic.includes('/binary_sensor/'));
-    expect(binTopics.length).toBe(2);
+    expect(out.filter((p) => p.topic.includes('/sensor/')).length).toBe(2);
+    expect(out.filter((p) => p.topic.includes('/binary_sensor/')).length).toBe(2);
+    expect(out.filter((p) => p.topic.includes('/notify/')).length).toBe(2);
+    expect(out.filter((p) => p.topic.includes('/button/')).length).toBe(2);
+    expect(out.filter((p) => p.topic.includes('/select/')).length).toBe(2);
 
     const livingScene = out.find((p) => p.topic === `homeassistant/sensor/cosmos_d1_current_scene/config`);
     expect(livingScene).toBeDefined();
@@ -33,6 +36,46 @@ describe('buildDiscoveryPayloads', () => {
     expect(onlineCfg.state_topic).toBe('cosmos/d1/online');
     expect(onlineCfg.payload_on).toBe('online');
     expect(onlineCfg.payload_off).toBe('offline');
+  });
+
+  it('emits a notify entity wired to the message/set command topic', () => {
+    const out = buildDiscoveryPayloads([{ id: 'd1', name: 'A' }]);
+    const cfg = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_show_message/config'))!.payload
+    );
+    expect(cfg.command_topic).toBe('cosmos/d1/message/set');
+    expect(cfg.command_template).toContain('title');
+    expect(cfg.command_template).toContain('value');
+  });
+
+  it('emits a button entity for dismissing messages', () => {
+    const out = buildDiscoveryPayloads([{ id: 'd1', name: 'A' }]);
+    const cfg = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_dismiss_message/config'))!.payload
+    );
+    expect(cfg.command_topic).toBe('cosmos/d1/message/dismiss');
+    expect(cfg.payload_press).toBe('');
+  });
+
+  it('emits a select entity populated with the current scene names', () => {
+    const out = buildDiscoveryPayloads(
+      [{ id: 'd1', name: 'A' }],
+      ['Morning', 'Evening', 'Night']
+    );
+    const cfg = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_active_scene/config'))!.payload
+    );
+    expect(cfg.command_topic).toBe('cosmos/d1/scene/set');
+    expect(cfg.options).toEqual(['Morning', 'Evening', 'Night']);
+    expect(cfg.state_topic).toBe('cosmos/d1/current_scene');
+  });
+
+  it('select options default to empty array when no scenes provided', () => {
+    const out = buildDiscoveryPayloads([{ id: 'd1', name: 'A' }]);
+    const cfg = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_active_scene/config'))!.payload
+    );
+    expect(cfg.options).toEqual([]);
   });
 
   it('returns retain=true for all discovery payloads', () => {
