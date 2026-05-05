@@ -103,6 +103,12 @@ const migrations: Migration[] = [
       ALTER TABLE scenes ADD COLUMN float_widgets INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 7,
+    up: `
+      ALTER TABLE scenes ADD COLUMN mood_json TEXT NOT NULL DEFAULT '{"enabled":false,"strategy":"manual"}';
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

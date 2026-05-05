@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DB } from './db.js';
+import type { MoodConfig } from '../moods/types.js';
 
 export type Position = { col: number; row: number; w: number; h: number };
 export type Layout = { cols: number; rows: number; items: { widget_id: string; col: number; row: number; w: number; h: number }[] };
@@ -24,12 +25,16 @@ export type Scene = {
   typography: Typography;
   defaultTransitionId: string | null;
   floatWidgets: boolean;
+  mood: MoodConfig;
   widgets: Widget[];
 };
 
-export type SceneInput = Omit<Scene, 'id' | 'widgets' | 'defaultTransitionId' | 'floatWidgets'> & {
+export const DEFAULT_MOOD: MoodConfig = { enabled: false, strategy: 'manual' };
+
+export type SceneInput = Omit<Scene, 'id' | 'widgets' | 'defaultTransitionId' | 'floatWidgets' | 'mood'> & {
   defaultTransitionId?: string | null;
   floatWidgets?: boolean;
+  mood?: MoodConfig;
   widgets: Omit<Widget, 'id'>[];
 };
 
@@ -53,6 +58,7 @@ type SceneRow = {
   typography_json: string;
   default_transition_id: string | null;
   float_widgets: number;
+  mood_json: string;
 };
 type WidgetRow = {
   id: string;
@@ -61,6 +67,21 @@ type WidgetRow = {
   position_json: string;
   config_json: string;
 };
+
+function parseMood(json: string | null | undefined): MoodConfig {
+  if (!json) return { ...DEFAULT_MOOD };
+  try {
+    const parsed = JSON.parse(json) as Partial<MoodConfig>;
+    return {
+      enabled: !!parsed.enabled,
+      strategy: parsed.strategy === 'time' || parsed.strategy === 'weather' ? parsed.strategy : 'manual',
+      moodId: typeof parsed.moodId === 'string' ? parsed.moodId : undefined,
+      weatherEntity: typeof parsed.weatherEntity === 'string' ? parsed.weatherEntity : undefined,
+    };
+  } catch {
+    return { ...DEFAULT_MOOD };
+  }
+}
 
 function rowToScene(s: SceneRow, widgets: Widget[]): Scene {
   return {
@@ -71,6 +92,7 @@ function rowToScene(s: SceneRow, widgets: Widget[]): Scene {
     typography: JSON.parse(s.typography_json),
     defaultTransitionId: s.default_transition_id,
     floatWidgets: s.float_widgets === 1,
+    mood: parseMood(s.mood_json),
     widgets,
   };
 }
@@ -86,17 +108,17 @@ function rowToWidget(r: WidgetRow): Widget {
 
 export function createScenesRepo(db: DB): ScenesRepo {
   const insertScene = db.prepare(
-    'INSERT INTO scenes (id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO scenes (id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets, mood_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
   const updateScene = db.prepare(
-    "UPDATE scenes SET name = ?, layout_json = ?, background_json = ?, typography_json = ?, default_transition_id = ?, float_widgets = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    "UPDATE scenes SET name = ?, layout_json = ?, background_json = ?, typography_json = ?, default_transition_id = ?, float_widgets = ?, mood_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
   );
   const deleteScene = db.prepare('DELETE FROM scenes WHERE id = ?');
   const selectSceneById = db.prepare<[string], SceneRow>(
-    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets FROM scenes WHERE id = ?'
+    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets, mood_json FROM scenes WHERE id = ?'
   );
   const selectAllScenes = db.prepare<[], SceneRow>(
-    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets FROM scenes ORDER BY name'
+    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets, mood_json FROM scenes ORDER BY name'
   );
   const insertWidget = db.prepare(
     'INSERT INTO widgets (id, scene_id, kind, position_json, config_json) VALUES (?, ?, ?, ?, ?)'
@@ -112,10 +134,10 @@ export function createScenesRepo(db: DB): ScenesRepo {
     'DELETE FROM scenes_displays WHERE scene_id = ? AND display_id = ?'
   );
   const selectSceneByName = db.prepare<[string], SceneRow>(
-    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets FROM scenes WHERE name = ?'
+    'SELECT id, name, layout_json, background_json, typography_json, default_transition_id, float_widgets, mood_json FROM scenes WHERE name = ?'
   );
   const selectAssignedScenes = db.prepare<[string], SceneRow>(
-    `SELECT s.id, s.name, s.layout_json, s.background_json, s.typography_json, s.default_transition_id, s.float_widgets
+    `SELECT s.id, s.name, s.layout_json, s.background_json, s.typography_json, s.default_transition_id, s.float_widgets, s.mood_json
      FROM scenes s
      JOIN scenes_displays sd ON sd.scene_id = s.id
      WHERE sd.display_id = ?
@@ -146,10 +168,12 @@ export function createScenesRepo(db: DB): ScenesRepo {
       const defaultTransitionId = input.defaultTransitionId ?? null;
       const floatWidgets = input.floatWidgets === true;
       const floatWidgetsCol = floatWidgets ? 1 : 0;
+      const mood: MoodConfig = input.mood ?? { ...DEFAULT_MOOD };
+      const mood_json = JSON.stringify(mood);
       if (isUpdate) {
-        updateScene.run(input.name, layout_json, background_json, typography_json, defaultTransitionId, floatWidgetsCol, sceneId);
+        updateScene.run(input.name, layout_json, background_json, typography_json, defaultTransitionId, floatWidgetsCol, mood_json, sceneId);
       } else {
-        insertScene.run(sceneId, input.name, layout_json, background_json, typography_json, defaultTransitionId, floatWidgetsCol);
+        insertScene.run(sceneId, input.name, layout_json, background_json, typography_json, defaultTransitionId, floatWidgetsCol, mood_json);
       }
       const widgets = writeWidgets(sceneId, input.widgets);
       db.exec('COMMIT');
@@ -161,6 +185,7 @@ export function createScenesRepo(db: DB): ScenesRepo {
         typography: input.typography,
         defaultTransitionId,
         floatWidgets,
+        mood,
         widgets,
       };
     } catch (err) {

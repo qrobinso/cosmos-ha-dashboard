@@ -108,4 +108,28 @@ describe('scenes repo', () => {
     expect(ctx.scenes.getByName('NamedOne')?.id).toBe(created.id);
     expect(ctx.scenes.getByName('NotExists')).toBeNull();
   });
+
+  it('mood defaults to disabled manual when not provided', () => {
+    const ctx = setup();
+    const created = ctx.scenes.create(sample);
+    expect(created.mood).toEqual({ enabled: false, strategy: 'manual' });
+    const fetched = ctx.scenes.get(created.id);
+    expect(fetched?.mood).toEqual({ enabled: false, strategy: 'manual' });
+  });
+
+  it('create + update round-trip a mood config', () => {
+    const ctx = setup();
+    const created = ctx.scenes.create({
+      ...sample,
+      mood: { enabled: true, strategy: 'manual', moodId: 'clouds' },
+    });
+    expect(created.mood).toEqual({ enabled: true, strategy: 'manual', moodId: 'clouds' });
+    const fetched = ctx.scenes.get(created.id);
+    expect(fetched?.mood).toEqual({ enabled: true, strategy: 'manual', moodId: 'clouds' });
+    const updated = ctx.scenes.update(created.id, {
+      ...sample,
+      mood: { enabled: true, strategy: 'weather', weatherEntity: 'weather.home' },
+    });
+    expect(updated.mood).toEqual({ enabled: true, strategy: 'weather', weatherEntity: 'weather.home' });
+  });
 });

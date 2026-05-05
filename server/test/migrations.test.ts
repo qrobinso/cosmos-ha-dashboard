@@ -36,7 +36,7 @@ describe('runMigrations', () => {
     const versions = db
       .prepare('SELECT version FROM schema_version ORDER BY version')
       .all() as { version: number }[];
-    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
   it('migration v3 adds transitions, scene_transition_overrides, and scenes.default_transition_id', () => {
@@ -53,7 +53,7 @@ describe('runMigrations', () => {
     expect(sceneCols.map((c) => c.name)).toContain('default_transition_id');
 
     const versions = db.prepare('SELECT version FROM schema_version ORDER BY version').all() as { version: number }[];
-    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
   it('migration v3 seeds the 6 built-in transitions', () => {
@@ -61,5 +61,14 @@ describe('runMigrations', () => {
     runMigrations(db);
     const rows = db.prepare('SELECT name FROM transitions WHERE builtin = 1 ORDER BY name').all() as { name: string }[];
     expect(rows.map((r) => r.name)).toEqual(['cross-fade', 'dissolve', 'gradient-morph', 'scale-fade', 'slide-down', 'slide-up']);
+  });
+
+  it('migration v7 adds mood_json with a disabled-manual default', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const cols = db.prepare("PRAGMA table_info('scenes')").all() as { name: string; dflt_value: string | null }[];
+    const mood = cols.find((c) => c.name === 'mood_json');
+    expect(mood).toBeTruthy();
+    expect(mood?.dflt_value).toContain('"enabled":false');
   });
 });
