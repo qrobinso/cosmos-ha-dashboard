@@ -48,8 +48,22 @@ export function marquee(node: HTMLElement) {
   original.style.flex = '0 0 auto';
 
   function check() {
-    const overflow = original.scrollWidth > node.clientWidth;
+    const innerW = original.scrollWidth;
+    const hostW = node.clientWidth;
+    const overflow = innerW > hostW;
     const currentText = original.textContent ?? '';
+
+    // Always expose state on the element so it can be inspected in
+    // DevTools (helpful for diagnosing why marquee isn't activating).
+    node.setAttribute('data-marquee-inner-w', String(innerW));
+    node.setAttribute('data-marquee-host-w', String(hostW));
+    node.setAttribute('data-marquee-overflow', overflow ? 'true' : 'false');
+
+    // Optional verbose logging when window.__cosmosMarqueeDebug is truthy.
+    if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__cosmosMarqueeDebug) {
+      // eslint-disable-next-line no-console
+      console.log('[marquee]', { text: currentText.slice(0, 40), innerW, hostW, overflow });
+    }
 
     if (overflow) {
       // Ensure clone exists and tracks the original's text.
