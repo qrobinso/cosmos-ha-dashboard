@@ -11,6 +11,11 @@ import { registerStatic } from './static.js';
 import { makeHaClient } from './ha/client.js';
 import type { HaClient } from './ha/types.js';
 import { mockEntityResolver } from './scenes/assembler.js';
+import { resolveMoodsDir } from './moods/scan.js';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve as resolvePath } from 'node:path';
+
+const __cosmos_repo_root = resolvePath(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 function widgetEntityIds(scenes: ReturnType<typeof createScenesRepo>): Set<string> {
   const ids = new Set<string>();
@@ -131,6 +136,7 @@ async function main() {
     transitions,
     overrides,
     haClient,  // pass the live client (or null) so /api/ha/entities can read the cache
+    moodsDir: () => resolveMoodsDir({ explicit: config.moodsDir, staticDir: config.staticDir, repoRoot: __cosmos_repo_root }),
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
     onRotationChanged,

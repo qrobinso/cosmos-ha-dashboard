@@ -34,6 +34,7 @@ export type HttpDeps = {
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
   haClient?: import('../ha/types.js').HaClient | null;
+  moodsDir?: () => string | null;
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
   onSettingsChanged?: () => void;
   onRotationChanged?: (displayId: string) => void;
@@ -65,7 +66,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   registerTransitionRoutes(app, deps.transitions);
 
   registerHaEntityRoutes(app, { haClient: deps.haClient ?? null });
-  registerMoodRoutes(app);
+  registerMoodRoutes(app, { moodsDir: () => deps.moodsDir?.() ?? null });
 
   registerSceneRoutes(app, {
     scenes: deps.scenes,

@@ -32,8 +32,13 @@ describe('resolveMood', () => {
       expect(resolveMood(cfg, ctx(new Date()))).toBeNull();
     });
 
-    it('returns null for an unknown moodId', () => {
-      const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'nope' };
+    it('builds a /moods/<id>.mp4 url for any moodId (file existence is checked client-side)', () => {
+      const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'my-custom' };
+      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ url: '/moods/my-custom.mp4', blend: 'screen' });
+    });
+
+    it('rejects moodIds with path separators', () => {
+      const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: '../etc/passwd' };
       expect(resolveMood(cfg, ctx(new Date()))).toBeNull();
     });
   });

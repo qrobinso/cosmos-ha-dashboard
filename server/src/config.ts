@@ -9,6 +9,9 @@ export const config = {
   host: process.env.HOST ?? '0.0.0.0',
   dbPath: process.env.DB_PATH ?? resolve(repoRoot, 'data', 'cosmos.db'),
   staticDir: process.env.STATIC_DIR ?? resolve(repoRoot, 'display', 'build'),
+  /** Folder scanned for mood video files. Defaults to <staticDir>/moods if it
+   *  exists, otherwise falls back to display/static/moods (dev). */
+  moodsDir: process.env.MOODS_DIR ?? null,
   haUrl: process.env.HA_URL ?? null,
   haToken: process.env.HA_TOKEN ?? null,
   mqttUrl: process.env.MQTT_URL ?? null,

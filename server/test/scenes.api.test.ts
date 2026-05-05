@@ -125,11 +125,20 @@ describe('scenes REST API', () => {
     expect(res.json().mood).toEqual({ enabled: true, strategy: 'manual', moodId: 'clouds' });
   });
 
-  it('POST /api/scenes 400s when manual mood references an unknown moodId', async () => {
+  it('POST /api/scenes 400s when manual mood has an empty moodId', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/scenes',
-      payload: { ...sample, mood: { enabled: true, strategy: 'manual', moodId: 'nope' } },
+      payload: { ...sample, mood: { enabled: true, strategy: 'manual', moodId: '' } },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('POST /api/scenes 400s when manual mood has a moodId with path separators', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: { ...sample, mood: { enabled: true, strategy: 'manual', moodId: '../escape' } },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -143,10 +152,9 @@ describe('scenes REST API', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('GET /api/moods returns the catalog', async () => {
+  it('GET /api/moods returns the scanned mood files (or empty when no folder)', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/moods' });
     expect(res.statusCode).toBe(200);
-    const ids = res.json().map((m: { id: string }) => m.id);
-    expect(ids).toEqual(expect.arrayContaining(['clouds', 'rain', 'snow', 'stars', 'sunrise', 'embers']));
+    expect(Array.isArray(res.json())).toBe(true);
   });
 });

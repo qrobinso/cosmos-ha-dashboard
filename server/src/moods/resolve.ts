@@ -1,6 +1,6 @@
 import type { EntityState } from '../scenes/types.js';
 import type { MoodConfig, ResolvedMood } from './types.js';
-import { getMoodById, TIME_TO_MOOD, WEATHER_TO_MOOD, type TimeOfDay } from './catalog.js';
+import { TIME_TO_MOOD, WEATHER_TO_MOOD, type TimeOfDay } from './catalog.js';
 
 export type ResolveContext = {
   now: Date;
@@ -10,14 +10,9 @@ export type ResolveContext = {
 
 const DEFAULT_BLEND: ResolvedMood['blend'] = 'screen';
 
-function moodUrl(file: string): string {
-  return `/moods/${file}`;
-}
-
 function buildResolved(moodId: string): ResolvedMood | null {
-  const entry = getMoodById(moodId);
-  if (!entry) return null;
-  return { url: moodUrl(entry.file), blend: DEFAULT_BLEND };
+  if (!moodId || /[\\/]/.test(moodId)) return null;
+  return { url: `/moods/${moodId}.mp4`, blend: DEFAULT_BLEND };
 }
 
 /**

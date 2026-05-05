@@ -2,8 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import type { ScenesRepo, SceneInput } from '../store/scenes.js';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { TransitionsRepo } from '../store/transitions.js';
-import { getMoodById } from '../moods/catalog.js';
-
 function validateMood(mood: unknown): string | null {
   if (mood === undefined) return null;
   if (typeof mood !== 'object' || mood === null) return 'mood must be an object';
@@ -13,8 +11,8 @@ function validateMood(mood: unknown): string | null {
     return 'mood.strategy must be manual, time, or weather';
   }
   if (m.strategy === 'manual' && m.enabled) {
-    if (typeof m.moodId !== 'string' || !getMoodById(m.moodId)) {
-      return `mood.moodId must reference a known mood`;
+    if (typeof m.moodId !== 'string' || m.moodId.trim() === '' || /[\\/]/.test(m.moodId)) {
+      return 'mood.moodId must be a non-empty string without slashes';
     }
   }
   if (m.strategy === 'weather' && m.enabled) {
