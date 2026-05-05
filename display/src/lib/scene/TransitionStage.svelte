@@ -32,36 +32,46 @@
     ].join(' ');
   }
 
-  $: outgoing = stageState.outgoingScene;
-  $: incoming = stageState.incomingScene;
   $: transitioning = stageState.phase === 'transitioning';
+
+  /**
+   * Compose both layers as a single keyed each. Keying by `scene.id` lets
+   * Svelte preserve the SceneCanvas component (and the running gradient
+   * animation inside it) when the previously-incoming scene becomes the
+   * outgoing one. Without this, Svelte would tear the SceneCanvas out of
+   * the `{#if incoming}` block and remount a new one in the `{#if outgoing}`
+   * block — restarting the ambient gradient drift from frame 0 and creating
+   * the visible "snap" mid-transition.
+   *
+   * Order: outgoing first (visually under) then incoming. CSS z-index on the
+   * role classes pulls outgoing to the front during the fade.
+   */
+  type Layer = { scene: SceneState; role: 'outgoing' | 'incoming' };
+  $: layers = ((): Layer[] => {
+    const out: Layer[] = [];
+    if (stageState.outgoingScene && transitioning) {
+      out.push({ scene: stageState.outgoingScene, role: 'outgoing' });
+    }
+    if (stageState.incomingScene) {
+      out.push({ scene: stageState.incomingScene, role: 'incoming' });
+    }
+    return out;
+  })();
 </script>
 
-<!--
-  Both layers mount simultaneously while transitioning; CSS animations on each
-  run in parallel. The outgoing layer keeps `data-phase="out"` for its entire
-  lifetime so `animation-fill-mode: forwards` keeps the final keyframe state
-  applied right up until unmount — preventing the snap-back-to-default flash.
--->
-{#if outgoing && transitioning}
-  <div class="cosmos-stage-layer outgoing" data-phase="out" style={styleFor('outgoing')}>
-    <SceneCanvas scene={outgoing} />
-  </div>
-{/if}
-{#if incoming}
+{#each layers as layer (layer.scene.id)}
   <div
-    class="cosmos-stage-layer incoming"
-    data-phase={transitioning ? 'in' : null}
-    style={transitioning ? styleFor('incoming') : ''}
+    class="cosmos-stage-layer"
+    class:outgoing={layer.role === 'outgoing'}
+    class:incoming={layer.role === 'incoming'}
+    data-phase={transitioning ? (layer.role === 'outgoing' ? 'out' : 'in') : null}
+    style={transitioning ? styleFor(layer.role) : ''}
   >
-    <SceneCanvas scene={incoming} />
+    <SceneCanvas scene={layer.scene} />
   </div>
-{/if}
+{/each}
 
 <style>
-  /* The outgoing layer sits above the incoming during a transition so its
-     fade-out reads correctly. (z-index inside `.cosmos-stage-layer`'s own
-     position:fixed context — harmless when only one layer is mounted.) */
   .cosmos-stage-layer.outgoing { z-index: 2; }
   .cosmos-stage-layer.incoming { z-index: 1; }
 </style>
