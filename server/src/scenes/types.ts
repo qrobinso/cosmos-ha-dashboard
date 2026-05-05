@@ -4,9 +4,66 @@ import type { ResolvedMood } from '../moods/types.js';
 
 export type ClockData = null;
 
-export type WeatherCurrent = { temp: number; unit: 'C' | 'F'; condition: string; icon: string };
-export type WeatherForecastDay = { day: string; high: number; low: number; icon: string };
-export type WeatherData = { current: WeatherCurrent; forecast: WeatherForecastDay[] };
+/** HA weather forecast types — mirrors the `forecast_type` field of HA's
+ *  weather-forecast lovelace card and the `type` parameter of the
+ *  `weather.get_forecasts` service. */
+export type WeatherForecastType = 'daily' | 'hourly' | 'twice_daily';
+
+/** Current conditions, sourced from the weather entity's state + attributes. */
+export type WeatherCurrent = {
+  /** Numeric temperature reading. */
+  temp: number;
+  /** 'C' or 'F'. Derived from the entity's `temperature_unit`. */
+  unit: 'C' | 'F';
+  /** HA condition string: 'sunny', 'cloudy', 'partlycloudy', 'rainy', 'snowy', etc. */
+  condition: string;
+  /** Optional iconography hint (legacy field — display widget can fall back to condition). */
+  icon?: string;
+
+  // ── Extended attributes used by `secondary_info_attribute` ──
+  humidity?: number;
+  pressure?: number;
+  wind_speed?: number;
+  wind_bearing?: number | string;
+  visibility?: number;
+  cloud_coverage?: number;
+  uv_index?: number;
+  apparent_temperature?: number;
+  dew_point?: number;
+};
+
+/** A single forecast item. Different forecast types use different fields. */
+export type WeatherForecastItem = {
+  /** ISO datetime — the slot the forecast applies to. */
+  datetime: string;
+  condition: string;
+  /** For daily forecasts, this is the high temp; for hourly, the temp at that hour. */
+  temperature: number;
+  /** Daily forecasts include a low; hourly typically does not. */
+  templow?: number;
+  precipitation?: number;
+  precipitation_probability?: number;
+  wind_speed?: number;
+  wind_bearing?: number | string;
+  humidity?: number;
+  pressure?: number;
+  /** Twice-daily forecasts use this to mark day vs night halves. */
+  is_daytime?: boolean;
+};
+
+/** Backwards-compat alias for older shapes/widgets. */
+export type WeatherForecastDay = WeatherForecastItem;
+
+export type WeatherData = {
+  /** Source weather entity. Empty when no entity configured (mock fallback). */
+  entity_id: string;
+  /** Friendly name from the entity, or override from widget config. */
+  friendly_name?: string;
+  /** Which forecast type was requested. Useful for the widget's UX. */
+  forecast_type: WeatherForecastType;
+  current: WeatherCurrent;
+  forecast: WeatherForecastItem[];
+};
 
 export type EntityState = {
   entity_id: string;

@@ -10,16 +10,20 @@ import type {
   StatisticsData,
   StatisticsPoint,
   EntityState,
+  WeatherData,
+  WeatherForecastItem,
+  WeatherForecastType,
+  WeatherCurrent,
 } from './types.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { resolveMood } from '../moods/resolve.js';
 import {
-  MOCK_WEATHER,
   mockEntity,
   mockCalendar,
   mockMediaPlayer,
   mockHistory,
+  mockWeather,
 } from './mockData.js';
 
 export type EntityResolver = (entityId: string) => EntityState | Promise<EntityState>;
@@ -32,6 +36,8 @@ export type DataResolvers = {
   resolveCalendarEvents?: (entityId: string, opts: { start: Date; end: Date }) => Promise<CalendarEvent[]>;
   /** State history for a single entity. Falls back to mock when absent. */
   resolveHistory?: (entityId: string, opts: { start: Date; end: Date }) => Promise<StatisticsPoint[]>;
+  /** Weather forecast (daily / hourly / twice_daily) for a `weather.*` entity. */
+  resolveWeatherForecasts?: (entityId: string, type: WeatherForecastType) => Promise<WeatherForecastItem[]>;
   /** Synchronous read of a cached entity, used by the mood resolver
    *  (sun.sun, weather entity). Returns null when not present. */
   readEntitySync?: (entityId: string) => EntityState | null;

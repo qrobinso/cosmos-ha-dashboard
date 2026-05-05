@@ -1,6 +1,8 @@
 import type {
   EntityState,
   WeatherData,
+  WeatherForecastItem,
+  WeatherForecastType,
   CalendarData,
   CalendarEvent,
   MediaPlayerData,
@@ -8,16 +10,106 @@ import type {
   StatisticsPoint,
 } from './types.js';
 
-export const MOCK_WEATHER: WeatherData = {
-  current: { temp: 18, unit: 'C', condition: 'Partly cloudy', icon: 'partly-cloudy' },
-  forecast: [
-    { day: 'Mon', high: 21, low: 12, icon: 'sunny' },
-    { day: 'Tue', high: 19, low: 11, icon: 'cloudy' },
-    { day: 'Wed', high: 17, low: 10, icon: 'rain' },
-    { day: 'Thu', high: 20, low: 13, icon: 'partly-cloudy' },
-    { day: 'Fri', high: 22, low: 14, icon: 'sunny' },
-  ],
-};
+const MOCK_CONDITIONS = [
+  'sunny', 'partlycloudy', 'cloudy', 'rainy', 'partlycloudy',
+  'sunny', 'sunny', 'cloudy', 'rainy', 'partlycloudy',
+];
+
+function mockDailyForecast(slots: number): WeatherForecastItem[] {
+  const out: WeatherForecastItem[] = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  for (let i = 0; i < slots; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i + 1);
+    const high = 18 + Math.round(Math.sin(i / 2) * 4);
+    const low = high - 7 - (i % 3);
+    out.push({
+      datetime: d.toISOString(),
+      condition: MOCK_CONDITIONS[i % MOCK_CONDITIONS.length],
+      temperature: high,
+      templow: low,
+      precipitation: i % 3 === 0 ? 0 : Math.round(Math.random() * 4 * 10) / 10,
+      precipitation_probability: i % 3 === 0 ? 0 : 20 + (i * 13) % 60,
+      wind_speed: 8 + (i * 3) % 12,
+      humidity: 55 + (i * 7) % 30,
+    });
+  }
+  return out;
+}
+
+function mockHourlyForecast(slots: number): WeatherForecastItem[] {
+  const out: WeatherForecastItem[] = [];
+  const start = new Date();
+  start.setMinutes(0, 0, 0);
+  for (let i = 0; i < slots; i++) {
+    const d = new Date(start.getTime() + (i + 1) * 3600 * 1000);
+    const hourOfDay = d.getHours();
+    // Daytime warmer than night
+    const base = 14 + Math.sin((hourOfDay - 6) / 24 * Math.PI * 2) * 6;
+    out.push({
+      datetime: d.toISOString(),
+      condition: MOCK_CONDITIONS[(hourOfDay + i) % MOCK_CONDITIONS.length],
+      temperature: Math.round(base * 10) / 10,
+      precipitation_probability: i % 4 === 0 ? 60 : 10 + (i * 7) % 30,
+      wind_speed: 6 + (i * 2) % 10,
+      humidity: 60 + (i * 5) % 25,
+    });
+  }
+  return out;
+}
+
+function mockTwiceDailyForecast(slots: number): WeatherForecastItem[] {
+  const out: WeatherForecastItem[] = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  for (let i = 0; i < slots; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + Math.floor(i / 2));
+    const isDay = i % 2 === 0;
+    d.setHours(isDay ? 12 : 0, 0, 0, 0);
+    out.push({
+      datetime: d.toISOString(),
+      condition: MOCK_CONDITIONS[i % MOCK_CONDITIONS.length],
+      temperature: isDay ? 21 + (i % 3) : 12 + (i % 3),
+      templow: isDay ? undefined : 10 + (i % 3),
+      precipitation_probability: i % 3 === 0 ? 50 : 15,
+      is_daytime: isDay,
+    });
+  }
+  return out;
+}
+
+export function mockWeather(forecastType: WeatherForecastType, slots = 5): WeatherData {
+  const forecast =
+    forecastType === 'hourly' ? mockHourlyForecast(slots)
+    : forecastType === 'twice_daily' ? mockTwiceDailyForecast(slots)
+    : mockDailyForecast(slots);
+  return {
+    entity_id: 'weather.home',
+    friendly_name: 'Home',
+    forecast_type: forecastType,
+    current: {
+      temp: 18,
+      unit: 'C',
+      condition: 'partlycloudy',
+      icon: 'partly-cloudy',
+      humidity: 64,
+      pressure: 1015,
+      wind_speed: 12,
+      wind_bearing: 'NW',
+      visibility: 16,
+      cloud_coverage: 40,
+      uv_index: 4,
+      apparent_temperature: 16,
+      dew_point: 11,
+    },
+    forecast,
+  };
+}
+
+/** Default mock — daily, 5 slots. Kept as a const for assembler back-compat. */
+export const MOCK_WEATHER: WeatherData = mockWeather('daily', 5);
 
 export const MOCK_ENTITIES: Record<string, EntityState> = {
   'light.living_room': {

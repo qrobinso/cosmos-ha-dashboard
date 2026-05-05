@@ -40,9 +40,16 @@ data:
 
 ## Options
 
-| Option       | Description                                   | Default |
-|--------------|-----------------------------------------------|---------|
-| `log_level`  | Server log verbosity                          | `info`  |
+| Option           | Description                                                                                                                              | Default  |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| `log_level`      | Server log verbosity (`trace` / `debug` / `info` / `notice` / `warning` / `error` / `fatal`).                                            | `info`   |
+| `mqtt_host`      | MQTT broker hostname or IP. **Leave blank** to auto-discover the bundled Mosquitto broker app via Supervisor. Fill it in to override.    | *empty*  |
+| `mqtt_port`      | MQTT broker port. Used only when `mqtt_host` is set.                                                                                     | `1883`   |
+| `mqtt_username`  | MQTT username. Used only when `mqtt_host` is set. Leave blank for anonymous brokers.                                                     | *empty*  |
+| `mqtt_password`  | MQTT password. Used only when `mqtt_host` is set.                                                                                        | *empty*  |
+| `mqtt_use_ssl`   | Connect with TLS (`mqtts://`). Leave off for the standard local-network broker.                                                          | `false`  |
+
+If `mqtt_host` is left blank, Cosmos transparently uses the broker exposed by Home Assistant's Mosquitto app (no further setup needed). The manual fields take precedence when filled in.
 
 ## Persistence
 

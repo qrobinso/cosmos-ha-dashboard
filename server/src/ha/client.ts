@@ -16,7 +16,12 @@ import {
   type Connection,
 } from 'home-assistant-js-websocket';
 import type { HaClient, EntityState, StateChangedHandler } from './types.js';
-import type { CalendarEvent, StatisticsPoint } from '../scenes/types.js';
+import type {
+  CalendarEvent,
+  StatisticsPoint,
+  WeatherForecastItem,
+  WeatherForecastType,
+} from '../scenes/types.js';
 import { createEntityCache } from './cache.js';
 
 export type HaConfig = {
@@ -134,6 +139,44 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
     }
   }
 
+  async function getWeatherForecasts(
+    entityId: string,
+    type: WeatherForecastType
+  ): Promise<WeatherForecastItem[]> {
+    if (!connection) return [];
+    try {
+      const result = (await callService(
+        connection,
+        'weather',
+        'get_forecasts',
+        { type },
+        { entity_id: entityId },
+        true
+      )) as { response?: Record<string, { forecast?: WeatherForecastItem[] }> } | undefined;
+      const raw = result?.response?.[entityId]?.forecast ?? [];
+      return raw.map((f) => ({
+        datetime: typeof f.datetime === 'string' ? f.datetime : new Date().toISOString(),
+        condition: typeof f.condition === 'string' ? f.condition : 'unknown',
+        temperature: typeof f.temperature === 'number' ? f.temperature : 0,
+        templow: typeof f.templow === 'number' ? f.templow : undefined,
+        precipitation: typeof f.precipitation === 'number' ? f.precipitation : undefined,
+        precipitation_probability:
+          typeof f.precipitation_probability === 'number' ? f.precipitation_probability : undefined,
+        wind_speed: typeof f.wind_speed === 'number' ? f.wind_speed : undefined,
+        wind_bearing:
+          typeof f.wind_bearing === 'number' || typeof f.wind_bearing === 'string'
+            ? f.wind_bearing
+            : undefined,
+        humidity: typeof f.humidity === 'number' ? f.humidity : undefined,
+        pressure: typeof f.pressure === 'number' ? f.pressure : undefined,
+        is_daytime: typeof f.is_daytime === 'boolean' ? f.is_daytime : undefined,
+      }));
+    } catch (err) {
+      console.error(`HA weather.get_forecasts failed for ${entityId}`, err);
+      return [];
+    }
+  }
+
   return {
     ready: () => readyPromise,
     getEntity: (id) => cache.get(id),
@@ -141,6 +184,7 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
     onStateChanged: (h: StateChangedHandler) => cache.onChange(h),
     getCalendarEvents,
     getHistory,
+    getWeatherForecasts,
     close: async () => {
       unsubscribe();
       connection?.close();

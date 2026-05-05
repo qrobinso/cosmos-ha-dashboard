@@ -1,5 +1,5 @@
 name: Cosmos
-version: "0.1.9"
+version: "0.1.10"
 slug: cosmos_dashboard
 description: A beautiful wall dashboard for Home Assistant.
 url: https://github.com/qrobinso/cosmos-ha-dashboard
@@ -25,5 +25,18 @@ map:
   - addon_config:rw
 options:
   log_level: info
+  # MQTT — leave blank to auto-discover via Supervisor (the bundled
+  # Mosquitto broker app). Fill these in to point Cosmos at an
+  # external broker instead.
+  mqtt_host: ""
+  mqtt_port: 1883
+  mqtt_username: ""
+  mqtt_password: ""
+  mqtt_use_ssl: false
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
+  mqtt_host: str?
+  mqtt_port: port
+  mqtt_username: str?
+  mqtt_password: password?
+  mqtt_use_ssl: bool

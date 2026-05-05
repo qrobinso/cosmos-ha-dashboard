@@ -1,4 +1,10 @@
-import type { CalendarEvent, EntityState, StatisticsPoint } from '../scenes/types.js';
+import type {
+  CalendarEvent,
+  EntityState,
+  StatisticsPoint,
+  WeatherForecastItem,
+  WeatherForecastType,
+} from '../scenes/types.js';
 
 export type { EntityState };
 
@@ -23,6 +29,11 @@ export type HaClient = {
     entityId: string,
     opts: { start: Date; end: Date }
   ): Promise<StatisticsPoint[]>;
+  /** Fetch a forecast (daily / hourly / twice_daily) for a `weather.*` entity. */
+  getWeatherForecasts(
+    entityId: string,
+    type: WeatherForecastType
+  ): Promise<WeatherForecastItem[]>;
   /** Disconnect cleanly. */
   close(): Promise<void>;
 };
