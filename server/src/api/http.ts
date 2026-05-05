@@ -6,6 +6,7 @@ import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { registerSceneRoutes } from './scenes.js';
 import { registerTransitionRoutes } from './transitions.js';
 import { registerHaEntityRoutes } from './ha-entities.js';
+import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerMoodRoutes } from './moods.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
@@ -34,6 +35,10 @@ export type HttpDeps = {
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
   haClient?: import('../ha/types.js').HaClient | null;
+  /** Server-reachable HA URL for the media proxy (LAN URL or `http://supervisor/core`). */
+  haUrl?: string | null;
+  /** HA token (long-lived or Supervisor) for authenticated proxy fetches. */
+  haToken?: string | null;
   moodsDir?: () => string | null;
   onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
   onSettingsChanged?: () => void;
@@ -66,6 +71,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   registerTransitionRoutes(app, deps.transitions);
 
   registerHaEntityRoutes(app, { haClient: deps.haClient ?? null });
+  registerHaMediaProxyRoutes(app, { haUrl: deps.haUrl ?? null, haToken: deps.haToken ?? null });
   registerMoodRoutes(app, { moodsDir: () => deps.moodsDir?.() ?? null });
 
   registerSceneRoutes(app, {

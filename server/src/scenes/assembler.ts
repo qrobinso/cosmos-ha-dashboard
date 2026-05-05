@@ -43,26 +43,27 @@ export type DataResolvers = {
 };
 
 /**
- * Make HA's relative media URLs absolute.
+ * Rewrite HA's relative media URLs to go through Cosmos's media proxy.
  *
  * HA's `entity_picture` attribute is typically a relative path like
- * `/api/media_player_proxy/<entity>?token=…`. The browser, loading the kiosk
- * from `http://cosmos:8099`, would resolve that against `:8099` and get a 404.
- * Prefix it with the HA base so the request goes to HA directly.
+ * `/api/media_player_proxy/<entity>?token=…`. The browser loads the kiosk
+ * from Cosmos's origin and would resolve that against Cosmos and 404. We
+ * route it through `/api/ha-media/...` instead — Cosmos's server fetches
+ * from HA (using the bearer token) and streams the bytes back. This works
+ * for both direct-HA setups (LAN URL) and HA add-ons (Supervisor URL).
  *
  * Also discards obvious junk: some players (Sonos, Cast) report the
- * `entity_id` itself as `entity_picture` when no album art is available — a
- * non-URL string that would resolve as a relative path against the current
- * page and 404 the same way.
+ * `entity_id` itself as `entity_picture` when no album art is available —
+ * a non-URL string that would resolve as a relative path against the
+ * current page and 404 the same way.
  */
-export function absolutizeMediaUrl(url: string | undefined, base: string | undefined): string | undefined {
+export function absolutizeMediaUrl(url: string | undefined, _base: string | undefined): string | undefined {
   if (!url) return undefined;
   // Already an absolute URL (http://, https://, data:, blob:, etc.) — pass through.
   if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
-  // Leading slash → HA-relative path. Prefix with the configured HA base.
+  // Leading slash → HA-relative path. Route via Cosmos's proxy.
   if (url.startsWith('/')) {
-    if (!base) return url;
-    return base.replace(/\/+$/, '') + url;
+    return '/api/ha-media' + url;
   }
   // No protocol, no leading slash → not a usable URL (e.g. a bare entity_id).
   return undefined;

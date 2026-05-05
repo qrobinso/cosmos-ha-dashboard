@@ -136,6 +136,8 @@ async function main() {
     transitions,
     overrides,
     haClient,  // pass the live client (or null) so /api/ha/entities can read the cache
+    haUrl: effectiveHaUrl,    // server-reachable HA URL (LAN or http://supervisor/core) for the media proxy
+    haToken: effectiveHaToken, // matching auth token for the proxy's upstream fetches
     moodsDir: () => resolveMoodsDir({ explicit: config.moodsDir, staticDir: config.staticDir, repoRoot: __cosmos_repo_root }),
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
