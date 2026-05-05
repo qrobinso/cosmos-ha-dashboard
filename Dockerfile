@@ -36,8 +36,8 @@ COPY --from=builder /build/server/node_modules /app/server/node_modules
 # Display static build
 COPY --from=builder /build/display/build /app/display/build
 
-# Add-on entrypoint
-COPY addon/run.sh /run.sh
+# App entrypoint
+COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
 ENV NODE_ENV=production \
@@ -48,7 +48,7 @@ ENV NODE_ENV=production \
 
 # Mount points provided by Supervisor:
 #   /data — persistent state (SQLite goes here)
-#   /addon_config — write-once add-on config (unused by Cosmos)
+#   /addon_config — write-once app config (unused by Cosmos)
 VOLUME ["/data"]
 
 EXPOSE 8099
