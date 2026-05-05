@@ -7,6 +7,7 @@
     "dev:server": "npm --workspace server run dev",
     "dev:display": "npm --workspace display run dev",
     "build": "npm --workspace display run build && npm --workspace server run build",
-    "test": "npm --workspace server run test"
+    "test": "npm --workspace server run test",
+    "moods:seamless": "node scripts/seamless-moods.mjs"
   }
 }

@@ -10,3 +10,5 @@ data/
 .playwright-mcp/
 addon/build/
 *.tar
+display/static/moods/*.original.mp4
+display/static/moods/*.tmp.mp4

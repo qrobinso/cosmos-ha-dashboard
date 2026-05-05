@@ -34,6 +34,27 @@ you want to extend the library.
 - No audio. The `<video>` element is muted, but stripping audio shrinks
   the file.
 
+## Making the loop seamless
+
+Most stock clips have a visible cut where the end loops back to the start.
+After dropping new clips in this folder, run:
+
+```sh
+npm run moods:seamless
+```
+
+The script (`scripts/seamless-moods.mjs`) splits each clip in half, swaps
+the halves, and crossfades across the new boundary — so the original loop
+seam ends up safely buried in the middle of the file, and the new
+start/end frames are identical. The looped video plays continuously with
+no visible cut.
+
+- Originals are backed up next to each output as `<name>.original.mp4`.
+- Already-processed files are skipped (the script tags them in metadata),
+  so re-running is safe.
+- Output is ~1s shorter than the input (the crossfade overlap).
+- Requires `ffmpeg` and `ffprobe` on your `PATH`.
+
 ## Tip
 
 If you have a clip with a non-black background (e.g. blue sky), a quick fix
