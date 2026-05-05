@@ -70,6 +70,20 @@
 
   const FONT_FAMILIES = ['Inter', 'Fraunces', 'JetBrains Mono', 'Space Grotesk'];
   const FONT_SCALES = [0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0];
+  const TEXT_COLOR_PRESETS: { name: string; value: string }[] = [
+    { name: 'White', value: '#ffffff' },
+    { name: 'Off-white', value: '#f5f5f5' },
+    { name: 'Warm white', value: '#fbf3e2' },
+    { name: 'Cool white', value: '#e7eef7' },
+    { name: 'Muted gray', value: '#cfcfcf' },
+    { name: 'Charcoal', value: '#1a1a1a' },
+    { name: 'Black', value: '#000000' },
+    { name: 'Amber', value: '#f5a623' },
+    { name: 'Mint', value: '#5fd3a3' },
+    { name: 'Sky', value: '#7fb2f0' },
+    { name: 'Rose', value: '#ff8aa6' },
+    { name: 'Lilac', value: '#b59cff' },
+  ];
   const GRADIENT_SPEEDS = ['slow', 'medium', 'fast'] as const;
   const GRADIENT_STYLES = ['mesh', 'linear', 'radial'] as const;
   const GRADIENT_PRESETS: { name: string; colors: string[] }[] = [
@@ -430,6 +444,28 @@
       <select bind:value={typography.font_scale}>
         {#each FONT_SCALES as s (s)}<option value={s}>{s}</option>{/each}
       </select>
+    </Field>
+    <Field label="Text color" hint="Default is white. Pick a preset or use the picker.">
+      <div class="color-presets">
+        {#each TEXT_COLOR_PRESETS as p (p.value)}
+          <button
+            type="button"
+            class="swatch"
+            class:selected={(typography.color ?? '#ffffff').toLowerCase() === p.value.toLowerCase()}
+            style="background:{p.value}"
+            title={p.name}
+            aria-label={p.name}
+            on:click={() => (typography.color = p.value)}
+          ></button>
+        {/each}
+        <input
+          type="color"
+          class="picker"
+          value={typography.color ?? '#ffffff'}
+          on:input={(e) => (typography.color = e.currentTarget.value)}
+          aria-label="Custom text color"
+        />
+      </div>
     </Field>
   </section>
 
@@ -805,6 +841,35 @@
     align-items: center;
     gap: 0.6rem;
     margin-bottom: 0.5rem;
+  }
+  .color-presets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .swatch {
+    width: 1.6rem;
+    height: 1.6rem;
+    min-height: 1.6rem;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .swatch:hover {
+    transform: scale(1.08);
+  }
+  .swatch.selected {
+    box-shadow: 0 0 0 2px var(--c-bg, #0a0a0a), 0 0 0 4px var(--c-accent, #f5a623);
+  }
+  .picker {
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+    border-radius: 999px;
+    background: transparent;
   }
   .widget-card {
     background: #0f0f0f;
