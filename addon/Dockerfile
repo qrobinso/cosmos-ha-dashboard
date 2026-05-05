@@ -29,11 +29,12 @@ RUN apk add --no-cache nodejs npm
 
 WORKDIR /app
 
-# Server runtime
+# Server runtime. npm workspaces hoists deps to the root node_modules,
+# so a single copy is enough — Node's upward resolution finds them
+# from /app/server/dist.
 COPY --from=builder /build/server/package.json /app/server/package.json
 COPY --from=builder /build/server/dist /app/server/dist
 COPY --from=builder /build/node_modules /app/node_modules
-COPY --from=builder /build/server/node_modules /app/server/node_modules
 
 # Display static build
 COPY --from=builder /build/display/build /app/display/build
