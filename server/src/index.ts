@@ -87,6 +87,10 @@ async function main() {
   const resolveHistory = haClient
     ? (entityId: string, opts: { start: Date; end: Date }) => haClient!.getHistory(entityId, opts)
     : undefined;
+  const resolveWeatherForecasts = haClient
+    ? (entityId: string, type: import('./scenes/types.js').WeatherForecastType) =>
+        haClient!.getWeatherForecasts(entityId, type)
+    : undefined;
   const readEntitySync = haClient ? (id: string) => haClient!.getEntity(id) : undefined;
 
   let wssRef: ReturnType<typeof attachWsHub> | null = null;
@@ -177,6 +181,7 @@ async function main() {
     resolveEntity,
     resolveCalendarEvents,
     resolveHistory,
+    resolveWeatherForecasts,
     readEntitySync,
     mediaUrlBase: browserMediaBase ?? undefined,
     onDisplayOnline: publishOnline,

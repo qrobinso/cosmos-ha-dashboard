@@ -194,7 +194,20 @@
   function setWidgetKind(idx: number, kind: string) {
     const w = { ...widgets[idx], kind: kind as WidgetKind };
     if (kind === 'clock') w.config = { format: '24h' };
-    if (kind === 'weather') w.config = {};
+    if (kind === 'weather') {
+      w.config = {
+        entity_id: firstEntityOfDomain('weather') || 'weather.home',
+        forecast_type: 'daily',
+        forecast_slots: 5,
+        show_current: true,
+        show_forecast: true,
+        show_name: true,
+        secondary_info_attribute: '',
+        temperature_unit: 'auto',
+        time_format: '24h',
+        name: '',
+      };
+    }
     if (kind === 'entity_tile') w.config = { entity_id: entities[0]?.entity_id ?? '' };
     if (kind === 'calendar') {
       w.config = {
@@ -505,6 +518,74 @@
                 <span>Display the date below the time</span>
               </label>
             </Field>
+          {:else if w.kind === 'weather'}
+            <Field label="Weather entity">
+              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
+                <option value="">— Select entity —</option>
+                {#each entities.filter((e) => e.entity_id.startsWith('weather.')) as e (e.entity_id)}
+                  <option value={e.entity_id}>{e.entity_id}</option>
+                {/each}
+              </select>
+              <span class="hint">Falls back to mock data when HA isn't connected.</span>
+            </Field>
+            <Field label="Name override">
+              <input type="text" placeholder="(use entity friendly name)" value={configStr(w.config, 'name')} on:input={(e) => { w.config = { ...w.config, name: e.currentTarget.value }; widgets = widgets; }} />
+            </Field>
+            <div class="inline-fields">
+              <Field label="Forecast type">
+                <select value={configStr(w.config, 'forecast_type', 'daily')} on:change={(e) => { w.config = { ...w.config, forecast_type: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="daily">Daily</option>
+                  <option value="hourly">Hourly</option>
+                  <option value="twice_daily">Twice daily</option>
+                </select>
+              </Field>
+              <Field label="Forecast slots">
+                <input type="number" min="1" max="12" value={w.config.forecast_slots ?? 5} on:input={(e) => { w.config = { ...w.config, forecast_slots: Number(e.currentTarget.value) }; widgets = widgets; }} />
+              </Field>
+              <Field label="Temperature unit">
+                <select value={configStr(w.config, 'temperature_unit', 'auto')} on:change={(e) => { w.config = { ...w.config, temperature_unit: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="auto">Auto (entity)</option>
+                  <option value="C">Celsius</option>
+                  <option value="F">Fahrenheit</option>
+                </select>
+              </Field>
+              {#if configStr(w.config, 'forecast_type', 'daily') === 'hourly'}
+                <Field label="Time format">
+                  <select value={configStr(w.config, 'time_format', '24h')} on:change={(e) => { w.config = { ...w.config, time_format: e.currentTarget.value }; widgets = widgets; }}>
+                    <option value="24h">24h</option>
+                    <option value="12h">12h</option>
+                  </select>
+                </Field>
+              {/if}
+            </div>
+            <Field label="Secondary info">
+              <select value={configStr(w.config, 'secondary_info_attribute')} on:change={(e) => { w.config = { ...w.config, secondary_info_attribute: e.currentTarget.value }; widgets = widgets; }}>
+                <option value="">— None —</option>
+                <option value="humidity">Humidity</option>
+                <option value="pressure">Pressure</option>
+                <option value="wind_speed">Wind speed</option>
+                <option value="wind_bearing">Wind bearing</option>
+                <option value="visibility">Visibility</option>
+                <option value="cloud_coverage">Cloud coverage</option>
+                <option value="uv_index">UV index</option>
+                <option value="apparent_temperature">Feels like</option>
+                <option value="dew_point">Dew point</option>
+              </select>
+            </Field>
+            <div class="checkboxes">
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_current !== false} on:change={(e) => { w.config = { ...w.config, show_current: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show current conditions</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_forecast !== false} on:change={(e) => { w.config = { ...w.config, show_forecast: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show forecast</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_name !== false} on:change={(e) => { w.config = { ...w.config, show_name: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show name</span>
+              </label>
+            </div>
           {:else if w.kind === 'entity_tile'}
             <Field label="Entity">
               <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>

@@ -90,6 +90,94 @@ function readString(cfg: Record<string, unknown>, key: string, fallback = ''): s
   return typeof v === 'string' ? v : fallback;
 }
 
+function readWeatherCurrent(entity: EntityState): WeatherCurrent {
+  const a = entity.attributes as Record<string, unknown>;
+  const tempUnit = typeof a.temperature_unit === 'string' && a.temperature_unit.includes('F') ? 'F' : 'C';
+  const num = (key: string): number | undefined => (typeof a[key] === 'number' ? (a[key] as number) : undefined);
+  return {
+    temp: typeof a.temperature === 'number' ? (a.temperature as number) : 0,
+    unit: tempUnit,
+    condition: entity.state || 'unknown',
+    humidity: num('humidity'),
+    pressure: num('pressure'),
+    wind_speed: num('wind_speed'),
+    wind_bearing:
+      typeof a.wind_bearing === 'number' || typeof a.wind_bearing === 'string'
+        ? (a.wind_bearing as number | string)
+        : undefined,
+    visibility: num('visibility'),
+    cloud_coverage: num('cloud_coverage'),
+    uv_index: num('uv_index'),
+    apparent_temperature: num('apparent_temperature'),
+    dew_point: num('dew_point'),
+  };
+}
+
+async function weatherData(widget: Widget, deps: DataResolvers): Promise<WeatherData> {
+  const cfg = widget.config as Record<string, unknown>;
+  const entityId = readString(cfg, 'entity_id');
+  const forecastType: WeatherForecastType =
+    cfg.forecast_type === 'hourly' || cfg.forecast_type === 'twice_daily'
+      ? cfg.forecast_type
+      : 'daily';
+  const slots = Math.max(1, Math.min(24, readNumber(cfg, 'forecast_slots', 5)));
+
+  // No entity selected → mock for dev mode.
+  if (!entityId) return mockWeather(forecastType, slots);
+
+  const resolver = deps.resolveEntity ?? mockEntityResolver;
+  const entity = await resolver(entityId);
+
+  // Entity not in HA cache → mock fallback so the widget still renders.
+  if (!entity || entity.state === 'unknown') return mockWeather(forecastType, slots);
+
+  // Fetch the forecast separately; HA stopped putting it in entity attributes
+  // in 2024.4. Cosmos calls `weather.get_forecasts` for the requested type.
+  let forecast: WeatherForecastItem[] = [];
+  if (deps.resolveWeatherForecasts) {
+    try {
+      forecast = await deps.resolveWeatherForecasts(entityId, forecastType);
+    } catch {
+      forecast = [];
+    }
+  }
+  // Legacy fallback: some custom integrations still expose forecast as an attribute.
+  if (forecast.length === 0) {
+    const legacy = (entity.attributes as { forecast?: unknown }).forecast;
+    if (Array.isArray(legacy)) {
+      forecast = legacy
+        .filter((f): f is Record<string, unknown> => typeof f === 'object' && f !== null)
+        .map((f) => ({
+          datetime: typeof f.datetime === 'string' ? f.datetime : new Date().toISOString(),
+          condition: typeof f.condition === 'string' ? f.condition : 'unknown',
+          temperature: typeof f.temperature === 'number' ? f.temperature : 0,
+          templow: typeof f.templow === 'number' ? f.templow : undefined,
+          precipitation: typeof f.precipitation === 'number' ? f.precipitation : undefined,
+          precipitation_probability:
+            typeof f.precipitation_probability === 'number' ? f.precipitation_probability : undefined,
+          wind_speed: typeof f.wind_speed === 'number' ? f.wind_speed : undefined,
+          humidity: typeof f.humidity === 'number' ? f.humidity : undefined,
+          is_daytime: typeof f.is_daytime === 'boolean' ? f.is_daytime : undefined,
+        }));
+    }
+  }
+
+  forecast = forecast.slice(0, slots);
+
+  const friendly =
+    typeof (entity.attributes as { friendly_name?: unknown }).friendly_name === 'string'
+      ? ((entity.attributes as { friendly_name: string }).friendly_name)
+      : entityId.replace(/^weather\./, '').replace(/_/g, ' ');
+
+  return {
+    entity_id: entityId,
+    friendly_name: friendly,
+    forecast_type: forecastType,
+    current: readWeatherCurrent(entity),
+    forecast,
+  };
+}
+
 async function calendarData(widget: Widget, deps: DataResolvers): Promise<CalendarData> {
   const cfg = widget.config as Record<string, unknown>;
   const entityId = readString(cfg, 'entity_id', 'calendar.home');
@@ -232,7 +320,7 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
     case 'clock':
       return null;
     case 'weather':
-      return MOCK_WEATHER;
+      return await weatherData(widget, deps);
     case 'entity_tile': {
       const entityId = readString(widget.config as Record<string, unknown>, 'entity_id');
       return await resolver(entityId);
@@ -292,9 +380,10 @@ export type AssemblePushArgs = {
   overrides: OverridesRepo;
   explicitTransitionId?: string | null;
   resolver?: EntityResolver;
-  /** Optional async fetchers for calendar / history. */
+  /** Optional async fetchers for calendar / history / weather forecasts. */
   resolveCalendarEvents?: DataResolvers['resolveCalendarEvents'];
   resolveHistory?: DataResolvers['resolveHistory'];
+  resolveWeatherForecasts?: DataResolvers['resolveWeatherForecasts'];
   /** Synchronous entity reader for the mood engine (sun.sun, weather.*). */
   readEntitySync?: DataResolvers['readEntitySync'];
   /** Base URL of the HA instance for absolutizing media art paths. */
@@ -318,6 +407,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
     resolveEntity: args.resolver,
     resolveCalendarEvents: args.resolveCalendarEvents,
     resolveHistory: args.resolveHistory,
+    resolveWeatherForecasts: args.resolveWeatherForecasts,
     readEntitySync: args.readEntitySync,
     mediaUrlBase: args.mediaUrlBase,
   });

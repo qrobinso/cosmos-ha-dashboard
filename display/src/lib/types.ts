@@ -6,9 +6,47 @@ export type Background =
 export type Typography = { font_family: string; font_scale: number };
 export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics';
 
-export type WeatherCurrent = { temp: number; unit: 'C' | 'F'; condition: string; icon: string };
-export type WeatherForecastDay = { day: string; high: number; low: number; icon: string };
-export type WeatherData = { current: WeatherCurrent; forecast: WeatherForecastDay[] };
+export type WeatherForecastType = 'daily' | 'hourly' | 'twice_daily';
+
+export type WeatherCurrent = {
+  temp: number;
+  unit: 'C' | 'F';
+  condition: string;
+  icon?: string;
+  humidity?: number;
+  pressure?: number;
+  wind_speed?: number;
+  wind_bearing?: number | string;
+  visibility?: number;
+  cloud_coverage?: number;
+  uv_index?: number;
+  apparent_temperature?: number;
+  dew_point?: number;
+};
+
+export type WeatherForecastItem = {
+  datetime: string;
+  condition: string;
+  temperature: number;
+  templow?: number;
+  precipitation?: number;
+  precipitation_probability?: number;
+  wind_speed?: number;
+  wind_bearing?: number | string;
+  humidity?: number;
+  pressure?: number;
+  is_daytime?: boolean;
+};
+
+export type WeatherForecastDay = WeatherForecastItem;
+
+export type WeatherData = {
+  entity_id: string;
+  friendly_name?: string;
+  forecast_type: WeatherForecastType;
+  current: WeatherCurrent;
+  forecast: WeatherForecastItem[];
+};
 
 export type EntityState = { entity_id: string; state: string; attributes: Record<string, unknown> };
 
