@@ -20,6 +20,7 @@
   $: showSource = cfg.show_source === true;
   $: blurBackground = cfg.blur_background !== false;
   $: compact = cfg.compact === true;
+  $: transparent = cfg.transparent === true;
 
   // Local clock-driven progress so the bar inches forward between server pushes.
   let nowMs = Date.now();
@@ -69,7 +70,7 @@
   const NO_MUSIC_LABEL = 'No music playing';
 </script>
 
-<div class="media" class:compact data-theme={theme} data-state={data?.state ?? 'unknown'}>
+<div class="media" class:compact class:transparent data-theme={theme} data-state={data?.state ?? 'unknown'}>
   {#if blurBackground && data?.album_art_url && !noMusic}
     <div class="bg" style="background-image:url({data.album_art_url})"></div>
   {/if}
@@ -137,16 +138,20 @@
 
   {:else if theme === 'cinematic'}
     <div class="cine">
-      {#if data?.album_art_url}
-        <img class="cine-art" src={data.album_art_url} alt={data.album ?? ''} />
-      {:else}
-        <div class="cine-art placeholder"></div>
+      {#if showAlbumArt}
+        {#if data?.album_art_url}
+          <img class="cine-art" src={data.album_art_url} alt={data.album ?? ''} />
+        {:else}
+          <div class="cine-art placeholder"></div>
+        {/if}
       {/if}
       <div class="cine-overlay"></div>
       <div class="cine-eyebrow">Listening to</div>
-      <div class="cine-album">{data?.album ?? data?.artist ?? '—'}</div>
+      {#if showAlbum && data?.album}
+        <div class="cine-album">{data.album}</div>
+      {/if}
       <div class="cine-track">{data?.title ?? '—'}</div>
-      {#if showArtist && data?.artist && data?.album}<div class="cine-artist">{data.artist}</div>{/if}
+      {#if showArtist && data?.artist}<div class="cine-artist">{data.artist}</div>{/if}
       <svg class="cine-wave" viewBox="0 0 60 60" aria-hidden="true">
         <path fill="currentColor" d="M10 25 Q15 5 20 25 T30 25 T40 25 T50 25 L50 35 Q45 55 40 35 T30 35 T20 35 T10 35 Z"/>
       </svg>
@@ -158,11 +163,15 @@
   {:else if theme === 'card'}
     <div class="card-layout">
       <div class="card-eyebrow">Now Playing</div>
-      <div class="card-title">{data?.album ?? data?.title ?? '—'}</div>
-      {#if data?.album_art_url}
-        <img class="card-art" src={data.album_art_url} alt="" />
-      {:else}
-        <div class="card-art placeholder"></div>
+      {#if showAlbum && data?.album}
+        <div class="card-title">{data.album}</div>
+      {/if}
+      {#if showAlbumArt}
+        {#if data?.album_art_url}
+          <img class="card-art" src={data.album_art_url} alt="" />
+        {:else}
+          <div class="card-art placeholder"></div>
+        {/if}
       {/if}
       <div class="card-info">
         <div class="card-track">{data?.title ?? '—'}</div>
@@ -192,14 +201,16 @@
   {:else if theme === 'vinyl'}
     <div class="vinyl-layout">
       <div class="vinyl-stage">
-        {#if data?.album_art_url}
-          <img class="vinyl-art" src={data.album_art_url} alt="" />
-        {:else}
-          <div class="vinyl-art placeholder"></div>
+        {#if showAlbumArt}
+          {#if data?.album_art_url}
+            <img class="vinyl-art" src={data.album_art_url} alt="" />
+          {:else}
+            <div class="vinyl-art placeholder"></div>
+          {/if}
         {/if}
         <div class="vinyl-disc" class:spinning={data?.state === 'playing'} aria-hidden="true">
           <div class="vinyl-disc-grooves"></div>
-          {#if data?.album_art_url}
+          {#if showAlbumArt && data?.album_art_url}
             <div class="vinyl-disc-label" style="background-image:url({data.album_art_url})"></div>
           {:else}
             <div class="vinyl-disc-label"></div>
@@ -208,8 +219,9 @@
         </div>
       </div>
       <div class="vinyl-meta">
-        <div class="vinyl-title">{data?.title ?? data?.album ?? '—'}</div>
+        <div class="vinyl-title">{data?.title ?? '—'}</div>
         {#if showArtist && data?.artist}<div class="vinyl-artist">{data.artist}</div>{/if}
+        {#if showAlbum && data?.album}<div class="vinyl-album">{data.album}</div>{/if}
         {#if showProgress && (data?.duration ?? 0) > 0}
           <div class="vinyl-progress"><div class="bar"><div class="fill" style="width:{progressPct}%"></div></div></div>
         {/if}
@@ -462,7 +474,24 @@
     letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.7; margin-top: 0.4rem;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  .media[data-theme='vinyl'] .vinyl-album {
+    font-size: calc(min(4.2cqmin, 7cqh) * var(--cosmos-font-scale, 1));
+    letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.55; margin-top: 0.25rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .media[data-theme='vinyl'] .vinyl-progress { margin-top: 0.6rem; }
   .media[data-theme='vinyl'] .vinyl-progress .bar { background: rgba(0,0,0,0.15); }
   .media[data-theme='vinyl'] .vinyl-progress .fill { background: rgba(0,0,0,0.55); }
+
+  /* Transparent mode: drop the card / gradient backgrounds for every
+   * theme so the media-player content overlays directly on the scene
+   * background. Inner element backgrounds (album art, vinyl disc,
+   * progress bars) are kept for legibility. */
+  .media.transparent,
+  .media.transparent[data-theme='cinematic'],
+  .media.transparent[data-theme='card'],
+  .media.transparent[data-theme='vinyl'] {
+    background: transparent;
+  }
+  .media.transparent .bg { display: none; }
 </style>

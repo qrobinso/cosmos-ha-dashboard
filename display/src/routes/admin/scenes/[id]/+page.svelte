@@ -499,6 +499,16 @@
             </Field>
             <button class="danger" type="button" on:click={() => { removeWidget(i); if (selectedWidgetIdx === i) selectedWidgetIdx = null; }}>Remove</button>
           </div>
+          <Field label="Transparent background">
+            <label class="checkbox-row">
+              <input
+                type="checkbox"
+                checked={w.config.transparent === true}
+                on:change={(e) => { w.config = { ...w.config, transparent: e.currentTarget.checked }; widgets = widgets; }}
+              />
+              <span>Hide the widget's card background — overlay content directly on the scene.</span>
+            </label>
+          </Field>
           {#if w.kind === 'clock'}
             <Field label="Format">
               <select value={configStr(w.config, 'format', '24h')} on:change={(e) => { w.config = { ...w.config, format: e.currentTarget.value }; widgets = widgets; }}>

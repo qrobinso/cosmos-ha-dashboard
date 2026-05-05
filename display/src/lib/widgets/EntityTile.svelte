@@ -4,6 +4,7 @@
 
   $: entity = widget.data as EntityState | null;
   $: domain = entity?.entity_id.split('.')[0] ?? '';
+  $: transparent = (widget.config as Record<string, unknown>).transparent === true;
 
   function fmtBrightness(b: unknown): string {
     return typeof b === 'number' ? `${Math.round((b / 255) * 100)}%` : '';
@@ -15,7 +16,7 @@
   }
 </script>
 
-<div class="tile" data-domain={domain}>
+<div class="tile" class:transparent data-domain={domain}>
   {#if !entity}
     <div class="value">—</div>
   {:else if domain === 'light'}
@@ -60,6 +61,9 @@
     background: rgba(255, 255, 255, 0.04);
     border-radius: 0.75rem;
     text-align: center;
+  }
+  .tile.transparent {
+    background: transparent;
   }
   .value {
     font-size: calc(min(20cqmin, 32cqh) * var(--cosmos-font-scale, 1));
