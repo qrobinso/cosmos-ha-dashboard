@@ -25,23 +25,10 @@
     }
   }
 
-  async function createNew() {
+  function createNew() {
     if (creating) return;
     creating = true;
-    try {
-      const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-      const created = await api.scenes.create({
-        name: `New scene · ${stamp}`,
-        layout: { cols: 12, rows: 8, items: [] },
-        background: { type: 'solid', color: '#101010' },
-        typography: { font_family: 'Inter', font_scale: 1.0 },
-        widgets: [],
-      });
-      goto(`/admin/scenes/${created.id}`);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'failed to create scene');
-      creating = false;
-    }
+    goto('/admin/scenes/new');
   }
 
   async function remove(id: string, name: string) {

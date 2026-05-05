@@ -104,13 +104,26 @@
     statistics: 'Statistics / history',
   };
 
+  $: isNew = id === 'new';
+
   onMount(async () => {
-    const [scene, txns, ents, moods] = await Promise.all([
-      api.scenes.get(id),
+    const [txns, ents, moods] = await Promise.all([
       api.transitions.list(),
       api.ha.listEntities(),
       api.moods.list(),
     ]);
+    transitions = txns;
+    entities = ents;
+    moodCatalog = moods;
+
+    if (isNew) {
+      const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      name = `New scene · ${stamp}`;
+      loaded = true;
+      return;
+    }
+
+    const scene = await api.scenes.get(id);
     if (!scene) {
       alert('Scene not found');
       goto('/admin/scenes');
@@ -124,9 +137,6 @@
     floatWidgets = scene.floatWidgets ?? false;
     mood = scene.mood ?? { enabled: false, strategy: 'manual' };
     widgets = scene.widgets;
-    transitions = txns;
-    entities = ents;
-    moodCatalog = moods;
     loaded = true;
   });
 
@@ -255,7 +265,7 @@
     try {
       // Strip the `data` field (server doesn't accept it on input)
       const widgetsForSave = widgets.map(({ data: _data, ...rest }) => rest);
-      await api.scenes.update(id, {
+      const payload = {
         name,
         layout,
         background,
@@ -264,8 +274,15 @@
         floatWidgets,
         mood: cleanMood(mood),
         widgets: widgetsForSave,
-      });
-      saveStatus = 'saved';
+      };
+      if (isNew) {
+        const created = await api.scenes.create(payload);
+        saveStatus = 'saved';
+        goto(`/admin/scenes/${created.id}`, { replaceState: true });
+      } else {
+        await api.scenes.update(id, payload);
+        saveStatus = 'saved';
+      }
     } catch (err) {
       saveStatus = 'error';
       alert(err instanceof Error ? err.message : 'save failed');
