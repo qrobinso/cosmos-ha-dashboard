@@ -17,32 +17,27 @@
   });
 </script>
 
-<div class="mood-layer" style="--mood-blend: {mood.blend};">
-  <video
-    bind:this={videoEl}
-    src={mood.url}
-    autoplay={!reduce}
-    loop
-    muted
-    playsinline
-    preload="auto"
-  />
-</div>
+<video
+  class="mood-video"
+  bind:this={videoEl}
+  src={mood.url}
+  autoplay={!reduce}
+  loop
+  muted
+  playsinline
+  preload="auto"
+  style="--mood-blend: {mood.blend};"
+/>
 
 <style>
-  .mood-layer {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    overflow: hidden;
-  }
-  .mood-layer video {
+  .mood-video {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    pointer-events: none;
+    z-index: 1;
     mix-blend-mode: var(--mood-blend, screen);
     will-change: opacity;
   }

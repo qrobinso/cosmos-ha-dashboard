@@ -61,6 +61,7 @@
     inset: 0;
     overflow: hidden;
     color: #f5f5f5;
+    isolation: isolate;
   }
   .background-layer {
     position: absolute;
