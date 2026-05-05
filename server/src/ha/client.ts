@@ -1,3 +1,13 @@
+// home-assistant-js-websocket reads globalThis.WebSocket. In Node 20 that
+// global isn't defined (it's experimental), so we polyfill with ws before
+// the library is loaded. Node 22+ has WebSocket as a stable global; this
+// polyfill becomes a no-op once we move off Node 20.
+import { WebSocket as WsWebSocket } from 'ws';
+const g = globalThis as unknown as { WebSocket?: typeof WsWebSocket };
+if (typeof g.WebSocket === 'undefined') {
+  g.WebSocket = WsWebSocket;
+}
+
 import {
   callService,
   createConnection,
