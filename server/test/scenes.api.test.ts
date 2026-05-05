@@ -114,4 +114,39 @@ describe('scenes REST API', () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  it('POST /api/scenes accepts a valid mood config and returns it on the scene', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: { ...sample, mood: { enabled: true, strategy: 'manual', moodId: 'clouds' } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().mood).toEqual({ enabled: true, strategy: 'manual', moodId: 'clouds' });
+  });
+
+  it('POST /api/scenes 400s when manual mood references an unknown moodId', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: { ...sample, mood: { enabled: true, strategy: 'manual', moodId: 'nope' } },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('POST /api/scenes 400s when weather strategy lacks weatherEntity', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: { ...sample, mood: { enabled: true, strategy: 'weather' } },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/moods returns the catalog', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/moods' });
+    expect(res.statusCode).toBe(200);
+    const ids = res.json().map((m: { id: string }) => m.id);
+    expect(ids).toEqual(expect.arrayContaining(['clouds', 'rain', 'snow', 'stars', 'sunrise', 'embers']));
+  });
 });

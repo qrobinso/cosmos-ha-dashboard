@@ -2,17 +2,40 @@ import type { FastifyInstance } from 'fastify';
 import type { ScenesRepo, SceneInput } from '../store/scenes.js';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { TransitionsRepo } from '../store/transitions.js';
+import { getMoodById } from '../moods/catalog.js';
 
-function isValidSceneInput(body: unknown): body is SceneInput {
-  if (typeof body !== 'object' || body === null) return false;
+function validateMood(mood: unknown): string | null {
+  if (mood === undefined) return null;
+  if (typeof mood !== 'object' || mood === null) return 'mood must be an object';
+  const m = mood as Record<string, unknown>;
+  if (typeof m.enabled !== 'boolean') return 'mood.enabled must be boolean';
+  if (m.strategy !== 'manual' && m.strategy !== 'time' && m.strategy !== 'weather') {
+    return 'mood.strategy must be manual, time, or weather';
+  }
+  if (m.strategy === 'manual' && m.enabled) {
+    if (typeof m.moodId !== 'string' || !getMoodById(m.moodId)) {
+      return `mood.moodId must reference a known mood`;
+    }
+  }
+  if (m.strategy === 'weather' && m.enabled) {
+    if (typeof m.weatherEntity !== 'string' || !m.weatherEntity.startsWith('weather.')) {
+      return 'mood.weatherEntity must be a weather.* entity id';
+    }
+  }
+  return null;
+}
+
+function validateSceneInput(body: unknown): { ok: true; value: SceneInput } | { ok: false; error: string } {
+  if (typeof body !== 'object' || body === null) return { ok: false, error: 'invalid scene payload' };
   const b = body as Record<string, unknown>;
-  if (typeof b.name !== 'string' || b.name.trim() === '') return false;
-  if (typeof b.layout !== 'object' || b.layout === null) return false;
-  if (typeof b.background !== 'object' || b.background === null) return false;
-  if (typeof b.typography !== 'object' || b.typography === null) return false;
-  if (!Array.isArray(b.widgets)) return false;
-  // defaultTransitionId is optional; the repo accepts string | null | undefined.
-  return true;
+  if (typeof b.name !== 'string' || b.name.trim() === '') return { ok: false, error: 'invalid scene payload' };
+  if (typeof b.layout !== 'object' || b.layout === null) return { ok: false, error: 'invalid scene payload' };
+  if (typeof b.background !== 'object' || b.background === null) return { ok: false, error: 'invalid scene payload' };
+  if (typeof b.typography !== 'object' || b.typography === null) return { ok: false, error: 'invalid scene payload' };
+  if (!Array.isArray(b.widgets)) return { ok: false, error: 'invalid scene payload' };
+  const moodErr = validateMood(b.mood);
+  if (moodErr) return { ok: false, error: moodErr };
+  return { ok: true, value: b as unknown as SceneInput };
 }
 
 export type SceneRoutesDeps = {
@@ -26,10 +49,9 @@ export type SceneRoutesDeps = {
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
   app.post('/api/scenes', async (req, reply) => {
-    if (!isValidSceneInput(req.body)) {
-      return reply.code(400).send({ error: 'invalid scene payload' });
-    }
-    return deps.scenes.create(req.body);
+    const v = validateSceneInput(req.body);
+    if (!v.ok) return reply.code(400).send({ error: v.error });
+    return deps.scenes.create(v.value);
   });
 
   app.get('/api/scenes', async () => deps.scenes.list());
@@ -41,12 +63,11 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
   });
 
   app.put<{ Params: { id: string } }>('/api/scenes/:id', async (req, reply) => {
-    if (!isValidSceneInput(req.body)) {
-      return reply.code(400).send({ error: 'invalid scene payload' });
-    }
+    const v = validateSceneInput(req.body);
+    if (!v.ok) return reply.code(400).send({ error: v.error });
     const existing = deps.scenes.get(req.params.id);
     if (!existing) return reply.code(404).send({ error: 'not found' });
-    const updated = deps.scenes.update(req.params.id, req.body);
+    const updated = deps.scenes.update(req.params.id, v.value);
     notifyAffectedDisplays(req.params.id, deps);
     return updated;
   });

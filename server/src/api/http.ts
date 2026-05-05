@@ -6,6 +6,7 @@ import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { registerSceneRoutes } from './scenes.js';
 import { registerTransitionRoutes } from './transitions.js';
 import { registerHaEntityRoutes } from './ha-entities.js';
+import { registerMoodRoutes } from './moods.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 export const DEFAULT_SAFE_AREA: SafeArea = { top: 16, right: 16, bottom: 16, left: 16 };
@@ -64,6 +65,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   registerTransitionRoutes(app, deps.transitions);
 
   registerHaEntityRoutes(app, { haClient: deps.haClient ?? null });
+  registerMoodRoutes(app);
 
   registerSceneRoutes(app, {
     scenes: deps.scenes,
