@@ -5,6 +5,7 @@
   import { api } from '$lib/admin/api';
   import Field from '$lib/admin/Field.svelte';
   import WidgetCanvas from '$lib/admin/WidgetCanvas.svelte';
+  import EntityPicker from '$lib/admin/EntityPicker.svelte';
   import type { Background, Typography, WidgetKind, WidgetState, Layout, MoodConfig } from '$lib/types';
 
   type Widget = WidgetState;
@@ -25,7 +26,7 @@
   let selectedWidgetIdx: number | null = null;
 
   let transitions: { id: string; name: string }[] = [];
-  let entities: { entity_id: string; state: string }[] = [];
+  let entities: { entity_id: string; state: string; attributes?: Record<string, unknown> }[] = [];
   let moodCatalog: { id: string; label: string; tags: string[] }[] = [];
 
   $: weatherEntities = entities.filter((e) => e.entity_id.startsWith('weather.'));
@@ -93,7 +94,7 @@
     if (!preset) return;
     background = { ...background, colors: [...preset.colors] };
   }
-  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text'];
+  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text', 'camera'];
 
   const WIDGET_KIND_LABELS: Record<WidgetKind, string> = {
     clock: 'Clock',
@@ -103,6 +104,7 @@
     media_player: 'Media player',
     statistics: 'Statistics / history',
     text: 'Text',
+    camera: 'Camera',
   };
 
   $: isNew = id === 'new';
@@ -286,6 +288,18 @@
         weight: '300',
       };
     }
+    if (kind === 'camera') {
+      w.config = {
+        entity_id: firstEntityOfDomain('camera') || 'camera.front_door',
+        view: 'auto',
+        refresh_interval_s: 10,
+        fit: 'cover',
+        aspect_ratio: '',
+        show_name: false,
+        show_state: false,
+        name: '',
+      };
+    }
     widgets[idx] = w;
     widgets = widgets;
   }
@@ -454,12 +468,12 @@
         </p>
       {:else if mood.strategy === 'weather'}
         <Field label="Weather entity">
-          <select bind:value={mood.weatherEntity}>
-            <option value="">Select…</option>
-            {#each weatherEntities as e (e.entity_id)}
-              <option value={e.entity_id}>{e.entity_id}</option>
-            {/each}
-          </select>
+          <EntityPicker
+            value={mood.weatherEntity ?? ''}
+            entities={weatherEntities}
+            placeholder="Search weather entities…"
+            on:change={(e) => { mood = { ...mood, weatherEntity: e.detail || undefined }; }}
+          />
         </Field>
         {#if weatherEntities.length === 0}
           <p class="panel-hint">No <code>weather.*</code> entities found in HA. Add one to use this strategy.</p>
@@ -536,6 +550,25 @@
               <span>Hide the widget's card background — overlay content directly on the scene.</span>
             </label>
           </Field>
+          <Field label="Corner radius">
+            <div class="radius-row">
+              <input
+                type="range"
+                min="0"
+                max="3"
+                step="0.05"
+                value={typeof w.config.border_radius === 'number' ? w.config.border_radius : ''}
+                on:input={(e) => { w.config = { ...w.config, border_radius: Number(e.currentTarget.value) }; widgets = widgets; }}
+              />
+              <span class="radius-value">
+                {typeof w.config.border_radius === 'number' ? `${w.config.border_radius.toFixed(2)} rem` : 'default'}
+              </span>
+              {#if typeof w.config.border_radius === 'number'}
+                <button type="button" class="ghost" on:click={() => { const { border_radius: _r, ...rest } = w.config; w.config = rest; widgets = widgets; }}>Reset</button>
+              {/if}
+            </div>
+            <span class="hint">Affects widgets with a card surface (entity tile, media player). Reset clears the override and restores the per-theme default.</span>
+          </Field>
           {#if w.kind === 'clock'}
             <Field label="Format">
               <select value={configStr(w.config, 'format', '24h')} on:change={(e) => { w.config = { ...w.config, format: e.currentTarget.value }; widgets = widgets; }}>
@@ -553,6 +586,18 @@
                 <span>Display seconds (ticks every second)</span>
               </label>
             </Field>
+            {#if configStr(w.config, 'format', '24h') === '12h'}
+              <Field label="Show AM/PM">
+                <label class="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={w.config.show_ampm !== false}
+                    on:change={(e) => { w.config = { ...w.config, show_ampm: e.currentTarget.checked }; widgets = widgets; }}
+                  />
+                  <span>Append AM or PM after the time</span>
+                </label>
+              </Field>
+            {/if}
             <Field label="Show date">
               <label class="checkbox-row">
                 <input
@@ -565,12 +610,12 @@
             </Field>
           {:else if w.kind === 'weather'}
             <Field label="Weather entity">
-              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
-                <option value="">— Select entity —</option>
-                {#each entities.filter((e) => e.entity_id.startsWith('weather.')) as e (e.entity_id)}
-                  <option value={e.entity_id}>{e.entity_id}</option>
-                {/each}
-              </select>
+              <EntityPicker
+                value={configStr(w.config, 'entity_id')}
+                entities={entities.filter((e) => e.entity_id.startsWith('weather.'))}
+                placeholder="Search weather entities…"
+                on:change={(e) => { w.config = { ...w.config, entity_id: e.detail }; widgets = widgets; }}
+              />
               <span class="hint">Falls back to mock data when HA isn't connected.</span>
             </Field>
             <Field label="Name override">
@@ -634,25 +679,22 @@
             </div>
           {:else if w.kind === 'entity_tile'}
             <Field label="Entity">
-              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
-                <option value="">— Select entity —</option>
-                {#each groupedEntities as g (g.domain)}
-                  <optgroup label={g.label}>
-                    {#each g.entities as e (e.entity_id)}<option value={e.entity_id}>{e.entity_id}</option>{/each}
-                  </optgroup>
-                {/each}
-              </select>
-              {#if entities.length === 0}<span class="hint">No entities cached. Set HA_URL/HA_TOKEN or add a real entity to your scene config.</span>{/if}
+              <EntityPicker
+                value={configStr(w.config, 'entity_id')}
+                {entities}
+                placeholder="Search any entity…"
+                on:change={(e) => { w.config = { ...w.config, entity_id: e.detail }; widgets = widgets; }}
+              />
             </Field>
 
           {:else if w.kind === 'calendar'}
             <Field label="Calendar entity">
-              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
-                <option value="">— Select calendar —</option>
-                {#each entities.filter((e) => e.entity_id.startsWith('calendar.')) as e (e.entity_id)}
-                  <option value={e.entity_id}>{e.entity_id}</option>
-                {/each}
-              </select>
+              <EntityPicker
+                value={configStr(w.config, 'entity_id')}
+                entities={entities.filter((e) => e.entity_id.startsWith('calendar.'))}
+                placeholder="Search calendars…"
+                on:change={(e) => { w.config = { ...w.config, entity_id: e.detail }; widgets = widgets; }}
+              />
               <span class="hint">Falls back to mock events when HA isn't connected.</span>
             </Field>
             <div class="inline-fields">
@@ -705,12 +747,12 @@
 
           {:else if w.kind === 'media_player'}
             <Field label="Media player entity">
-              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
-                <option value="">— Select media player —</option>
-                {#each entities.filter((e) => e.entity_id.startsWith('media_player.')) as e (e.entity_id)}
-                  <option value={e.entity_id}>{e.entity_id}</option>
-                {/each}
-              </select>
+              <EntityPicker
+                value={configStr(w.config, 'entity_id')}
+                entities={entities.filter((e) => e.entity_id.startsWith('media_player.'))}
+                placeholder="Search media players…"
+                on:change={(e) => { w.config = { ...w.config, entity_id: e.detail }; widgets = widgets; }}
+              />
             </Field>
             <Field label="Theme" hint="Visual style for the player">
               <select value={configStr(w.config, 'theme', 'default')} on:change={(e) => { w.config = { ...w.config, theme: e.currentTarget.value }; widgets = widgets; }}>
@@ -765,12 +807,12 @@
 
           {:else if w.kind === 'statistics'}
             <Field label="Sensor entity">
-              <select value={configStr(w.config, 'entity_id')} on:change={(e) => { w.config = { ...w.config, entity_id: e.currentTarget.value }; widgets = widgets; }}>
-                <option value="">— Select sensor —</option>
-                {#each entities.filter((e) => e.entity_id.startsWith('sensor.') || e.entity_id.startsWith('input_number.') || e.entity_id.startsWith('counter.')) as e (e.entity_id)}
-                  <option value={e.entity_id}>{e.entity_id}</option>
-                {/each}
-              </select>
+              <EntityPicker
+                value={configStr(w.config, 'entity_id')}
+                entities={entities.filter((e) => e.entity_id.startsWith('sensor.') || e.entity_id.startsWith('input_number.') || e.entity_id.startsWith('counter.'))}
+                placeholder="Search sensors…"
+                on:change={(e) => { w.config = { ...w.config, entity_id: e.detail }; widgets = widgets; }}
+              />
               <span class="hint">Numeric entities only (sensors, input_numbers, counters).</span>
             </Field>
             <div class="inline-fields">
@@ -852,6 +894,52 @@
                 </select>
               </Field>
             </div>
+          {:else if w.kind === 'camera'}
+            <Field label="Camera entity">
+              <EntityPicker
+                value={configStr(w.config, 'entity_id')}
+                entities={entities.filter((e) => e.entity_id.startsWith('camera.'))}
+                placeholder="Search cameras…"
+                on:change={(e) => { w.config = { ...w.config, entity_id: e.detail }; widgets = widgets; }}
+              />
+              <span class="hint">Streams via Cosmos's media proxy — no HA token needed in the browser.</span>
+            </Field>
+            <Field label="Name override">
+              <input type="text" placeholder="(use entity friendly name)" value={configStr(w.config, 'name')} on:input={(e) => { w.config = { ...w.config, name: e.currentTarget.value }; widgets = widgets; }} />
+            </Field>
+            <div class="inline-fields">
+              <Field label="View" hint="Auto polls a still snapshot; Live streams MJPEG continuously.">
+                <select value={configStr(w.config, 'view', 'auto')} on:change={(e) => { w.config = { ...w.config, view: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="auto">Auto (snapshot)</option>
+                  <option value="live">Live (MJPEG)</option>
+                </select>
+              </Field>
+              {#if configStr(w.config, 'view', 'auto') === 'auto'}
+                <Field label="Refresh (s)" hint="How often to refetch the snapshot">
+                  <input type="number" min="1" max="3600" value={typeof w.config.refresh_interval_s === 'number' ? w.config.refresh_interval_s : 10} on:input={(e) => { w.config = { ...w.config, refresh_interval_s: Math.max(1, Number(e.currentTarget.value) || 10) }; widgets = widgets; }} />
+                </Field>
+              {/if}
+              <Field label="Fit">
+                <select value={configStr(w.config, 'fit', 'cover')} on:change={(e) => { w.config = { ...w.config, fit: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="cover">Cover (crop to fill)</option>
+                  <option value="contain">Contain (letterbox)</option>
+                  <option value="fill">Fill (stretch)</option>
+                </select>
+              </Field>
+              <Field label="Aspect ratio" hint="e.g. 16:9, 4:3 — blank to fill the cell">
+                <input type="text" placeholder="(none)" value={configStr(w.config, 'aspect_ratio')} on:input={(e) => { w.config = { ...w.config, aspect_ratio: e.currentTarget.value }; widgets = widgets; }} />
+              </Field>
+            </div>
+            <div class="checkboxes">
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_name === true} on:change={(e) => { w.config = { ...w.config, show_name: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show name overlay</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_state === true} on:change={(e) => { w.config = { ...w.config, show_state: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show state badge (idle / recording / streaming)</span>
+              </label>
+            </div>
           {/if}
         </div>
       {/each}
@@ -913,6 +1001,22 @@
     color: #ccc;
     font-variant-numeric: tabular-nums;
     min-width: 3.25rem;
+    text-align: right;
+  }
+  .radius-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .radius-row input[type='range'] {
+    flex: 1;
+    min-width: 8rem;
+    max-width: 18rem;
+  }
+  .radius-value {
+    color: #ccc;
+    font-variant-numeric: tabular-nums;
+    min-width: 5rem;
     text-align: right;
   }
   input, select, textarea {

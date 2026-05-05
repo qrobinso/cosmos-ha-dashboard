@@ -84,6 +84,19 @@ export function buildDiscoveryPayloads(
       retain: true,
     });
 
+    // ── Button: switch back to the last-used scene ───────────────────
+    out.push({
+      topic: `homeassistant/button/cosmos_${d.id}_last_scene/config`,
+      payload: JSON.stringify({
+        name: `${d.name} Last Scene`,
+        unique_id: `cosmos_${d.id}_last_scene`,
+        command_topic: `cosmos/${d.id}/scene/last`,
+        payload_press: '',
+        device: COSMOS_DEVICE,
+      }),
+      retain: true,
+    });
+
     // ── Select: choose the active scene ──────────────────────────────
     // The state_topic publishes the active scene name, which is exactly
     // the option the select should show as selected.

@@ -6,6 +6,7 @@ import type {
   ScenePushPayload,
   CalendarData,
   CalendarEvent,
+  CameraData,
   MediaPlayerData,
   StatisticsData,
   StatisticsPoint,
@@ -314,6 +315,41 @@ async function statisticsData(
   };
 }
 
+async function cameraData(widget: Widget, resolver: EntityResolver): Promise<CameraData> {
+  const cfg = widget.config as Record<string, unknown>;
+  const entityId = readString(cfg, 'entity_id');
+  const humanized = entityId.replace(/^camera\./, '').replace(/_/g, ' ') || 'Camera';
+  // No entity selected → render an unavailable placeholder so the widget
+  // still has stable URLs (the proxy will 503 without HA, which is fine).
+  if (!entityId) {
+    return {
+      entity_id: '',
+      friendly_name: 'Camera',
+      state: 'unavailable',
+      snapshot_url: '',
+      stream_url: '',
+      available: false,
+    };
+  }
+
+  const entity = await resolver(entityId);
+  const a = (entity?.attributes ?? {}) as Record<string, unknown>;
+  const friendly = typeof a.friendly_name === 'string' ? a.friendly_name : humanized;
+  // URLs go through Cosmos's media proxy; the server uses its own HA token
+  // so the browser doesn't need one. Stable across token rotations, unlike
+  // HA's signed `entity_picture` paths.
+  const snapshot_url = `/api/ha-media/api/camera_proxy/${entityId}`;
+  const stream_url = `/api/ha-media/api/camera_proxy_stream/${entityId}`;
+  return {
+    entity_id: entityId,
+    friendly_name: friendly,
+    state: entity?.state ?? 'unknown',
+    snapshot_url,
+    stream_url,
+    available: !!entity && entity.state !== 'unavailable',
+  };
+}
+
 async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData> {
   const resolver = deps.resolveEntity ?? mockEntityResolver;
   switch (widget.kind) {
@@ -333,6 +369,8 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
       return await statisticsData(widget, deps, resolver);
     case 'text':
       return null;
+    case 'camera':
+      return await cameraData(widget, resolver);
   }
 }
 

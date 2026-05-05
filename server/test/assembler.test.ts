@@ -18,6 +18,7 @@ const baseScene: Scene = {
     { id: 'w2', kind: 'weather', position: { col: 5, row: 1, w: 4, h: 2 }, config: { entity_id: 'weather.home' } },
     { id: 'w3', kind: 'entity_tile', position: { col: 9, row: 1, w: 4, h: 2 }, config: { entity_id: 'light.living_room' } },
     { id: 'w4', kind: 'entity_tile', position: { col: 1, row: 3, w: 4, h: 2 }, config: { entity_id: 'unknown.entity' } },
+    { id: 'w5', kind: 'camera', position: { col: 5, row: 3, w: 4, h: 3 }, config: { entity_id: 'camera.front_door', view: 'auto', refresh_interval_s: 10 } },
   ],
 };
 
@@ -48,6 +49,19 @@ describe('buildSceneState', () => {
     const unknown = state.widgets.find((w) => w.id === 'w4')!;
     expect((known.data as { state: string }).state).toBe('on');
     expect((unknown.data as { state: string }).state).toBe('unknown');
+  });
+
+  it('attaches CameraData to camera widgets with proxied snapshot + stream URLs', async () => {
+    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA);
+    const cam = state.widgets.find((w) => w.id === 'w5')!;
+    expect(cam.data).toMatchObject({
+      entity_id: 'camera.front_door',
+      snapshot_url: '/api/ha-media/api/camera_proxy/camera.front_door',
+      stream_url: '/api/ha-media/api/camera_proxy_stream/camera.front_door',
+    });
+    // Friendly name comes from mock entity attributes when available, falling
+    // back to a humanized entity id otherwise.
+    expect((cam.data as { friendly_name: string }).friendly_name).toBeTruthy();
   });
 
   it('omits resolvedMood when scene mood is disabled', async () => {

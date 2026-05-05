@@ -13,6 +13,8 @@
   $: format = (widget.config as { format?: string }).format ?? '24h';
   $: showSeconds = (widget.config as { show_seconds?: boolean }).show_seconds === true;
   $: showDate = (widget.config as { show_date?: boolean }).show_date !== false;
+  // AM/PM only meaningful in 12h mode. Default on for 12h, irrelevant for 24h.
+  $: showAmPm = (widget.config as { show_ampm?: boolean }).show_ampm !== false;
 
   $: hmStr = (() => {
     const m = String(now.getMinutes()).padStart(2, '0');
@@ -23,6 +25,7 @@
     return `${String(now.getHours()).padStart(2, '0')}:${m}`;
   })();
   $: ssStr = String(now.getSeconds()).padStart(2, '0');
+  $: ampmStr = format === '12h' && showAmPm ? (now.getHours() >= 12 ? 'PM' : 'AM') : null;
 
   function fmtDate(d: Date): string {
     return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -81,6 +84,9 @@
           {/key}
         </span>
       {/if}
+      {#if ampmStr}
+        <span class="ampm">{ampmStr}</span>
+      {/if}
     </div>
     {#if showDate}
       <div class="date">{fmtDate(now)}</div>
@@ -131,6 +137,15 @@
     justify-content: center;
     line-height: 1;
     will-change: transform, opacity;
+  }
+  .ampm {
+    font-size: 0.32em;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    margin-left: 0.4em;
+    opacity: 0.7;
+    align-self: center;
+    line-height: 1;
   }
   .date {
     font-size: calc(min(8cqmin, 12cqh) * var(--cosmos-font-scale, 1));

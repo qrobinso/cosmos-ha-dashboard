@@ -134,13 +134,32 @@ export type StatisticsData = {
   points: StatisticsPoint[];
 };
 
+/** Camera feed — mirrors HA's picture-glance / camera card config. The
+ *  stream / snapshot URLs are routed through Cosmos's `/api/ha-media` proxy
+ *  so the browser doesn't need a HA token (or even network reachability to
+ *  HA — the server fetches and streams the bytes). */
+export type CameraData = {
+  entity_id: string;
+  friendly_name: string;
+  /** State at scene-assembly time (idle/recording/streaming). The widget
+   *  doesn't reactively re-push on state changes — this is a snapshot. */
+  state: string;
+  /** Single-frame JPEG via HA's `camera_proxy` endpoint. */
+  snapshot_url: string;
+  /** MJPEG stream via HA's `camera_proxy_stream` endpoint. */
+  stream_url: string;
+  /** False when the camera entity isn't in HA's cache (e.g. unavailable). */
+  available: boolean;
+};
+
 export type WidgetData =
   | ClockData
   | WeatherData
   | EntityTileData
   | CalendarData
   | MediaPlayerData
-  | StatisticsData;
+  | StatisticsData
+  | CameraData;
 
 export type WidgetState = Widget & { data: WidgetData };
 

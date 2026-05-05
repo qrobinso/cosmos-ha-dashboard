@@ -4,7 +4,7 @@ export type Background =
   | { type: 'solid'; color: string }
   | { type: 'gradient'; colors: string[]; speed: 'slow' | 'medium' | 'fast'; style: 'mesh' | 'linear' | 'radial' };
 export type Typography = { font_family: string; font_scale: number };
-export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text';
+export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera';
 
 export type WeatherForecastType = 'daily' | 'hourly' | 'twice_daily';
 
@@ -98,13 +98,23 @@ export type StatisticsData = {
   points: StatisticsPoint[];
 };
 
+export type CameraData = {
+  entity_id: string;
+  friendly_name: string;
+  state: string;
+  snapshot_url: string;
+  stream_url: string;
+  available: boolean;
+};
+
 export type WidgetData =
   | null
   | WeatherData
   | EntityState
   | CalendarData
   | MediaPlayerData
-  | StatisticsData;
+  | StatisticsData
+  | CameraData;
 
 export type WidgetState = {
   id: string;

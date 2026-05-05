@@ -44,6 +44,13 @@ describe('parseCommandTopic', () => {
     });
   });
 
+  it('parses scene/last as a last-scene command (no payload)', () => {
+    expect(parseCommandTopic('cosmos/Hall/scene/last', '')).toEqual({
+      kind: 'last_scene',
+      target: 'Hall',
+    });
+  });
+
   it('returns null for unrelated topics', () => {
     expect(parseCommandTopic('homeassistant/sensor/whatever', '{}')).toBeNull();
   });

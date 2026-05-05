@@ -177,6 +177,11 @@ export const MOCK_ENTITIES: Record<string, EntityState> = {
     state: '3',
     attributes: { friendly_name: 'Coffees Today' },
   },
+  'camera.front_door': {
+    entity_id: 'camera.front_door',
+    state: 'idle',
+    attributes: { friendly_name: 'Front Door', brand: 'Mock', motion_detection_enabled: true },
+  },
   'timer.laundry': {
     entity_id: 'timer.laundry',
     state: 'idle',

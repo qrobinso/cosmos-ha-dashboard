@@ -251,7 +251,7 @@
     display: flex;
     width: 100%;
     height: 100%;
-    border-radius: 1.25rem;
+    border-radius: var(--cosmos-widget-radius, 1.25rem);
     overflow: hidden;
     background: rgba(255, 255, 255, 0.04);
     box-sizing: border-box;

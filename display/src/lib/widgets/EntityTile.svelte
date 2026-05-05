@@ -64,7 +64,7 @@
     height: 100%;
     box-sizing: border-box;
     background: rgba(255, 255, 255, 0.04);
-    border-radius: 0.75rem;
+    border-radius: var(--cosmos-widget-radius, 0.75rem);
     text-align: center;
   }
   /* Transparent mode: drop the card AND the inner state pills + swatch

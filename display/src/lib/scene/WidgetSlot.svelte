@@ -2,13 +2,23 @@
   import type { WidgetState } from '$lib/types';
   export let widget: WidgetState;
   export let floatDelay: number = 0;
+
+  // Per-widget corner radius (rem). Read from config; widgets that render
+  // their own card (entity_tile, media_player) pick this up via the
+  // --cosmos-widget-radius CSS variable for their inner border-radius.
+  $: radiusRaw = (widget.config as Record<string, unknown>).border_radius;
+  $: radiusRem =
+    typeof radiusRaw === 'number' && Number.isFinite(radiusRaw) && radiusRaw >= 0
+      ? `${radiusRaw}rem`
+      : null;
 </script>
 
 <div
   class="widget-slot"
   style="grid-column: {widget.position.col} / span {widget.position.w};
          grid-row: {widget.position.row} / span {widget.position.h};
-         --cosmos-float-delay: {floatDelay}s;"
+         --cosmos-float-delay: {floatDelay}s;
+         {radiusRem ? `--cosmos-widget-radius: ${radiusRem};` : ''}"
   data-kind={widget.kind}
 >
   <slot {widget}>

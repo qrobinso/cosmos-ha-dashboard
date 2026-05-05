@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildDiscoveryPayloads, COSMOS_DEVICE_ID } from '../src/mqtt/discovery.js';
 
 describe('buildDiscoveryPayloads', () => {
-  it('emits 5 entities per display (sensor, binary_sensor, notify, button, select)', () => {
+  it('emits 6 entities per display (sensor, binary_sensor, notify, 2 buttons, select)', () => {
     const out = buildDiscoveryPayloads(
       [
         { id: 'd1', name: 'Living Room' },
@@ -11,12 +11,13 @@ describe('buildDiscoveryPayloads', () => {
       ['Morning', 'Evening']
     );
 
-    expect(out.length).toBe(10); // 2 displays * 5 entities
+    expect(out.length).toBe(12); // 2 displays * 6 entities
 
     expect(out.filter((p) => p.topic.includes('/sensor/')).length).toBe(2);
     expect(out.filter((p) => p.topic.includes('/binary_sensor/')).length).toBe(2);
     expect(out.filter((p) => p.topic.includes('/notify/')).length).toBe(2);
-    expect(out.filter((p) => p.topic.includes('/button/')).length).toBe(2);
+    // dismiss_message + last_scene = 2 buttons per display
+    expect(out.filter((p) => p.topic.includes('/button/')).length).toBe(4);
     expect(out.filter((p) => p.topic.includes('/select/')).length).toBe(2);
 
     const livingScene = out.find((p) => p.topic === `homeassistant/sensor/cosmos_d1_current_scene/config`);
@@ -55,6 +56,16 @@ describe('buildDiscoveryPayloads', () => {
     );
     expect(cfg.command_topic).toBe('cosmos/d1/message/dismiss');
     expect(cfg.payload_press).toBe('');
+  });
+
+  it('emits a button entity for switching back to the last-used scene', () => {
+    const out = buildDiscoveryPayloads([{ id: 'd1', name: 'A' }]);
+    const cfg = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_last_scene/config'))!.payload
+    );
+    expect(cfg.command_topic).toBe('cosmos/d1/scene/last');
+    expect(cfg.payload_press).toBe('');
+    expect(cfg.name).toBe('A Last Scene');
   });
 
   it('emits a select entity populated with the current scene names', () => {

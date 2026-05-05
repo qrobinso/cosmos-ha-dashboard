@@ -1,6 +1,6 @@
 import type { ParsedCommand } from './types.js';
 
-const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set)$/;
+const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set|scene\/last)$/;
 
 export function parseCommandTopic(topic: string, payload: string): ParsedCommand | null {
   const m = TOPIC_RE.exec(topic);
@@ -42,6 +42,10 @@ export function parseCommandTopic(topic: string, payload: string): ParsedCommand
       if (typeof b.scene_name !== 'string' || b.scene_name.trim() === '') return null;
       return { kind: 'show_scene', target, sceneName: b.scene_name };
     }
+    case 'scene/last':
+      // No payload required — switches to whichever scene was active before
+      // the current one. Useful as an HA automation action ("go back").
+      return { kind: 'last_scene', target };
   }
   return null;
 }

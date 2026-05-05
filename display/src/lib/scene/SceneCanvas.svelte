@@ -8,6 +8,7 @@
   import MediaPlayer from '$lib/widgets/MediaPlayer.svelte';
   import Statistics from '$lib/widgets/Statistics.svelte';
   import Text from '$lib/widgets/Text.svelte';
+  import Camera from '$lib/widgets/Camera.svelte';
   import Background from '$lib/backgrounds/Background.svelte';
   import MoodLayer from './MoodLayer.svelte';
 
@@ -55,6 +56,8 @@
           <Statistics widget={w} />
         {:else if w.kind === 'text'}
           <Text widget={w} />
+        {:else if w.kind === 'camera'}
+          <Camera widget={w} />
         {/if}
       </WidgetSlot>
     {/each}

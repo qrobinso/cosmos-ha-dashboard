@@ -95,8 +95,30 @@ async function main() {
 
   let wssRef: ReturnType<typeof attachWsHub> | null = null;
   let mqttClient: import('./mqtt/types.js').MqttClient | null = null;
-  const onSceneChanged = (displayId: string, opts?: { explicitTransitionId?: string | null }) =>
+
+  // Track per-display "previous current scene" so HA automations can flip
+  // back to the last-used scene. Updated on every scene change: when the
+  // current scene id transitions from A→B, A is recorded as previous.
+  const lastAnnouncedScene = new Map<string, string>();
+  const previousSceneByDisplay = new Map<string, string>();
+  const onSceneChanged = (displayId: string, opts?: { explicitTransitionId?: string | null }) => {
+    const cur = displays.getById(displayId)?.currentSceneId ?? '';
+    const prev = lastAnnouncedScene.get(displayId);
+    if (prev && prev !== cur) previousSceneByDisplay.set(displayId, prev);
+    if (cur) lastAnnouncedScene.set(displayId, cur);
     wssRef?.pushSceneTo(displayId, opts).catch((err) => console.error('pushSceneTo failed', err));
+  };
+
+  /** Activate the previous scene for a display. Returns true if a previous
+   *  scene existed and is still valid; false otherwise (no-op). */
+  function activateLastScene(displayId: string): boolean {
+    const prevId = previousSceneByDisplay.get(displayId);
+    if (!prevId) return false;
+    if (!scenes.get(prevId)) return false;
+    displays.setCurrentScene(displayId, prevId);
+    onSceneChanged(displayId);
+    return true;
+  }
 
   // Per-display rotation scheduler.
   const rotationTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -291,6 +313,11 @@ async function main() {
         const cmd = parseCommandTopic(topic, payload);
         if (cmd?.kind !== 'show_scene') return;
         dispatchShowScene(cmd.target, cmd.sceneName);
+      });
+      mqttClient.subscribe('cosmos/+/scene/last', (topic, payload) => {
+        const cmd = parseCommandTopic(topic, payload);
+        if (cmd?.kind !== 'last_scene') return;
+        for (const d of resolveTargetDisplays(cmd.target)) activateLastScene(d.id);
       });
     } catch (err) {
       console.error('MQTT connection failed; overlay/scene commands unavailable', err);

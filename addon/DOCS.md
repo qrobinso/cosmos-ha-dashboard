@@ -23,6 +23,7 @@ Cosmos publishes MQTT discovery payloads, so each display shows up as a HA **dev
 | `select.<display>_active_scene`           | Select         | **Action: Select option** → pick a scene to switch.  |
 | `notify.<display>_show_message`           | Notify service | **Action: Notification** → push a banner with title + message. |
 | `button.<display>_dismiss_message`        | Button         | **Action: Press button** → clear any visible banner. |
+| `button.<display>_last_scene`             | Button         | **Action: Press button** → switch back to the previously-active scene. |
 | `sensor.<display>_scene`                  | Sensor         | Trigger / condition on the current scene name.       |
 | `binary_sensor.<display>_online`          | Connectivity   | Trigger / condition on display online state.         |
 
