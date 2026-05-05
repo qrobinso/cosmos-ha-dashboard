@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
+import { resolveMood } from '../moods/resolve.js';
 import {
   MOCK_WEATHER,
   mockEntity,
@@ -31,6 +32,9 @@ export type DataResolvers = {
   resolveCalendarEvents?: (entityId: string, opts: { start: Date; end: Date }) => Promise<CalendarEvent[]>;
   /** State history for a single entity. Falls back to mock when absent. */
   resolveHistory?: (entityId: string, opts: { start: Date; end: Date }) => Promise<StatisticsPoint[]>;
+  /** Synchronous read of a cached entity, used by the mood resolver
+   *  (sun.sun, weather entity). Returns null when not present. */
+  readEntitySync?: (entityId: string) => EntityState | null;
 };
 
 export const mockEntityResolver: EntityResolver = (entityId) => mockEntity(entityId);
@@ -218,6 +222,10 @@ export async function buildSceneState(
   for (const w of scene.widgets) {
     widgets.push({ ...w, data: await dataFor(w, deps) });
   }
+  const resolvedMood = resolveMood(scene.mood, {
+    now: new Date(),
+    readEntity: deps.readEntitySync ?? (() => null),
+  });
   return {
     id: scene.id,
     name: scene.name,
@@ -226,8 +234,10 @@ export async function buildSceneState(
     typography: scene.typography,
     defaultTransitionId: scene.defaultTransitionId,
     floatWidgets: scene.floatWidgets,
+    mood: scene.mood,
     widgets,
     safeArea,
+    ...(resolvedMood ? { resolvedMood } : {}),
   };
 }
 
@@ -242,6 +252,8 @@ export type AssemblePushArgs = {
   /** Optional async fetchers for calendar / history. */
   resolveCalendarEvents?: DataResolvers['resolveCalendarEvents'];
   resolveHistory?: DataResolvers['resolveHistory'];
+  /** Synchronous entity reader for the mood engine (sun.sun, weather.*). */
+  readEntitySync?: DataResolvers['readEntitySync'];
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -261,6 +273,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
     resolveEntity: args.resolver,
     resolveCalendarEvents: args.resolveCalendarEvents,
     resolveHistory: args.resolveHistory,
+    readEntitySync: args.readEntitySync,
   });
   const transition = resolveTransition(args);
   return transition ? { type: 'scene', state, transition } : { type: 'scene', state };

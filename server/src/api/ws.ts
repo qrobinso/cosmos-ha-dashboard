@@ -17,6 +17,7 @@ export type WsDeps = {
   resolveEntity?: import('../scenes/assembler.js').EntityResolver;
   resolveCalendarEvents?: import('../scenes/assembler.js').DataResolvers['resolveCalendarEvents'];
   resolveHistory?: import('../scenes/assembler.js').DataResolvers['resolveHistory'];
+  readEntitySync?: import('../scenes/assembler.js').DataResolvers['readEntitySync'];
   onDisplayOnline?: (displayId: string, name: string) => void;
   onDisplayOffline?: (displayId: string, name: string) => void;
   onSceneActivated?: (displayId: string, sceneName: string | null) => void;
@@ -71,6 +72,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       resolver: deps.resolveEntity,
       resolveCalendarEvents: deps.resolveCalendarEvents,
       resolveHistory: deps.resolveHistory,
+      readEntitySync: deps.readEntitySync,
     });
     lastSceneByDisplay.set(displayId, scene.id);
     deps.onSceneActivated?.(displayId, scene.name);

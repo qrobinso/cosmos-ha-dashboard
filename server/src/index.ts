@@ -23,6 +23,17 @@ function widgetEntityIds(scenes: ReturnType<typeof createScenesRepo>): Set<strin
   return ids;
 }
 
+/** Entities the mood engine reads on each scene assembly: `sun.sun` for any
+ *  scene with a time strategy, plus the configured weather entity for any
+ *  scene with a weather strategy. */
+function moodEntityIdsForScene(scene: ReturnType<typeof createScenesRepo>['list'] extends () => Array<infer S> ? S : never): Set<string> {
+  const ids = new Set<string>();
+  if (!scene.mood?.enabled) return ids;
+  if (scene.mood.strategy === 'time') ids.add('sun.sun');
+  if (scene.mood.strategy === 'weather' && scene.mood.weatherEntity) ids.add(scene.mood.weatherEntity);
+  return ids;
+}
+
 async function main() {
   const db = openDatabase(config.dbPath);
   runMigrations(db);
@@ -71,6 +82,7 @@ async function main() {
   const resolveHistory = haClient
     ? (entityId: string, opts: { start: Date; end: Date }) => haClient!.getHistory(entityId, opts)
     : undefined;
+  const readEntitySync = haClient ? (id: string) => haClient!.getEntity(id) : undefined;
 
   let wssRef: ReturnType<typeof attachWsHub> | null = null;
   let mqttClient: import('./mqtt/types.js').MqttClient | null = null;
@@ -151,6 +163,7 @@ async function main() {
     resolveEntity,
     resolveCalendarEvents,
     resolveHistory,
+    readEntitySync,
     onDisplayOnline: publishOnline,
     onDisplayOffline: publishOffline,
     onSceneActivated: publishSceneState,
@@ -178,14 +191,17 @@ async function main() {
   if (haClient) {
     unsubHaStateChange = haClient.onStateChanged((entity) => {
       const usedIds = widgetEntityIds(scenes);
-      if (!usedIds.has(entity.entity_id)) return;
+      const widgetUses = usedIds.has(entity.entity_id);
       for (const d of displays.list()) {
         const activeId = d.currentSceneId ?? d.defaultSceneId;
         if (!activeId) continue;
         const scene = scenes.get(activeId);
         if (!scene) continue;
-        const usesIt = scene.widgets.some((w) => (w.config as { entity_id?: string }).entity_id === entity.entity_id);
-        if (usesIt) markDisplayDirty(d.id);
+        const widgetMatches =
+          widgetUses &&
+          scene.widgets.some((w) => (w.config as { entity_id?: string }).entity_id === entity.entity_id);
+        const moodMatches = moodEntityIdsForScene(scene).has(entity.entity_id);
+        if (widgetMatches || moodMatches) markDisplayDirty(d.id);
       }
     });
   }

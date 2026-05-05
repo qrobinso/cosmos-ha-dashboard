@@ -49,6 +49,34 @@ describe('buildSceneState', () => {
     expect((known.data as { state: string }).state).toBe('on');
     expect((unknown.data as { state: string }).state).toBe('unknown');
   });
+
+  it('omits resolvedMood when scene mood is disabled', async () => {
+    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA);
+    expect(state.resolvedMood).toBeUndefined();
+  });
+
+  it('attaches resolvedMood when scene has an enabled manual mood', async () => {
+    const sceneWithMood: Scene = {
+      ...baseScene,
+      mood: { enabled: true, strategy: 'manual', moodId: 'clouds' },
+    };
+    const state = await buildSceneState(sceneWithMood, DEFAULT_SAFE_AREA);
+    expect(state.resolvedMood).toEqual({ url: '/moods/clouds.mp4', blend: 'screen' });
+  });
+
+  it('passes the readEntitySync hook through to the mood resolver', async () => {
+    const sceneWithMood: Scene = {
+      ...baseScene,
+      mood: { enabled: true, strategy: 'weather', weatherEntity: 'weather.home' },
+    };
+    const state = await buildSceneState(sceneWithMood, DEFAULT_SAFE_AREA, {
+      readEntitySync: (id) =>
+        id === 'weather.home'
+          ? { entity_id: id, state: 'rainy', attributes: {} }
+          : null,
+    });
+    expect(state.resolvedMood?.url).toBe('/moods/rain.mp4');
+  });
 });
 
 function reposFor() {

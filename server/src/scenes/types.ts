@@ -1,5 +1,6 @@
 import type { Scene, Widget } from '../store/scenes.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
+import type { ResolvedMood } from '../moods/types.js';
 
 export type ClockData = null;
 
@@ -89,6 +90,9 @@ export type WidgetState = Widget & { data: WidgetData };
 export type SceneState = Omit<Scene, 'widgets'> & {
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
+  /** Resolved mood for the active period; absent when the scene's mood is off
+   *  or its strategy can't resolve (e.g. weather entity not yet known). */
+  resolvedMood?: ResolvedMood;
 };
 
 export type ScenePushPayload = {
