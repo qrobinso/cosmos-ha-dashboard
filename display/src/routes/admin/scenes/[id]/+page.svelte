@@ -579,6 +579,7 @@
             <Field label="Secondary info">
               <select value={configStr(w.config, 'secondary_info_attribute')} on:change={(e) => { w.config = { ...w.config, secondary_info_attribute: e.currentTarget.value }; widgets = widgets; }}>
                 <option value="">— None —</option>
+                <option value="temp_range">High / Low (today)</option>
                 <option value="humidity">Humidity</option>
                 <option value="pressure">Pressure</option>
                 <option value="wind_speed">Wind speed</option>

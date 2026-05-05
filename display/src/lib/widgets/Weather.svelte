@@ -96,10 +96,44 @@
   // ── Secondary info attribute lookup ──
   type SecondaryRow = { label: string; value: string } | null;
 
+  function todayRange(): { hi: number; lo: number; unit: 'C' | 'F' } | null {
+    const cur = data?.current;
+    const fc = data?.forecast ?? [];
+    if (!cur || fc.length === 0) return null;
+    // Daily forecast: first item is "today" with high+low baked in.
+    if (forecastType === 'daily' && typeof fc[0].temperature === 'number') {
+      const hi = fc[0].temperature;
+      const lo = typeof fc[0].templow === 'number' ? fc[0].templow : fc[0].temperature;
+      return { hi, lo, unit: cur.unit };
+    }
+    // Hourly / twice-daily: scan today's items for min+max.
+    const todayKey = new Date().toISOString().slice(0, 10);
+    let hi = -Infinity;
+    let lo = Infinity;
+    for (const f of fc) {
+      if (!f.datetime.startsWith(todayKey)) continue;
+      if (typeof f.temperature === 'number') {
+        if (f.temperature > hi) hi = f.temperature;
+        if (f.temperature < lo) lo = f.temperature;
+      }
+      if (typeof f.templow === 'number' && f.templow < lo) lo = f.templow;
+    }
+    if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null;
+    return { hi, lo, unit: cur.unit };
+  }
+
   function secondaryRow(current: WeatherCurrent | undefined): SecondaryRow {
     if (!current || !secondaryAttr) return null;
-    const v = (current as unknown as Record<string, unknown>)[secondaryAttr];
-    if (v === undefined || v === null) return null;
+
+    if (secondaryAttr === 'temp_range') {
+      const r = todayRange();
+      if (!r) return { label: 'High / Low', value: '—' };
+      return {
+        label: 'High / Low',
+        value: `${fmtTemp(r.hi, r.unit)} / ${fmtTemp(r.lo, r.unit)}`,
+      };
+    }
+
     const labels: Record<string, string> = {
       humidity: 'Humidity',
       pressure: 'Pressure',
@@ -120,6 +154,15 @@
       apparent_temperature: '°',
       dew_point: '°',
     };
+
+    const v = (current as unknown as Record<string, unknown>)[secondaryAttr];
+    // Always render the row when the user picked an attribute, so they
+    // see immediately whether their integration is supplying it. Show
+    // an em-dash when the value is missing.
+    if (v === undefined || v === null) {
+      return { label: labels[secondaryAttr] ?? secondaryAttr, value: '—' };
+    }
+
     let val: string;
     if (secondaryAttr === 'apparent_temperature' || secondaryAttr === 'dew_point') {
       val = fmtTemp(typeof v === 'number' ? v : undefined, current.unit);
@@ -138,14 +181,9 @@
   <div class="weather" data-forecast-type={forecastType}>
     {#if showCurrent && data.current}
       <div class="current">
-        <div class="row">
-          {#if showName}
-            <span class="name">{displayName}</span>
-          {/if}
-          <span class="condition-glyph" style="color:{conditionVisual(data.current.condition).tone}">
-            {conditionVisual(data.current.condition).glyph}
-          </span>
-        </div>
+        {#if showName}
+          <div class="row"><span class="name">{displayName}</span></div>
+        {/if}
         <div class="big-temp">{fmtTemp(data.current.temp, data.current.unit)}<span class="unit">{temperatureUnit === 'auto' ? data.current.unit : temperatureUnit}</span></div>
         <div class="condition">{humanCondition(data.current.condition)}</div>
         {#if secondary}
