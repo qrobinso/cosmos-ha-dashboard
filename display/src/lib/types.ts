@@ -4,7 +4,7 @@ export type Background =
   | { type: 'solid'; color: string }
   | { type: 'gradient'; colors: string[]; speed: 'slow' | 'medium' | 'fast'; style: 'mesh' | 'linear' | 'radial' };
 export type Typography = { font_family: string; font_scale: number };
-export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics';
+export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text';
 
 export type WeatherForecastType = 'daily' | 'hourly' | 'twice_daily';
 

@@ -331,6 +331,8 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
       return await mediaPlayerData(widget, resolver, deps.mediaUrlBase);
     case 'statistics':
       return await statisticsData(widget, deps, resolver);
+    case 'text':
+      return null;
   }
 }
 

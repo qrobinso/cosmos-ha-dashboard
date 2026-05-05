@@ -4,7 +4,6 @@
 
   $: entity = widget.data as EntityState | null;
   $: domain = entity?.entity_id.split('.')[0] ?? '';
-  $: friendly = (entity?.attributes.friendly_name as string | undefined) ?? entity?.entity_id ?? 'Unknown';
 
   function fmtBrightness(b: unknown): string {
     return typeof b === 'number' ? `${Math.round((b / 255) * 100)}%` : '';
@@ -17,7 +16,6 @@
 </script>
 
 <div class="tile" data-domain={domain}>
-  <div class="label">{friendly}</div>
   {#if !entity}
     <div class="value">—</div>
   {:else if domain === 'light'}
@@ -52,6 +50,8 @@
   .tile {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     padding: 1rem;
     width: 100%;
@@ -59,10 +59,7 @@
     box-sizing: border-box;
     background: rgba(255, 255, 255, 0.04);
     border-radius: 0.75rem;
-  }
-  .label {
-    font-size: calc(min(8cqmin, 14cqh) * var(--cosmos-font-scale, 1));
-    opacity: 0.7;
+    text-align: center;
   }
   .value {
     font-size: calc(min(20cqmin, 32cqh) * var(--cosmos-font-scale, 1));
@@ -77,7 +74,6 @@
   .sub {
     font-size: calc(min(7cqmin, 12cqh) * var(--cosmos-font-scale, 1));
     opacity: 0.6;
-    margin-top: auto;
   }
   .row {
     display: flex;

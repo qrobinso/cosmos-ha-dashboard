@@ -7,6 +7,7 @@
   import Calendar from '$lib/widgets/Calendar.svelte';
   import MediaPlayer from '$lib/widgets/MediaPlayer.svelte';
   import Statistics from '$lib/widgets/Statistics.svelte';
+  import Text from '$lib/widgets/Text.svelte';
   import Background from '$lib/backgrounds/Background.svelte';
   import MoodLayer from './MoodLayer.svelte';
 
@@ -49,6 +50,8 @@
           <MediaPlayer widget={w} />
         {:else if w.kind === 'statistics'}
           <Statistics widget={w} />
+        {:else if w.kind === 'text'}
+          <Text widget={w} />
         {/if}
       </WidgetSlot>
     {/each}

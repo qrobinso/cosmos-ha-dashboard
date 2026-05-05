@@ -93,7 +93,7 @@
     if (!preset) return;
     background = { ...background, colors: [...preset.colors] };
   }
-  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics'];
+  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text'];
 
   const WIDGET_KIND_LABELS: Record<WidgetKind, string> = {
     clock: 'Clock',
@@ -102,6 +102,7 @@
     calendar: 'Calendar agenda',
     media_player: 'Media player',
     statistics: 'Statistics / history',
+    text: 'Text',
   };
 
   $: isNew = id === 'new';
@@ -250,6 +251,13 @@
         chart_type: 'line',
         title: '',
         color: '',
+      };
+    }
+    if (kind === 'text') {
+      w.config = {
+        content: 'Hello!',
+        align: 'center',
+        weight: '300',
       };
     }
     widgets[idx] = w;
@@ -773,6 +781,35 @@
                 <span>Smooth the line (Bézier curves)</span>
               </label>
             </div>
+          {:else if w.kind === 'text'}
+            <Field label="Content">
+              <textarea
+                rows="4"
+                class="text-content-input"
+                placeholder="Type any text. It wraps automatically."
+                value={configStr(w.config, 'content')}
+                on:input={(e) => { w.config = { ...w.config, content: e.currentTarget.value }; widgets = widgets; }}
+              ></textarea>
+              <span class="hint">Line breaks are preserved. Font size scales to fit the widget cell.</span>
+            </Field>
+            <div class="inline-fields">
+              <Field label="Alignment">
+                <select value={configStr(w.config, 'align', 'center')} on:change={(e) => { w.config = { ...w.config, align: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </Field>
+              <Field label="Weight">
+                <select value={configStr(w.config, 'weight', '300')} on:change={(e) => { w.config = { ...w.config, weight: e.currentTarget.value }; widgets = widgets; }}>
+                  <option value="200">Thin</option>
+                  <option value="300">Light</option>
+                  <option value="400">Regular</option>
+                  <option value="600">Semibold</option>
+                  <option value="700">Bold</option>
+                </select>
+              </Field>
+            </div>
           {/if}
         </div>
       {/each}
@@ -836,7 +873,7 @@
     min-width: 3.25rem;
     text-align: right;
   }
-  input, select {
+  input, select, textarea {
     background: #0a0a0a;
     color: #eee;
     border: 1px solid #2a2a2a;
@@ -844,6 +881,12 @@
     padding: 0.5rem 0.65rem;
     font-size: 0.95rem;
     font-family: inherit;
+  }
+  textarea.text-content-input {
+    width: 100%;
+    resize: vertical;
+    min-height: 5rem;
+    line-height: 1.4;
   }
   input[type='color'] {
     padding: 0;
