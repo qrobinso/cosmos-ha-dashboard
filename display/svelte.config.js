@@ -11,5 +11,10 @@ export default {
       precompress: false,
       strict: true,
     }),
+    // Emit relative asset paths so the kiosk + admin work under HA's
+    // Ingress proxy (which mounts the app at a dynamic
+    // /api/hassio_ingress/<token>/ path). Absolute paths break under
+    // a subpath; relative paths just work.
+    paths: { relative: true },
   },
 };

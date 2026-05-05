@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <title>Cosmos</title>
+    <script>
+      // crypto.randomUUID is only available in secure contexts (HTTPS or
+      // localhost). HA Ingress serves over plain HTTP on the LAN, so we
+      // polyfill it here before any app code runs.
+      if (!globalThis.crypto || typeof globalThis.crypto.randomUUID !== 'function') {
+        const c = (globalThis.crypto = globalThis.crypto || {});
+        c.randomUUID = function () {
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (ch) {
+            const r = (Math.random() * 16) | 0;
+            const v = ch === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+          });
+        };
+      }
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover" style="margin:0;background:#0a0a0a;color:#f5f5f5;font-family:system-ui,sans-serif">
