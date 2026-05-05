@@ -36,4 +36,11 @@
     -webkit-mask-composite: source-in;
     mask-composite: intersect;
   }
+  /* Media-player widgets render their own crisp rounded-corner card
+   * (per theme), so the slot's edge-fade mask conflicts with the
+   * intended look — disable it here. */
+  .widget-slot[data-kind='media_player'] {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 </style>

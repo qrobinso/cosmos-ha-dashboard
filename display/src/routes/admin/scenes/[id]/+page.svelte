@@ -187,6 +187,31 @@
     widgets = widgets.filter((_, i) => i !== idx);
   }
 
+  function duplicateWidget(idx: number) {
+    const src = widgets[idx];
+    if (!src) return;
+    // Offset the copy so it doesn't sit directly on top of the original.
+    // Try +1 col / +1 row first; fall back to centered position if that
+    // would push the widget off-canvas.
+    const desiredCol = src.position.col + 1;
+    const desiredRow = src.position.row + 1;
+    const fitsCol = desiredCol + src.position.w - 1 <= layout.cols;
+    const fitsRow = desiredRow + src.position.h - 1 <= layout.rows;
+    const nudged = fitsCol && fitsRow
+      ? { ...src.position, col: desiredCol, row: desiredRow }
+      : centeredPosition(src.position.w, src.position.h);
+    const copy: Widget = {
+      id: crypto.randomUUID(),
+      kind: src.kind,
+      position: nudged,
+      // Deep-clone config so edits to the copy don't bleed back to the original.
+      config: JSON.parse(JSON.stringify(src.config)) as Record<string, unknown>,
+      data: null,
+    };
+    widgets = [...widgets, copy];
+    selectedWidgetIdx = widgets.length - 1;
+  }
+
   function firstEntityOfDomain(domain: string): string {
     const match = entities.find((e) => e.entity_id.startsWith(`${domain}.`));
     return match?.entity_id ?? '';
@@ -228,6 +253,7 @@
       w.config = {
         entity_id: firstEntityOfDomain('media_player') || 'media_player.living_room',
         show_album_art: true,
+        show_title: true,
         show_artist: true,
         show_album: false,
         show_progress: true,
@@ -497,6 +523,7 @@
             <Field label="Height">
               <input type="number" min="1" bind:value={w.position.h} />
             </Field>
+            <button class="ghost" type="button" on:click={() => duplicateWidget(i)}>Duplicate</button>
             <button class="danger" type="button" on:click={() => { removeWidget(i); if (selectedWidgetIdx === i) selectedWidgetIdx = null; }}>Remove</button>
           </div>
           <Field label="Transparent background">
@@ -697,6 +724,10 @@
               <label class="checkbox-row">
                 <input type="checkbox" checked={w.config.show_album_art !== false} on:change={(e) => { w.config = { ...w.config, show_album_art: e.currentTarget.checked }; widgets = widgets; }} />
                 <span>Show album art</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" checked={w.config.show_title !== false} on:change={(e) => { w.config = { ...w.config, show_title: e.currentTarget.checked }; widgets = widgets; }} />
+                <span>Show title</span>
               </label>
               <label class="checkbox-row">
                 <input type="checkbox" checked={w.config.show_artist !== false} on:change={(e) => { w.config = { ...w.config, show_artist: e.currentTarget.checked }; widgets = widgets; }} />
@@ -925,6 +956,11 @@
     background: transparent;
     color: #ff8a8a;
     border: 1px solid #3a2222;
+  }
+  button.ghost {
+    background: transparent;
+    color: #ccc;
+    border: 1px solid #2a2a2a;
   }
   .actions {
     display: flex;

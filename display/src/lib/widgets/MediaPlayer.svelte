@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { WidgetState, MediaPlayerData } from '$lib/types';
+  import { marquee } from '$lib/actions/marquee';
 
   export let widget: WidgetState;
 
@@ -12,6 +13,7 @@
   $: theme = (THEMES.includes(cfg.theme as Theme) ? cfg.theme : 'default') as Theme;
 
   $: showAlbumArt = cfg.show_album_art !== false;
+  $: showTitle = cfg.show_title !== false;
   $: showArtist = cfg.show_artist !== false;
   $: showAlbum = cfg.show_album === true;
   $: showProgress = cfg.show_progress !== false;
@@ -99,9 +101,11 @@
         {/if}
       {/if}
       <div class="info">
-        <div class="line title">{data?.title ?? '—'}</div>
-        {#if showArtist && data?.artist}<div class="line artist">{data.artist}</div>{/if}
-        {#if showAlbum && data?.album}<div class="line album">{data.album}</div>{/if}
+        {#if showTitle}
+          <div class="line title" use:marquee><span>{data?.title ?? '—'}</span></div>
+        {/if}
+        {#if showArtist && data?.artist}<div class="line artist" use:marquee><span>{data.artist}</span></div>{/if}
+        {#if showAlbum && data?.album}<div class="line album" use:marquee><span>{data.album}</span></div>{/if}
         {#if showProgress && (data?.duration ?? 0) > 0}
           <div class="progress">
             <div class="bar"><div class="fill" style="width: {progressPct}%"></div></div>
@@ -147,14 +151,19 @@
       {/if}
       <div class="cine-overlay"></div>
       <div class="cine-eyebrow">Listening to</div>
-      {#if showAlbum && data?.album}
-        <div class="cine-album">{data.album}</div>
+      <!-- Headline under "LISTENING TO" — track title when shown,
+           falls back to album when title is hidden. -->
+      {#if showTitle}
+        <div class="cine-headline" use:marquee><span>{data?.title ?? '—'}</span></div>
+      {:else if showAlbum && data?.album}
+        <div class="cine-headline" use:marquee><span>{data.album}</span></div>
       {/if}
-      <div class="cine-track">{data?.title ?? '—'}</div>
-      {#if showArtist && data?.artist}<div class="cine-artist">{data.artist}</div>{/if}
-      <svg class="cine-wave" viewBox="0 0 60 60" aria-hidden="true">
-        <path fill="currentColor" d="M10 25 Q15 5 20 25 T30 25 T40 25 T50 25 L50 35 Q45 55 40 35 T30 35 T20 35 T10 35 Z"/>
-      </svg>
+      {#if showArtist && data?.artist}
+        <div class="cine-artist" use:marquee><span>{data.artist}</span></div>
+      {/if}
+      {#if showTitle && showAlbum && data?.album}
+        <div class="cine-album" use:marquee><span>{data.album}</span></div>
+      {/if}
       {#if showProgress && (data?.duration ?? 0) > 0}
         <div class="cine-progress"><div class="bar"><div class="fill" style="width:{progressPct}%"></div></div></div>
       {/if}
@@ -164,7 +173,7 @@
     <div class="card-layout">
       <div class="card-eyebrow">Now Playing</div>
       {#if showAlbum && data?.album}
-        <div class="card-title">{data.album}</div>
+        <div class="card-title" use:marquee><span>{data.album}</span></div>
       {/if}
       {#if showAlbumArt}
         {#if data?.album_art_url}
@@ -174,8 +183,10 @@
         {/if}
       {/if}
       <div class="card-info">
-        <div class="card-track">{data?.title ?? '—'}</div>
-        {#if showArtist && data?.artist}<div class="card-artist">{data.artist}</div>{/if}
+        {#if showTitle}
+          <div class="card-track" use:marquee><span>{data?.title ?? '—'}</span></div>
+        {/if}
+        {#if showArtist && data?.artist}<div class="card-artist" use:marquee><span>{data.artist}</span></div>{/if}
       </div>
       {#if showProgress && (data?.duration ?? 0) > 0}
         <div class="card-progress">
@@ -219,9 +230,11 @@
         </div>
       </div>
       <div class="vinyl-meta">
-        <div class="vinyl-title">{data?.title ?? '—'}</div>
-        {#if showArtist && data?.artist}<div class="vinyl-artist">{data.artist}</div>{/if}
-        {#if showAlbum && data?.album}<div class="vinyl-album">{data.album}</div>{/if}
+        {#if showTitle}
+          <div class="vinyl-title" use:marquee><span>{data?.title ?? '—'}</span></div>
+        {/if}
+        {#if showArtist && data?.artist}<div class="vinyl-artist" use:marquee><span>{data.artist}</span></div>{/if}
+        {#if showAlbum && data?.album}<div class="vinyl-album" use:marquee><span>{data.album}</span></div>{/if}
         {#if showProgress && (data?.duration ?? 0) > 0}
           <div class="vinyl-progress"><div class="bar"><div class="fill" style="width:{progressPct}%"></div></div></div>
         {/if}
@@ -238,7 +251,7 @@
     display: flex;
     width: 100%;
     height: 100%;
-    border-radius: 0.75rem;
+    border-radius: 1.25rem;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.04);
     box-sizing: border-box;
@@ -320,7 +333,7 @@
   .media[data-theme='default'] .album { font-size: calc(0.78rem * var(--cosmos-font-scale, 1)); opacity: 0.55; }
   .media[data-theme='default'] .progress { margin-top: 0.45rem; display: flex; flex-direction: column; gap: 0.25rem; }
   .media[data-theme='default'] .controls { display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.5rem; }
-  .media[data-theme='default'] .volume { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.45rem; font-size: 0.8rem; opacity: 0.7; }
+  .media[data-theme='default'] .volume { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.45rem; font-size: calc(0.8rem * var(--cosmos-font-scale, 1)); opacity: 0.7; }
   .media[data-theme='default'] .volume svg { width: 0.95rem; height: 0.95rem; }
   .media[data-theme='default'] .vol-bar { flex: 1; height: 2px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow: hidden; }
   .media[data-theme='default'] .vol-fill { height: 100%; background: currentColor; opacity: 0.85; }
@@ -347,26 +360,23 @@
     letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.85;
     font-weight: 500;
   }
-  .media[data-theme='cinematic'] .cine-album {
+  /* Headline under "LISTENING TO" — large, bold, top-left. */
+  .media[data-theme='cinematic'] .cine-headline {
     position: absolute; top: calc(8% + 1.4em); left: 8%; right: 8%;
     font-size: calc(min(13cqmin, 18cqh) * var(--cosmos-font-scale, 1));
-    font-weight: 800; letter-spacing: -0.01em; line-height: 1; text-transform: uppercase;
+    font-weight: 700; letter-spacing: -0.01em; line-height: 1.05;
   }
-  .media[data-theme='cinematic'] .cine-track {
-    position: absolute; bottom: 12%; left: 8%; right: 35%;
-    font-size: calc(min(14cqmin, 20cqh) * var(--cosmos-font-scale, 1));
-    font-weight: 700; letter-spacing: -0.02em; line-height: 1.05;
-  }
+  /* Artist anchored bottom-left, full width minus margins (no waveform on right). */
   .media[data-theme='cinematic'] .cine-artist {
-    position: absolute; bottom: 6%; left: 8%; right: 35%;
-    font-size: calc(min(7cqmin, 11cqh) * var(--cosmos-font-scale, 1));
-    opacity: 0.7;
+    position: absolute; bottom: 8%; left: 8%; right: 8%;
+    font-size: calc(min(8cqmin, 12cqh) * var(--cosmos-font-scale, 1));
+    font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   }
-  .media[data-theme='cinematic'] .cine-wave {
-    position: absolute; bottom: 6%; right: 6%;
-    width: 22%; height: auto; max-height: 30%;
-    color: rgba(255,255,255,0.95);
-    filter: drop-shadow(0 0 14px rgba(255,255,255,0.6));
+  /* Optional secondary album line, smaller, sits below artist. */
+  .media[data-theme='cinematic'] .cine-album {
+    position: absolute; bottom: calc(8% - 1.4em); left: 8%; right: 8%;
+    font-size: calc(min(6cqmin, 9cqh) * var(--cosmos-font-scale, 1));
+    letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.65;
   }
   .media[data-theme='cinematic'] .cine-progress { position: absolute; left: 0; right: 0; bottom: 0; padding: 0; }
   .media[data-theme='cinematic'] .cine-progress .bar { height: 2px; border-radius: 0; background: rgba(255,255,255,0.18); }
@@ -421,6 +431,11 @@
   .media[data-theme='vinyl'] .vinyl-stage {
     position: relative; flex: 1; min-height: 0;
     display: flex; align-items: center; justify-content: center;
+    /* Disc peeks out to the right of the art, which makes the whole
+     * art+disc composition feel right-shifted inside the stage. Nudge
+     * the stage's content slightly leftward so it looks visually
+     * centered as a unit. */
+    transform: translateX(-12%);
   }
   .media[data-theme='vinyl'] .vinyl-art {
     position: relative; z-index: 2;
@@ -434,6 +449,9 @@
     position: absolute; z-index: 1;
     top: 50%; left: 50%;
     height: 100%; aspect-ratio: 1;
+    /* Disc peeks out to the right of the album art (z-index 2), so
+     * we intentionally translate only on Y; the disc sits flush
+     * against the art's right edge for the record-sleeve look. */
     transform: translate(0%, -50%);
     border-radius: 50%;
     background: radial-gradient(circle at center, #1a1a1a 0%, #1a1a1a 33%, #0a0a0a 36%, #1a1a1a 100%);

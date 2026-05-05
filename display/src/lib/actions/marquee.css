@@ -1,0 +1,21 @@
+/* Cosmos marquee — endless left-scroll for single-line text that overflows.
+ * The action toggles `.cosmos-marquee-active` on the host based on overflow,
+ * and wraps the text in a `.cosmos-marquee-track` flex container with an
+ * appended clone so the translate loop is seamless. Reduced-motion users
+ * see static (clipped) text. */
+.cosmos-marquee-active .cosmos-marquee-track {
+  animation: cosmos-marquee var(--cosmos-marquee-duration, 12s) linear infinite;
+  will-change: transform;
+}
+
+@keyframes cosmos-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--cosmos-marquee-distance, 0px))); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cosmos-marquee-active .cosmos-marquee-track {
+    animation: none;
+    transform: none;
+  }
+}
