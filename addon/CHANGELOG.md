@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.4
+
+- Feat: Scene alerts now expose a proper picker UI in the Home Assistant automation builder. Each display gets three new entities: `select.cosmos_<display>_alert_scene` (which scene to flash, populated with all your scene names), `number.cosmos_<display>_alert_dwell` (how long, in seconds), and `button.cosmos_<display>_alert_fire` (press to fire). In an automation, set the select + number, then press the button — same flow as a thermostat. Picks persist across server restarts. The legacy `notify.cosmos_<display>_show_alert` stays for direct mqtt/notify use.
+
+## 0.2.3
+
+- Feat: New **Docs** tab in the admin (`/admin/docs`) — bundles every reference doc shipped with Cosmos, including the agent contracts for scenes and the canvas widget. Sidebar of available docs, full markdown rendering with syntax-highlighted code blocks and tables, plus a "Copy markdown" button that drops the raw text on the clipboard so it can be pasted straight into an LLM tool's system prompt or context.
+- Feat: Live preview iframes on the Overview page now load on tap (one frame at a time) and have a "pop out" button that opens the preview in a sized window. Online displays sort ahead of offline ones, and offline panels dim so the eye lands on what's live.
+- Fix: Stale-cache MIME error after redeploys. Asset paths (`/_app/`, `/moods/`, anything with a file extension) now return a real 404 when missing instead of falling back to `index.html` — preventing the browser's strict-MIME check from rejecting a JS chunk that came back as HTML.
+
 ## 0.2.2
 
 - Feat: Scene alert is now visible in Home Assistant as `notify.cosmos_<display>_show_alert` via MQTT discovery. Pass the scene name as `message` and (optional) dwell-in-seconds as `title`. Republishes after restart; existing installs may need to restart the addon for the entity to appear.

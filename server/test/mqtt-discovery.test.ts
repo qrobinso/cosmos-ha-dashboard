@@ -11,15 +11,18 @@ describe('buildDiscoveryPayloads', () => {
       ['Morning', 'Evening']
     );
 
-    expect(out.length).toBe(14); // 2 displays * 7 entities
+    expect(out.length).toBe(20); // 2 displays * 10 entities
 
     expect(out.filter((p) => p.topic.includes('/sensor/')).length).toBe(2);
     expect(out.filter((p) => p.topic.includes('/binary_sensor/')).length).toBe(2);
     // show_message + show_alert = 2 notifies per display
     expect(out.filter((p) => p.topic.includes('/notify/')).length).toBe(4);
-    // dismiss_message + last_scene = 2 buttons per display
-    expect(out.filter((p) => p.topic.includes('/button/')).length).toBe(4);
-    expect(out.filter((p) => p.topic.includes('/select/')).length).toBe(2);
+    // dismiss_message + last_scene + alert_fire = 3 buttons per display
+    expect(out.filter((p) => p.topic.includes('/button/')).length).toBe(6);
+    // active_scene + alert_scene = 2 selects per display
+    expect(out.filter((p) => p.topic.includes('/select/')).length).toBe(4);
+    // alert_dwell = 1 number per display
+    expect(out.filter((p) => p.topic.includes('/number/')).length).toBe(2);
 
     const livingScene = out.find((p) => p.topic === `homeassistant/sensor/cosmos_d1_current_scene/config`);
     expect(livingScene).toBeDefined();
@@ -57,6 +60,35 @@ describe('buildDiscoveryPayloads', () => {
     );
     expect(cfg.command_topic).toBe('cosmos/d1/message/dismiss');
     expect(cfg.payload_press).toBe('');
+  });
+
+  it('emits select+number+button trio for the alert UI', () => {
+    const out = buildDiscoveryPayloads(
+      [{ id: 'd1', name: 'A' }],
+      ['Morning', 'Evening']
+    );
+
+    const select = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_alert_scene/config'))!.payload
+    );
+    expect(select.command_topic).toBe('cosmos/d1/alert/scene/set');
+    expect(select.state_topic).toBe('cosmos/d1/alert/scene');
+    expect(select.options).toEqual(['Morning', 'Evening']);
+
+    const number = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_alert_dwell/config'))!.payload
+    );
+    expect(number.command_topic).toBe('cosmos/d1/alert/dwell/set');
+    expect(number.state_topic).toBe('cosmos/d1/alert/dwell');
+    expect(number.unit_of_measurement).toBe('s');
+    expect(number.min).toBe(1);
+    expect(number.max).toBe(600);
+
+    const button = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_alert_fire/config'))!.payload
+    );
+    expect(button.command_topic).toBe('cosmos/d1/alert/fire');
+    expect(button.payload_press).toBe('');
   });
 
   it('emits a notify entity wired to the scene/alert command topic', () => {

@@ -1,5 +1,5 @@
 name: Cosmos
-version: "0.2.2"
+version: "0.2.4"
 slug: cosmos_dashboard
 description: A beautiful wall dashboard for Home Assistant.
 url: https://github.com/qrobinso/cosmos-ha-dashboard

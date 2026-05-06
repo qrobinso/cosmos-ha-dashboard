@@ -1,6 +1,6 @@
 import type { ParsedCommand } from './types.js';
 
-const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set|scene\/last|scene\/alert)$/;
+const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set|scene\/last|scene\/alert|alert\/scene\/set|alert\/dwell\/set|alert\/fire)$/;
 
 export function parseCommandTopic(topic: string, payload: string): ParsedCommand | null {
   const m = TOPIC_RE.exec(topic);
@@ -46,6 +46,21 @@ export function parseCommandTopic(topic: string, payload: string): ParsedCommand
       // No payload required — switches to whichever scene was active before
       // the current one. Useful as an HA automation action ("go back").
       return { kind: 'last_scene', target };
+    case 'alert/scene/set': {
+      // Plain string payload (HA select sends the picked option as-is).
+      const sceneName = payload.trim();
+      if (!sceneName) return null;
+      return { kind: 'set_alert_scene', target, sceneName };
+    }
+    case 'alert/dwell/set': {
+      // Plain numeric string payload (HA number sends e.g. "8" or "8.0").
+      const n = Number(payload);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      return { kind: 'set_alert_dwell', target, dwellSec: n };
+    }
+    case 'alert/fire':
+      // No payload required.
+      return { kind: 'fire_alert', target };
     case 'scene/alert': {
       let body: unknown;
       try {

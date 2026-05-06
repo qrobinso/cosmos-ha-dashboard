@@ -82,6 +82,33 @@ describe('parseCommandTopic', () => {
     expect(parseCommandTopic('homeassistant/sensor/whatever', '{}')).toBeNull();
   });
 
+  it('parses alert/scene/set as a plain string scene name', () => {
+    const cmd = parseCommandTopic('cosmos/Living/alert/scene/set', 'Doorbell');
+    expect(cmd).toEqual({ kind: 'set_alert_scene', target: 'Living', sceneName: 'Doorbell' });
+  });
+
+  it('rejects empty alert/scene/set payload', () => {
+    expect(parseCommandTopic('cosmos/Living/alert/scene/set', '   ')).toBeNull();
+  });
+
+  it('parses alert/dwell/set as a positive number of seconds', () => {
+    const cmd = parseCommandTopic('cosmos/Living/alert/dwell/set', '8');
+    expect(cmd).toEqual({ kind: 'set_alert_dwell', target: 'Living', dwellSec: 8 });
+  });
+
+  it('rejects non-numeric or non-positive alert/dwell/set payloads', () => {
+    expect(parseCommandTopic('cosmos/Living/alert/dwell/set', 'forever')).toBeNull();
+    expect(parseCommandTopic('cosmos/Living/alert/dwell/set', '0')).toBeNull();
+    expect(parseCommandTopic('cosmos/Living/alert/dwell/set', '-3')).toBeNull();
+  });
+
+  it('parses alert/fire as a no-payload trigger', () => {
+    expect(parseCommandTopic('cosmos/Living/alert/fire', '')).toEqual({
+      kind: 'fire_alert',
+      target: 'Living',
+    });
+  });
+
   it('treats target=all as broadcast', () => {
     const cmd = parseCommandTopic('cosmos/all/message/set', '{"title":"Hi"}');
     expect(cmd?.target).toBe('all');
