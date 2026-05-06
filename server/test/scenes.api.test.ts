@@ -6,6 +6,7 @@ import { createSettingsRepo } from '../src/store/settings.js';
 import { createScenesRepo } from '../src/store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
 import { buildHttpApp } from '../src/api/http.js';
+import { createCanvasExtrasStore } from '../src/api/canvases.js';
 
 function setup() {
   const db = new Database(':memory:');
@@ -15,7 +16,8 @@ function setup() {
   const scenes = createScenesRepo(db);
   const transitions = createTransitionsRepo(db);
   const overrides = createOverridesRepo(db);
-  return { displays, settings, scenes, transitions, overrides };
+  const canvasExtras = createCanvasExtrasStore();
+  return { displays, settings, scenes, transitions, overrides, canvasExtras };
 }
 
 const sample = {
@@ -177,5 +179,23 @@ describe('scenes REST API', () => {
     const body = res.json();
     expect(body.widgets[0].kind).toBe('canvas');
     expect(body.widgets[0].config.content).toBe('<h1>Hello {{ states("sensor.power") }}</h1>');
+  });
+
+  it('POST /api/canvases/:widgetId/subscribe records extras and returns 204', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/canvases/w1/subscribe',
+      payload: { display_name: 'Living Room', entity_ids: ['sensor.power', 'sensor.temp'] },
+    });
+    expect(res.statusCode).toBe(204);
+  });
+
+  it('POST /api/canvases/:widgetId/subscribe rejects malformed bodies', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/canvases/w1/subscribe',
+      payload: { entity_ids: 'not-an-array' },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });

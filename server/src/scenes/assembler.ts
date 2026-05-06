@@ -52,6 +52,10 @@ export type DataResolvers = {
    *  the substituted string and the entity ids it depends on. Without
    *  this resolver, canvas widgets render as-is with literal {{ }} marks. */
   canvasResolver?: (widgetId: string, content: string) => Promise<{ resolved: string; entityIds: string[] }>;
+  /** Per-display extras for canvas widgets — entity ids the iframe has
+   *  subscribed to beyond what the rendered template depends on. Returns
+   *  an empty array when not provided. */
+  canvasExtras?: (widgetId: string) => string[];
 };
 
 /**
@@ -379,13 +383,16 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
     case 'canvas': {
       const cfg = widget.config as { content?: unknown };
       const content = typeof cfg.content === 'string' ? cfg.content : '';
+      const extras = deps.canvasExtras ? deps.canvasExtras(widget.id) : [];
       // Without a canvasResolver wired in (added in Task 4), pass content
       // through unchanged so existing scenes keep rendering.
       if (!deps.canvasResolver) {
-        return { resolved: content, liveEntityIds: [] };
+        const liveEntityIds = Array.from(new Set(extras));
+        return { resolved: content, liveEntityIds };
       }
       const result = await deps.canvasResolver(widget.id, content);
-      return { resolved: result.resolved, liveEntityIds: result.entityIds };
+      const liveEntityIds = Array.from(new Set([...result.entityIds, ...extras]));
+      return { resolved: result.resolved, liveEntityIds };
     }
   }
 }
@@ -454,6 +461,7 @@ export type AssemblePushArgs = {
   /** Base URL of the HA instance for absolutizing media art paths. */
   mediaUrlBase?: string;
   canvasResolver?: DataResolvers['canvasResolver'];
+  canvasExtras?: DataResolvers['canvasExtras'];
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -477,6 +485,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
     readEntitySync: args.readEntitySync,
     mediaUrlBase: args.mediaUrlBase,
     canvasResolver: args.canvasResolver,
+    canvasExtras: args.canvasExtras,
   });
   const transition = resolveTransition(args);
   return transition ? { type: 'scene', state, transition } : { type: 'scene', state };

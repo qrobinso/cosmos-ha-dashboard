@@ -8,6 +8,7 @@ import { registerTransitionRoutes } from './transitions.js';
 import { registerHaEntityRoutes } from './ha-entities.js';
 import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerMoodRoutes } from './moods.js';
+import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 export const DEFAULT_SAFE_AREA: SafeArea = { top: 16, right: 16, bottom: 16, left: 16 };
@@ -46,6 +47,8 @@ export type HttpDeps = {
   onDisplayConfigChanged?: (displayId: string) => void;
   onScenesListChanged?: () => void;
   onDisplayDeleted?: (displayId: string, name: string) => void;
+  canvasExtras?: CanvasExtrasStore;
+  onCanvasExtrasChanged?: (displayName: string) => void;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -86,6 +89,13 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     onScenesListChanged: deps.onScenesListChanged,
     onDisplayDeleted: deps.onDisplayDeleted,
   });
+
+  if (deps.canvasExtras) {
+    registerCanvasRoutes(app, {
+      extras: deps.canvasExtras,
+      onExtrasChanged: deps.onCanvasExtrasChanged,
+    });
+  }
 
   return app;
 }
