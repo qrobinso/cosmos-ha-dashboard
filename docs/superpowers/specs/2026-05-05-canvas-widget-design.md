@@ -7,7 +7,7 @@
 
 A new `canvas` widget kind that renders user- or agent-authored HTML/CSS/JS inside a sandboxed iframe filling the widget's grid cell. Content can include Home Assistant Jinja templates (`{{ states("sensor.power") }}`) which Cosmos resolves through HA's own WebSocket `render_template` engine — so output is **pin-for-pin compatible with HA's template language** (anything that works in an HA automation works here). The iframe receives a small read-only `cosmos.*` JS bridge over `postMessage` for live entity subscriptions and scene context.
 
-The ultimate goal is to give users and their LLM agents a sandboxed canvas where any UI can be generated on the fly — like an "exersketch" surface, but with first-class access to HA state.
+The ultimate goal is to give users and their LLM agents a sandboxed canvas where any UI can be generated on the fly — like an "Etch A Sketch" surface, but with first-class access to HA state.
 
 ## Goals
 
