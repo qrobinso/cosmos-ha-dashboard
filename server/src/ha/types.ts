@@ -1,3 +1,4 @@
+import type { Connection } from 'home-assistant-js-websocket';
 import type {
   CalendarEvent,
   EntityState,
@@ -11,6 +12,9 @@ export type { EntityState };
 export type StateChangedHandler = (entity: EntityState) => void;
 
 export type HaClient = {
+  /** The underlying home-assistant-js-websocket Connection. Used by
+   *  TemplatesClient to subscribe to template renders. */
+  connection: Connection;
   /** Resolve once the initial state snapshot is loaded. */
   ready(): Promise<void>;
   /** Look up an entity from the local cache; returns null if unknown. */

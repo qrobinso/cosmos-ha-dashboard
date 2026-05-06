@@ -24,6 +24,9 @@ export type WsDeps = {
   onDisplayOnline?: (displayId: string, name: string) => void;
   onDisplayOffline?: (displayId: string, name: string) => void;
   onSceneActivated?: (displayId: string, sceneName: string | null) => void;
+  canvasResolver?: import('../scenes/assembler.js').DataResolvers['canvasResolver'];
+  canvasExtras?: import('../scenes/assembler.js').DataResolvers['canvasExtras'];
+  canvasExtrasOnDisconnect?: (displayName: string) => void;
 };
 
 export type CosmosWss = WebSocketServer & {
@@ -95,6 +98,8 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       resolveWeatherForecasts: deps.resolveWeatherForecasts,
       readEntitySync: deps.readEntitySync,
       mediaUrlBase: deps.mediaUrlBase,
+      canvasResolver: deps.canvasResolver,
+      canvasExtras: deps.canvasExtras,
     });
     lastSceneByDisplay.set(displayId, scene.id);
     deps.onSceneActivated?.(displayId, scene.name);
@@ -111,7 +116,10 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
         sockets.delete(ownDisplayId);
         lastSceneByDisplay.delete(ownDisplayId);
         const d = deps.displays.getById(ownDisplayId);
-        if (d) deps.onDisplayOffline?.(ownDisplayId, d.name);
+        if (d) {
+          deps.onDisplayOffline?.(ownDisplayId, d.name);
+          deps.canvasExtrasOnDisconnect?.(d.name);
+        }
       }
     });
     socket.on('message', (raw) => {

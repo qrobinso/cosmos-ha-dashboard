@@ -178,6 +178,7 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
   }
 
   return {
+    connection,
     ready: () => readyPromise,
     getEntity: (id) => cache.get(id),
     listEntities: () => cache.list(),

@@ -1,3 +1,4 @@
+import type { Connection } from 'home-assistant-js-websocket';
 import type { HaClient, EntityState, StateChangedHandler } from './types.js';
 import type {
   CalendarEvent,
@@ -24,6 +25,9 @@ export function createFakeHaClient(initial: EntityState[] = []): FakeHaClient {
   const histories = new Map<string, StatisticsPoint[]>();
   const forecasts = new Map<string, WeatherForecastItem[]>(); // key: `${entityId}:${type}`
   return {
+    // Fake clients don't need a real Connection; tests that use TemplatesClient
+    // should supply their own fake. Cast to satisfy the HaClient interface.
+    connection: null as unknown as Connection,
     ready: async () => {},
     getEntity: (id) => cache.get(id),
     listEntities: () => cache.list(),

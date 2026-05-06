@@ -12,6 +12,9 @@ import { makeHaClient } from './ha/client.js';
 import type { HaClient } from './ha/types.js';
 import { mockEntityResolver } from './scenes/assembler.js';
 import { resolveMoodsDir } from './moods/scan.js';
+import { createTemplatesClient } from './ha/templates.js';
+import { createCanvasResolver } from './scenes/canvas.js';
+import { createCanvasExtrasStore } from './api/canvases.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve as resolvePath } from 'node:path';
 
@@ -163,6 +166,8 @@ async function main() {
     startRotation(displayId);
   }
 
+  const canvasExtras = createCanvasExtrasStore();
+
   const app = await buildHttpApp({
     displays,
     settings,
@@ -179,6 +184,11 @@ async function main() {
     onDisplayConfigChanged: (displayId) => wssRef?.pushDisplayConfigTo(displayId),
     onScenesListChanged,
     onDisplayDeleted,
+    canvasExtras,
+    onCanvasExtrasChanged: (displayName) => {
+      const d = displays.getByName(displayName);
+      if (d) markDisplayDirty(d.id);
+    },
   });
   await registerStatic(app, config.staticDir);
   async function publishDiscovery(): Promise<void> {
@@ -238,20 +248,6 @@ async function main() {
   // setups we'd need a Cosmos-side proxy endpoint instead.
   const browserMediaBase = config.haUrl ?? null;
 
-  const wss = attachWsHub(app.server, {
-    displays, scenes, settings, transitions, overrides,
-    resolveEntity,
-    resolveCalendarEvents,
-    resolveHistory,
-    resolveWeatherForecasts,
-    readEntitySync,
-    mediaUrlBase: browserMediaBase ?? undefined,
-    onDisplayOnline: publishOnline,
-    onDisplayOffline: publishOffline,
-    onSceneActivated: publishSceneState,
-  });
-  wssRef = wss;
-
   // Debounce reactive scene pushes: many HA entities can change in one tick.
   // We coalesce per-display dirty flags and flush them ~50ms later in one batch.
   const dirtyDisplays = new Set<string>();
@@ -268,6 +264,39 @@ async function main() {
       }
     }, 50);
   }
+
+  const templatesClient = haClient ? createTemplatesClient(haClient.connection) : null;
+  const canvasResolver = createCanvasResolver(templatesClient, (widgetId) => {
+    // Mark every display whose active scene contains this widget dirty.
+    for (const d of displays.list()) {
+      const activeId = d.currentSceneId ?? d.defaultSceneId;
+      if (!activeId) continue;
+      const scene = scenes.get(activeId);
+      if (!scene) continue;
+      if (scene.widgets.some((w) => w.id === widgetId)) markDisplayDirty(d.id);
+    }
+  });
+
+  const wss = attachWsHub(app.server, {
+    displays, scenes, settings, transitions, overrides,
+    resolveEntity,
+    resolveCalendarEvents,
+    resolveHistory,
+    resolveWeatherForecasts,
+    readEntitySync,
+    mediaUrlBase: browserMediaBase ?? undefined,
+    onDisplayOnline: publishOnline,
+    onDisplayOffline: publishOffline,
+    onSceneActivated: publishSceneState,
+    canvasResolver,
+    canvasExtras: (widgetId) => {
+      const all: string[] = [];
+      for (const d of displays.list()) all.push(...canvasExtras.list(d.name, widgetId));
+      return all;
+    },
+    canvasExtrasOnDisconnect: (displayName) => canvasExtras.clearDisplay(displayName),
+  });
+  wssRef = wss;
 
   let unsubHaStateChange: (() => void) | null = null;
   if (haClient) {
