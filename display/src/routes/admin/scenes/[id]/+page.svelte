@@ -407,8 +407,24 @@
         <input type="color" bind:value={background.color} />
       </Field>
     {:else}
+      <Field label="Adapt to time of day">
+        <label class="inline-check">
+          <input
+            type="checkbox"
+            checked={background.sun_adaptive === true}
+            on:change={(e) => { if (background.type === 'gradient') { background = { ...background, sun_adaptive: e.currentTarget.checked }; } }}
+          />
+          <span>Auto-pick the palette from <code>sun.sun</code> — sunrise / day / evening / night each get their own.</span>
+        </label>
+      </Field>
+      {#if background.sun_adaptive}
+        <p class="hint">
+          Sunrise: warm peach · Day: peach glow · Evening: lavender · Night: midnight blue.
+          The colors below are ignored while this is on.
+        </p>
+      {/if}
       <Field label="Preset" hint="Apply a curated palette">
-        <select on:change={applyPreset}>
+        <select on:change={applyPreset} disabled={background.sun_adaptive === true}>
           <option value="">Choose preset…</option>
           {#each GRADIENT_PRESETS as p, i (p.name)}<option value={i}>{p.name}</option>{/each}
         </select>
@@ -416,11 +432,11 @@
       <Field label="Colors" hint="2–6 colors blend continuously">
         {#each background.colors as _, i}
           <div class="color-row">
-            <input type="color" bind:value={background.colors[i]} />
-            <button class="danger" type="button" on:click={() => removeColor(i)}>Remove</button>
+            <input type="color" bind:value={background.colors[i]} disabled={background.sun_adaptive === true} />
+            <button class="danger" type="button" on:click={() => removeColor(i)} disabled={background.sun_adaptive === true}>Remove</button>
           </div>
         {/each}
-        <button type="button" on:click={addColor}>+ Color</button>
+        <button type="button" on:click={addColor} disabled={background.sun_adaptive === true}>+ Color</button>
       </Field>
       <Field label="Speed">
         <select bind:value={background.speed}>

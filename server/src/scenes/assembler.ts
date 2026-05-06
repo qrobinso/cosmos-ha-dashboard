@@ -19,6 +19,7 @@ import type {
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { resolveMood } from '../moods/resolve.js';
+import { resolveSunGradient } from './sunGradient.js';
 import {
   mockEntity,
   mockCalendar,
@@ -393,15 +394,24 @@ export async function buildSceneState(
   for (const w of scene.widgets) {
     widgets.push({ ...w, data: await dataFor(w, deps) });
   }
-  const resolvedMood = resolveMood(scene.mood, {
-    now: new Date(),
-    readEntity: deps.readEntitySync ?? (() => null),
-  });
+  const now = new Date();
+  const readEntitySync = deps.readEntitySync ?? (() => null);
+  const resolvedMood = resolveMood(scene.mood, { now, readEntity: readEntitySync });
+
+  // Sun-adaptive gradient: server picks the active palette from sun.sun
+  // (with a clock fallback) so the display just receives normal gradient
+  // colors and renders them with no extra logic.
+  let background = scene.background;
+  if (background.type === 'gradient' && background.sun_adaptive) {
+    const colors = resolveSunGradient(now, readEntitySync('sun.sun'));
+    background = { ...background, colors };
+  }
+
   return {
     id: scene.id,
     name: scene.name,
     layout: scene.layout,
-    background: scene.background,
+    background,
     typography: scene.typography,
     defaultTransitionId: scene.defaultTransitionId,
     floatWidgets: scene.floatWidgets,

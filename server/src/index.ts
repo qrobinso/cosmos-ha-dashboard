@@ -28,14 +28,22 @@ function widgetEntityIds(scenes: ReturnType<typeof createScenesRepo>): Set<strin
   return ids;
 }
 
-/** Entities the mood engine reads on each scene assembly: `sun.sun` for any
- *  scene with a time strategy, plus the configured weather entity for any
- *  scene with a weather strategy. */
-function moodEntityIdsForScene(scene: ReturnType<typeof createScenesRepo>['list'] extends () => Array<infer S> ? S : never): Set<string> {
+/** Entities a scene reads beyond its widgets — used to decide whether an
+ *  HA state change should trigger a reactive re-push. Currently:
+ *   - `sun.sun`: read by the mood engine's time strategy AND by sun-adaptive
+ *     gradient backgrounds.
+ *   - the configured weather entity: read by the mood engine's weather
+ *     strategy.
+ */
+function sceneAmbientEntityIds(scene: ReturnType<typeof createScenesRepo>['list'] extends () => Array<infer S> ? S : never): Set<string> {
   const ids = new Set<string>();
-  if (!scene.mood?.enabled) return ids;
-  if (scene.mood.strategy === 'time') ids.add('sun.sun');
-  if (scene.mood.strategy === 'weather' && scene.mood.weatherEntity) ids.add(scene.mood.weatherEntity);
+  if (scene.mood?.enabled) {
+    if (scene.mood.strategy === 'time') ids.add('sun.sun');
+    if (scene.mood.strategy === 'weather' && scene.mood.weatherEntity) ids.add(scene.mood.weatherEntity);
+  }
+  if (scene.background.type === 'gradient' && scene.background.sun_adaptive) {
+    ids.add('sun.sun');
+  }
   return ids;
 }
 
@@ -274,8 +282,8 @@ async function main() {
         const widgetMatches =
           widgetUses &&
           scene.widgets.some((w) => (w.config as { entity_id?: string }).entity_id === entity.entity_id);
-        const moodMatches = moodEntityIdsForScene(scene).has(entity.entity_id);
-        if (widgetMatches || moodMatches) markDisplayDirty(d.id);
+        const ambientMatches = sceneAmbientEntityIds(scene).has(entity.entity_id);
+        if (widgetMatches || ambientMatches) markDisplayDirty(d.id);
       }
     });
   }

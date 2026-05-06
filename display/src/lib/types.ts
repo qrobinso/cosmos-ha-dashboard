@@ -2,7 +2,13 @@ export type Position = { col: number; row: number; w: number; h: number };
 export type Layout = { cols: number; rows: number; items: { widget_id: string; col: number; row: number; w: number; h: number }[] };
 export type Background =
   | { type: 'solid'; color: string }
-  | { type: 'gradient'; colors: string[]; speed: 'slow' | 'medium' | 'fast'; style: 'mesh' | 'linear' | 'radial' };
+  | {
+      type: 'gradient';
+      colors: string[];
+      speed: 'slow' | 'medium' | 'fast';
+      style: 'mesh' | 'linear' | 'radial';
+      sun_adaptive?: boolean;
+    };
 export type Typography = { font_family: string; font_scale: number };
 export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera';
 
