@@ -30,17 +30,11 @@ export function createCanvasResolver(
       return { resolved: content, entityIds: [] };
     }
 
-    let lastResult = '';
-    let lastEntities: string[] = [];
-    const r = await templates.render(content, (rendered, entityIds) => {
-      lastResult = rendered;
-      lastEntities = entityIds;
+    const r = await templates.render(content, () => {
       onUpdate(widgetId);
     });
-    lastResult = r.initial;
-    lastEntities = r.entityIds;
     cleanups.set(widgetId, r.unsubscribe);
-    return { resolved: lastResult, entityIds: lastEntities };
+    return { resolved: r.initial, entityIds: r.entityIds };
   };
 
   return Object.assign(resolver, {
