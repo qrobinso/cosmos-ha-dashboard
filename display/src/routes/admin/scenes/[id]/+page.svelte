@@ -19,7 +19,10 @@
     .replace(/^# (.*)$/gm, '<h1>$1</h1>')
     .replace(/```([\s\S]*?)```/g, (_, body) => `<pre><code>${body.trim().replace(/</g, '&lt;')}</code></pre>`)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/^\| (.+) \|$/gm, (line) => '<tr>' + line.slice(2, -2).split(' | ').map((c) => `<td>${c}</td>`).join('') + '</tr>')
+    .replace(/^\| (.+) \|$/gm, (line) => {
+      if (/^\|[\s\-:|]+\|$/.test(line)) return '';
+      return '<tr>' + line.slice(2, -2).split(' | ').map((c) => `<td>${c}</td>`).join('') + '</tr>';
+    })
     .replace(/(\n<tr>.*<\/tr>)+/gs, (block) => `<table>${block}</table>`);
 
   let helpOpen: Record<number, boolean> = {};
