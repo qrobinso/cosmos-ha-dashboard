@@ -7,6 +7,7 @@
 
   export let scene: SceneState | null = null;
   export let transition: TransitionDescriptor | null = null;
+  export let displayName: string | null = null;
 
   const controller = new TransitionController();
   let stageState: StageState = controller.current();
@@ -67,7 +68,7 @@
     data-phase={transitioning ? (layer.role === 'outgoing' ? 'out' : 'in') : null}
     style={transitioning ? styleFor(layer.role) : ''}
   >
-    <SceneCanvas scene={layer.scene} />
+    <SceneCanvas scene={layer.scene} {displayName} />
   </div>
 {/each}
 

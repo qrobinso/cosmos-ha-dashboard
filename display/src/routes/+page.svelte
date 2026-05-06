@@ -102,7 +102,7 @@
   {:else if error}
     <p style="color:#ff8a8a">Error: {error}</p>
   {:else if scene}
-    <TransitionStage {scene} transition={pendingTransition} />
+    <TransitionStage {scene} transition={pendingTransition} displayName={name} />
     <MessageOverlay {overlay} onDismiss={() => (overlay = null)} />
   {:else if greeting}
     <h1 style="font-weight:300;font-size:3rem">{greeting}</h1>

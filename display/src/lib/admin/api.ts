@@ -123,4 +123,13 @@ export const api = {
       return jsonOr(await fetch('/api/moods'), []);
     },
   },
+  canvases: {
+    async subscribe(widgetId: string, displayName: string, entityIds: string[]): Promise<void> {
+      await fetch(`/api/canvases/${encodeURIComponent(widgetId)}/subscribe`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ display_name: displayName, entity_ids: entityIds }),
+      });
+    },
+  },
 };

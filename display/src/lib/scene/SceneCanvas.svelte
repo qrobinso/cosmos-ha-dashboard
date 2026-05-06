@@ -9,10 +9,12 @@
   import Statistics from '$lib/widgets/Statistics.svelte';
   import Text from '$lib/widgets/Text.svelte';
   import Camera from '$lib/widgets/Camera.svelte';
+  import Canvas from '$lib/widgets/Canvas.svelte';
   import Background from '$lib/backgrounds/Background.svelte';
   import MoodLayer from './MoodLayer.svelte';
 
   export let scene: SceneState;
+  export let displayName: string | null = null;
 
   const fontVar = (family: string) => `var(--cosmos-font-${family.replace(/\s+/g, '')}, system-ui, sans-serif)`;
 </script>
@@ -58,6 +60,8 @@
           <Text widget={w} />
         {:else if w.kind === 'camera'}
           <Camera widget={w} />
+        {:else if w.kind === 'canvas'}
+          <Canvas widget={w} {scene} displayName={displayName ?? ''} />
         {/if}
       </WidgetSlot>
     {/each}
