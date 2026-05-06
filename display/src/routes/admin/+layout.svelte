@@ -19,12 +19,47 @@
 
   let menuOpen = false;
   function closeMenu() { menuOpen = false; }
+
+  const COSMOS_VERSION = __COSMOS_VERSION__;
+  const COSMOS_REPO_URL = 'https://github.com/qrobinso/cosmos-ha-dashboard';
 </script>
 
 <div class="cosmos-admin">
   <header class="topbar">
     <a href="/admin" class="brand" on:click={closeMenu}>
-      <span class="dot" aria-hidden="true"></span>
+      <!-- Inline favicon: same SVG, same gradients. Rendering the literal mark
+           (rather than approximating with a CSS dot) keeps the topbar and the
+           browser tab in lock-step. -->
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <defs>
+          <radialGradient id="brand-bg" cx="42%" cy="36%" r="78%">
+            <stop offset="0%" stop-color="#1a2340" />
+            <stop offset="55%" stop-color="#0c111e" />
+            <stop offset="100%" stop-color="#06080f" />
+          </radialGradient>
+          <linearGradient id="brand-arc" x1="10%" y1="10%" x2="80%" y2="92%">
+            <stop offset="0%" stop-color="#8fb6ef" />
+            <stop offset="45%" stop-color="#a8a6ff" />
+            <stop offset="100%" stop-color="#5fd3a3" />
+          </linearGradient>
+          <radialGradient id="brand-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffd58a" stop-opacity="0.55" />
+            <stop offset="50%" stop-color="#f0c14b" stop-opacity="0.18" />
+            <stop offset="100%" stop-color="#f0c14b" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <rect width="64" height="64" rx="14" ry="14" fill="url(#brand-bg)" />
+        <circle cx="44" cy="32" r="12" fill="url(#brand-halo)" />
+        <path
+          d="M 47.59 23 A 18 18 0 1 0 47.59 41"
+          fill="none"
+          stroke="url(#brand-arc)"
+          stroke-width="9"
+          stroke-linecap="round"
+        />
+        <circle cx="44" cy="32" r="4" fill="#ffd17a" />
+        <circle cx="44" cy="32" r="1.6" fill="#fff5db" />
+      </svg>
       <span class="brand-text">Cosmos</span>
     </a>
 
@@ -66,6 +101,12 @@
   <main class="admin-main">
     <slot />
   </main>
+
+  <footer class="admin-footer">
+    <span class="version">v{COSMOS_VERSION}</span>
+    <span class="dot" aria-hidden="true">·</span>
+    <a href={COSMOS_REPO_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
+  </footer>
 </div>
 
 <style>
@@ -83,7 +124,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.85rem 1.25rem;
-    background: rgba(12, 13, 18, 0.85);
+    background: rgba(8, 9, 15, 0.78);
     backdrop-filter: saturate(140%) blur(10px);
     -webkit-backdrop-filter: saturate(140%) blur(10px);
     border-bottom: 1px solid var(--c-line);
@@ -100,12 +141,16 @@
     text-decoration: none;
   }
   .brand:hover { color: var(--c-fg); }
-  .brand .dot {
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 999px;
-    background: radial-gradient(circle at 30% 30%, var(--c-accent), #b85a1e 75%);
-    box-shadow: 0 0 12px rgba(243, 162, 106, 0.55);
+  .brand-mark {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: block;
+    /* Soft halo outside the SVG so the mark feels lit on the topbar. */
+    filter: drop-shadow(0 0 10px rgba(255, 209, 122, 0.18));
+    transition: filter 240ms var(--ease);
+  }
+  .brand:hover .brand-mark {
+    filter: drop-shadow(0 0 14px rgba(255, 209, 122, 0.35));
   }
 
   .desktop-nav {
@@ -181,6 +226,31 @@
     padding: clamp(1rem, 4vw, 2rem);
     box-sizing: border-box;
   }
+
+  .admin-footer {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 1.25rem clamp(1rem, 4vw, 2rem) 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--c-fg-3);
+    font-size: 0.82rem;
+    border-top: 1px solid var(--c-line);
+    margin-top: 2rem;
+  }
+  .admin-footer .version {
+    font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.02em;
+  }
+  .admin-footer .dot { color: var(--c-fg-3); opacity: 0.5; }
+  .admin-footer a {
+    color: var(--c-fg-2);
+    text-decoration: none;
+    transition: color 150ms var(--ease);
+  }
+  .admin-footer a:hover { color: var(--c-fg); }
 
   @media (min-width: 720px) {
     .desktop-nav { display: flex; }
