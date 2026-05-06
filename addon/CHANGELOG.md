@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.23
+
+- Fix: Scene transitions now run on Android Chrome. The display was honoring the OS `prefers-reduced-motion` preference and collapsing every transition to a 120 ms fade (which reads as instant on tablet panels). The wall kiosk now ignores that preference — configured transitions always play.
+
 ## 0.1.22
 
 - Fix: HA media proxy now streams the upstream response body instead of buffering it. Live MJPEG camera feeds (`view: live`) work end-to-end; snapshot mode is no longer cached so each refresh shows the current frame.

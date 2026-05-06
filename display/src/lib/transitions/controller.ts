@@ -47,9 +47,6 @@ export class TransitionController {
       this.set({ phase: 'idle', outgoingScene: null, incomingScene: scene, transition: null });
       return;
     }
-    if (this.shouldReduceMotion()) {
-      transition = REDUCED_MOTION_TRANSITION;
-    }
     this.cancelTimer();
     this.set({
       phase: 'transitioning',
@@ -83,17 +80,4 @@ export class TransitionController {
       this.timer = null;
     }
   }
-
-  private shouldReduceMotion(): boolean {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-  }
 }
-
-export const REDUCED_MOTION_TRANSITION: TransitionDescriptor = {
-  id: 'reduced-motion-fallback',
-  name: 'reduced-motion',
-  out: { keyframes: 'cosmos-out-fade', duration_ms: 120, easing: 'linear' },
-  bridge: { background_morph: false },
-  in: { keyframes: 'cosmos-in-fade', duration_ms: 120, easing: 'linear' },
-};
