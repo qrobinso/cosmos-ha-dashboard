@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Feat: Scene **alerts** — a new MQTT command `cosmos/<display>/scene/alert` (payload `{"scene_name":"…","dwell_ms":N,"transition_id"?:"…"}`) flips a display to a specific scene for a fixed dwell, then auto-reverts to whatever was on screen before. Server-resident timer (survives display reconnects). Manual scene changes mid-dwell cancel the auto-revert. Chained alerts preserve the original revert target so a display can't get trapped in alert mode. Parallel REST endpoint `POST /api/displays/:name/scene/alert {sceneId, dwellMs, transitionId?}` for testing/admin use.
+
 ## 0.1.23
 
 - Fix: Scene transitions now run on Android Chrome. The display was honoring the OS `prefers-reduced-motion` preference and collapsing every transition to a 120 ms fade (which reads as instant on tablet panels). The wall kiosk now ignores that preference — configured transitions always play.

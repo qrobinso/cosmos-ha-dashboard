@@ -51,6 +51,33 @@ describe('parseCommandTopic', () => {
     });
   });
 
+  it('parses scene/alert with scene_name + dwell_ms', () => {
+    expect(
+      parseCommandTopic('cosmos/Kitchen/scene/alert', '{"scene_name":"Doorbell","dwell_ms":15000}')
+    ).toEqual({
+      kind: 'show_scene_alert',
+      target: 'Kitchen',
+      sceneName: 'Doorbell',
+      dwellMs: 15000,
+      transitionId: undefined,
+    });
+  });
+
+  it('parses scene/alert with optional transition_id', () => {
+    const cmd = parseCommandTopic(
+      'cosmos/Kitchen/scene/alert',
+      '{"scene_name":"Doorbell","dwell_ms":5000,"transition_id":"cross-fade"}'
+    );
+    expect(cmd?.kind).toBe('show_scene_alert');
+    if (cmd?.kind === 'show_scene_alert') expect(cmd.transitionId).toBe('cross-fade');
+  });
+
+  it('rejects scene/alert without scene_name or with non-numeric dwell_ms', () => {
+    expect(parseCommandTopic('cosmos/X/scene/alert', '{"dwell_ms":1000}')).toBeNull();
+    expect(parseCommandTopic('cosmos/X/scene/alert', '{"scene_name":"A"}')).toBeNull();
+    expect(parseCommandTopic('cosmos/X/scene/alert', '{"scene_name":"A","dwell_ms":"oops"}')).toBeNull();
+  });
+
   it('returns null for unrelated topics', () => {
     expect(parseCommandTopic('homeassistant/sensor/whatever', '{}')).toBeNull();
   });

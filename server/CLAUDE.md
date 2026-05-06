@@ -37,7 +37,7 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - A new REST endpoint: register it in `api/http.ts` (or a new file under `api/` if scoped). Pass repo deps through `HttpDeps`.
 - A new migration: append to `migrations.ts` with the next `version` number. Never modify version 1 or 2.
 - A new built-in transition: append to migration `transitions` seed (new migration version). Add the corresponding `@keyframes` block to `display/src/lib/transitions/keyframes.css`.
-- A new MQTT command: extend `parseCommandTopic` in `mqtt/commands.ts` and the matching dispatcher in `index.ts`.
+- A new MQTT command: extend `parseCommandTopic` in `mqtt/commands.ts` and the matching dispatcher in `index.ts`. Existing precedents: `message/set`, `message/dismiss`, `scene/set`, `scene/last`, `scene/alert` (server-resident timed alert with auto-revert; see `scenes/alerts.ts`).
 
 ## Tests
 

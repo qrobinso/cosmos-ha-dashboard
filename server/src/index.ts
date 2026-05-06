@@ -14,6 +14,7 @@ import { mockEntityResolver } from './scenes/assembler.js';
 import { resolveMoodsDir } from './moods/scan.js';
 import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
+import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve as resolvePath } from 'node:path';
@@ -112,13 +113,28 @@ async function main() {
   // current scene id transitions from A→B, A is recorded as previous.
   const lastAnnouncedScene = new Map<string, string>();
   const previousSceneByDisplay = new Map<string, string>();
-  const onSceneChanged = (displayId: string, opts?: { explicitTransitionId?: string | null }) => {
+  const onSceneChanged = (
+    displayId: string,
+    opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
+  ) => {
     const cur = displays.getById(displayId)?.currentSceneId ?? '';
-    const prev = lastAnnouncedScene.get(displayId);
-    if (prev && prev !== cur) previousSceneByDisplay.set(displayId, prev);
-    if (cur) lastAnnouncedScene.set(displayId, cur);
-    wssRef?.pushSceneTo(displayId, opts).catch((err) => console.error('pushSceneTo failed', err));
+    // Alert fire/revert pass skipHistory=true so transient alert scenes don't
+    // pollute scene/last history. (Without this, the post-revert scene/last
+    // would jump back to the alert.)
+    if (!opts?.skipHistory) {
+      const prev = lastAnnouncedScene.get(displayId);
+      if (prev && prev !== cur) previousSceneByDisplay.set(displayId, prev);
+      if (cur) lastAnnouncedScene.set(displayId, cur);
+    }
+    wssRef
+      ?.pushSceneTo(displayId, { explicitTransitionId: opts?.explicitTransitionId })
+      .catch((err) => console.error('pushSceneTo failed', err));
   };
+
+  // Server-side alert manager: timed scene swap with auto-revert. Manual
+  // scene changes (REST + MQTT scene/set + scene/last) cancel any active
+  // alert before mutating state.
+  const alertManager = createAlertManager({ displays, onSceneChanged });
 
   /** Activate the previous scene for a display. Returns true if a previous
    *  scene existed and is still valid; false otherwise (no-op). */
@@ -126,6 +142,7 @@ async function main() {
     const prevId = previousSceneByDisplay.get(displayId);
     if (!prevId) return false;
     if (!scenes.get(prevId)) return false;
+    alertManager.cancel(displayId);
     displays.setCurrentScene(displayId, prevId);
     onSceneChanged(displayId);
     return true;
@@ -189,6 +206,7 @@ async function main() {
       const d = displays.getByName(displayName);
       if (d) markDisplayDirty(d.id);
     },
+    alerts: alertManager,
   });
   await registerStatic(app, config.staticDir);
   async function publishDiscovery(): Promise<void> {
@@ -337,8 +355,24 @@ async function main() {
     const scene = scenes.getByName(sceneName);
     if (!scene) return;
     for (const d of resolveTargetDisplays(target)) {
+      alertManager.cancel(d.id);
       displays.setCurrentScene(d.id, scene.id);
       wssRef?.pushSceneTo(d.id).catch((err) => console.error('pushSceneTo failed', err));
+    }
+  }
+  function dispatchShowSceneAlert(
+    target: string,
+    sceneName: string,
+    dwellMs: number,
+    transitionId?: string
+  ) {
+    const scene = scenes.getByName(sceneName);
+    if (!scene) {
+      console.warn(`alert: scene "${sceneName}" not found`);
+      return;
+    }
+    for (const d of resolveTargetDisplays(target)) {
+      alertManager.fire(d.id, scene.id, dwellMs, { explicitTransitionId: transitionId ?? null });
     }
   }
 
@@ -381,6 +415,11 @@ async function main() {
         if (cmd?.kind !== 'last_scene') return;
         for (const d of resolveTargetDisplays(cmd.target)) activateLastScene(d.id);
       });
+      mqttClient.subscribe('cosmos/+/scene/alert', (topic, payload) => {
+        const cmd = parseCommandTopic(topic, payload);
+        if (cmd?.kind !== 'show_scene_alert') return;
+        dispatchShowSceneAlert(cmd.target, cmd.sceneName, cmd.dwellMs, cmd.transitionId);
+      });
     } catch (err) {
       console.error('MQTT connection failed; overlay/scene commands unavailable', err);
       mqttClient = null;
@@ -405,6 +444,7 @@ async function main() {
     try {
       for (const t of rotationTimers.values()) clearInterval(t);
       rotationTimers.clear();
+      alertManager.clearAll();
       wss.close();
       await app.close();
       unsubHaStateChange?.();

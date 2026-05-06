@@ -9,6 +9,7 @@ import { registerHaEntityRoutes } from './ha-entities.js';
 import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerMoodRoutes } from './moods.js';
 import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
+import type { AlertManager } from '../scenes/alerts.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 export const DEFAULT_SAFE_AREA: SafeArea = { top: 16, right: 16, bottom: 16, left: 16 };
@@ -41,7 +42,10 @@ export type HttpDeps = {
   /** HA token (long-lived or Supervisor) for authenticated proxy fetches. */
   haToken?: string | null;
   moodsDir?: () => string | null;
-  onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
+  onSceneChanged?: (
+    displayId: string,
+    opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
+  ) => void;
   onSettingsChanged?: () => void;
   onRotationChanged?: (displayId: string) => void;
   onDisplayConfigChanged?: (displayId: string) => void;
@@ -49,6 +53,9 @@ export type HttpDeps = {
   onDisplayDeleted?: (displayId: string, name: string) => void;
   canvasExtras?: CanvasExtrasStore;
   onCanvasExtrasChanged?: (displayName: string) => void;
+  /** Server-side alert timer manager. When provided, the scene-alert endpoint
+   *  is registered. Manual scene activations also cancel any active alert. */
+  alerts?: AlertManager;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -88,6 +95,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     onDisplayConfigChanged: deps.onDisplayConfigChanged,
     onScenesListChanged: deps.onScenesListChanged,
     onDisplayDeleted: deps.onDisplayDeleted,
+    alerts: deps.alerts,
   });
 
   if (deps.canvasExtras) {

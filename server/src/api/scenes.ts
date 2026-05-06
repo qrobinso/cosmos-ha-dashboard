@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ScenesRepo, SceneInput } from '../store/scenes.js';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { TransitionsRepo } from '../store/transitions.js';
+import type { AlertManager } from '../scenes/alerts.js';
 function validateMood(mood: unknown): string | null {
   if (mood === undefined) return null;
   if (typeof mood !== 'object' || mood === null) return 'mood must be an object';
@@ -45,7 +46,10 @@ export type SceneRoutesDeps = {
   scenes: ScenesRepo;
   displays: DisplaysRepo;
   transitions: TransitionsRepo;
-  onSceneChanged?: (displayId: string, opts?: { explicitTransitionId?: string | null }) => void;
+  onSceneChanged?: (
+    displayId: string,
+    opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
+  ) => void;
   onRotationChanged?: (displayId: string) => void;
   onDisplayConfigChanged?: (displayId: string) => void;
   /** Fired when a scene is created, renamed, or deleted — used to
@@ -54,6 +58,9 @@ export type SceneRoutesDeps = {
   /** Fired when a display is deleted, with the display id + name. Used
    *  to drop in-memory state, MQTT discovery entries, and rotation timers. */
   onDisplayDeleted?: (displayId: string, name: string) => void;
+  /** Server-side alert timer manager. Manual /scene/activate cancels any
+   *  active alert before mutating state. */
+  alerts?: AlertManager;
 };
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
@@ -127,9 +134,37 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       if (transitionId !== null && deps.transitions.getById(transitionId) === null) {
         return reply.code(404).send({ error: 'transition not found' });
       }
+      deps.alerts?.cancel(display.id);
       deps.displays.setCurrentScene(display.id, sceneId);
       deps.onSceneChanged?.(display.id, { explicitTransitionId: transitionId });
       return deps.displays.getById(display.id);
+    }
+  );
+
+  app.post<{
+    Params: { name: string };
+    Body: { sceneId?: unknown; dwellMs?: unknown; transitionId?: unknown };
+  }>(
+    '/api/displays/:name/scene/alert',
+    async (req, reply) => {
+      if (!deps.alerts) return reply.code(503).send({ error: 'alerts not configured' });
+      const display = deps.displays.getByName(req.params.name);
+      if (!display) return reply.code(404).send({ error: 'display not found' });
+      const sceneId = typeof req.body?.sceneId === 'string' ? req.body.sceneId : null;
+      if (!sceneId) return reply.code(400).send({ error: 'sceneId required' });
+      const dwellMs = req.body?.dwellMs;
+      if (typeof dwellMs !== 'number' || !Number.isFinite(dwellMs) || dwellMs <= 0) {
+        return reply.code(400).send({ error: 'dwellMs must be a positive number (ms)' });
+      }
+      const scene = deps.scenes.get(sceneId);
+      if (!scene) return reply.code(404).send({ error: 'scene not found' });
+      const transitionId =
+        typeof req.body?.transitionId === 'string' ? req.body.transitionId : null;
+      if (transitionId !== null && deps.transitions.getById(transitionId) === null) {
+        return reply.code(404).send({ error: 'transition not found' });
+      }
+      deps.alerts.fire(display.id, sceneId, dwellMs, { explicitTransitionId: transitionId });
+      return { ok: true, displayId: display.id, sceneId, dwellMs };
     }
   );
 
