@@ -107,6 +107,24 @@
     camera: 'Camera',
   };
 
+  /** Available secondary-info rows for the weather widget, in default
+   *  display order. The user picks any subset and reorders them. */
+  const WEATHER_SECONDARY_OPTIONS: { id: string; label: string }[] = [
+    { id: 'temp_range',           label: 'High / Low (today)' },
+    { id: 'humidity',             label: 'Humidity' },
+    { id: 'pressure',             label: 'Pressure' },
+    { id: 'wind_speed',           label: 'Wind speed' },
+    { id: 'wind_bearing',         label: 'Wind bearing' },
+    { id: 'visibility',           label: 'Visibility' },
+    { id: 'cloud_coverage',       label: 'Cloud coverage' },
+    { id: 'uv_index',             label: 'UV index' },
+    { id: 'apparent_temperature', label: 'Feels like' },
+    { id: 'dew_point',            label: 'Dew point' },
+  ];
+  function secondaryLabel(id: string): string {
+    return WEATHER_SECONDARY_OPTIONS.find((o) => o.id === id)?.label ?? id;
+  }
+
   $: isNew = id === 'new';
 
   onMount(async () => {
@@ -311,6 +329,43 @@
 
   function configBool(cfg: Record<string, unknown>, key: string): boolean {
     return cfg[key] === true;
+  }
+
+  /** Read an ordered string list from a widget config. Falls back to a
+   *  legacy singular field if `key` is missing — used for back-compat. */
+  function configList(cfg: Record<string, unknown>, key: string, legacyKey?: string): string[] {
+    const v = cfg[key];
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && x !== '');
+    if (legacyKey) {
+      const legacy = cfg[legacyKey];
+      if (typeof legacy === 'string' && legacy !== '') return [legacy];
+    }
+    return [];
+  }
+
+  /** Mutate the widget's config to swap the order of two list items. */
+  function moveListItem(idx: number, key: string, fromIdx: number, dir: -1 | 1): void {
+    const cur = configList(widgets[idx].config, key);
+    const target = fromIdx + dir;
+    if (target < 0 || target >= cur.length) return;
+    const next = [...cur];
+    const tmp = next[target];
+    next[target] = next[fromIdx];
+    next[fromIdx] = tmp;
+    widgets[idx].config = { ...widgets[idx].config, [key]: next };
+    widgets = widgets;
+  }
+  function addToList(idx: number, key: string, value: string): void {
+    if (!value) return;
+    const cur = configList(widgets[idx].config, key);
+    if (cur.includes(value)) return;
+    widgets[idx].config = { ...widgets[idx].config, [key]: [...cur, value] };
+    widgets = widgets;
+  }
+  function removeFromList(idx: number, key: string, value: string): void {
+    const cur = configList(widgets[idx].config, key);
+    widgets[idx].config = { ...widgets[idx].config, [key]: cur.filter((x) => x !== value) };
+    widgets = widgets;
   }
 
   function cleanMood(m: MoodConfig): MoodConfig {
@@ -694,19 +749,42 @@
               {/if}
             </div>
             <Field label="Secondary info">
-              <select value={configStr(w.config, 'secondary_info_attribute')} on:change={(e) => { w.config = { ...w.config, secondary_info_attribute: e.currentTarget.value }; widgets = widgets; }}>
-                <option value="">— None —</option>
-                <option value="temp_range">High / Low (today)</option>
-                <option value="humidity">Humidity</option>
-                <option value="pressure">Pressure</option>
-                <option value="wind_speed">Wind speed</option>
-                <option value="wind_bearing">Wind bearing</option>
-                <option value="visibility">Visibility</option>
-                <option value="cloud_coverage">Cloud coverage</option>
-                <option value="uv_index">UV index</option>
-                <option value="apparent_temperature">Feels like</option>
-                <option value="dew_point">Dew point</option>
-              </select>
+              {@const selected = configList(w.config, 'secondary_info_attributes', 'secondary_info_attribute')}
+              {@const available = WEATHER_SECONDARY_OPTIONS.filter((o) => !selected.includes(o.id))}
+              <span class="hint">Pick any number of stats to show under the current conditions, in priority order. Drag the ↑/× buttons to reorder.</span>
+              <div class="secondary-pickers">
+                <div class="picker-col">
+                  <h5>Available</h5>
+                  {#if available.length === 0}
+                    <p class="hint">All options selected.</p>
+                  {:else}
+                    <ul class="picker-list">
+                      {#each available as o (o.id)}
+                        <li>
+                          <button type="button" on:click={() => addToList(i, 'secondary_info_attributes', o.id)}>+ {o.label}</button>
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
+                </div>
+                <div class="picker-col">
+                  <h5>Showing (priority order)</h5>
+                  {#if selected.length === 0}
+                    <p class="hint">Add rows from the left.</p>
+                  {:else}
+                    <ol class="picker-list ordered">
+                      {#each selected as id, k (id)}
+                        <li>
+                          <span class="seq">{k + 1}.</span>
+                          <span class="name">{secondaryLabel(id)}</span>
+                          <button class="ghost" type="button" on:click={() => moveListItem(i, 'secondary_info_attributes', k, -1)} disabled={k === 0}>↑</button>
+                          <button class="ghost danger" type="button" on:click={() => removeFromList(i, 'secondary_info_attributes', id)}>×</button>
+                        </li>
+                      {/each}
+                    </ol>
+                  {/if}
+                </div>
+              </div>
             </Field>
             <div class="checkboxes">
               <label class="checkbox-row">
@@ -1064,6 +1142,67 @@
     min-width: 5rem;
     text-align: right;
   }
+
+  /* Two-column picker for the weather widget's secondary-info list. */
+  .secondary-pickers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+  @media (max-width: 720px) {
+    .secondary-pickers { grid-template-columns: 1fr; }
+  }
+  .picker-col h5 {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    color: #aaa;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .picker-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .picker-list.ordered li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #0a0a0a;
+    border: 1px solid #2a2a2a;
+    border-radius: 0.35rem;
+    padding: 0.3rem 0.5rem;
+  }
+  .picker-list .seq { color: #888; font-size: 0.8rem; min-width: 1.5rem; }
+  .picker-list .name { flex: 1; }
+  .picker-list button.ghost {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.8rem;
+    background: transparent;
+    color: #ccc;
+    border: 1px solid #2a2a2a;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .picker-list button.ghost.danger { color: #ff8a8a; border-color: #3a2222; }
+  .picker-list:not(.ordered) li button {
+    background: transparent;
+    color: #cfd8ff;
+    border: 1px solid #2a3a5a;
+    text-align: left;
+    width: 100%;
+    padding: 0.3rem 0.55rem;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
   input, select, textarea {
     background: #0a0a0a;
     color: #eee;

@@ -12,8 +12,17 @@
   $: showForecast = cfg.show_forecast !== false;
   $: showName = cfg.show_name !== false;
   $: forecastSlots = typeof cfg.forecast_slots === 'number' && cfg.forecast_slots > 0 ? cfg.forecast_slots : 5;
-  $: secondaryAttr =
-    typeof cfg.secondary_info_attribute === 'string' ? cfg.secondary_info_attribute : '';
+  // Multi-select (ordered) list of secondary info attributes.
+  // Back-compat: if only the legacy `secondary_info_attribute` (singular)
+  // is set, treat it as a single-item list. New scenes use the plural
+  // array `secondary_info_attributes` set by the editor.
+  $: secondaryAttrs = (() => {
+    const raw = (cfg as { secondary_info_attributes?: unknown }).secondary_info_attributes;
+    if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === 'string' && s !== '');
+    const legacy = cfg.secondary_info_attribute;
+    if (typeof legacy === 'string' && legacy !== '') return [legacy];
+    return [] as string[];
+  })();
   $: temperatureUnit = (cfg.temperature_unit === 'F' || cfg.temperature_unit === 'C')
     ? (cfg.temperature_unit as 'C' | 'F')
     : 'auto';
@@ -122,10 +131,32 @@
     return { hi, lo, unit: cur.unit };
   }
 
-  function secondaryRow(current: WeatherCurrent | undefined): SecondaryRow {
-    if (!current || !secondaryAttr) return null;
+  const SECONDARY_LABELS: Record<string, string> = {
+    temp_range: 'High / Low',
+    humidity: 'Humidity',
+    pressure: 'Pressure',
+    wind_speed: 'Wind',
+    wind_bearing: 'Wind dir',
+    visibility: 'Visibility',
+    cloud_coverage: 'Clouds',
+    uv_index: 'UV index',
+    apparent_temperature: 'Feels like',
+    dew_point: 'Dew point',
+  };
+  const SECONDARY_UNITS: Record<string, string> = {
+    humidity: '%',
+    pressure: ' hPa',
+    wind_speed: ' km/h',
+    visibility: ' km',
+    cloud_coverage: '%',
+    apparent_temperature: '°',
+    dew_point: '°',
+  };
 
-    if (secondaryAttr === 'temp_range') {
+  function secondaryRowFor(current: WeatherCurrent | undefined, attr: string): SecondaryRow {
+    if (!current || !attr) return null;
+
+    if (attr === 'temp_range') {
       const r = todayRange();
       if (!r) return { label: 'High / Low', value: '—' };
       return {
@@ -134,47 +165,31 @@
       };
     }
 
-    const labels: Record<string, string> = {
-      humidity: 'Humidity',
-      pressure: 'Pressure',
-      wind_speed: 'Wind',
-      wind_bearing: 'Wind dir',
-      visibility: 'Visibility',
-      cloud_coverage: 'Clouds',
-      uv_index: 'UV index',
-      apparent_temperature: 'Feels like',
-      dew_point: 'Dew point',
-    };
-    const units: Record<string, string> = {
-      humidity: '%',
-      pressure: ' hPa',
-      wind_speed: ' km/h',
-      visibility: ' km',
-      cloud_coverage: '%',
-      apparent_temperature: '°',
-      dew_point: '°',
-    };
-
-    const v = (current as unknown as Record<string, unknown>)[secondaryAttr];
+    const v = (current as unknown as Record<string, unknown>)[attr];
     // Always render the row when the user picked an attribute, so they
     // see immediately whether their integration is supplying it. Show
     // an em-dash when the value is missing.
     if (v === undefined || v === null) {
-      return { label: labels[secondaryAttr] ?? secondaryAttr, value: '—' };
+      return { label: SECONDARY_LABELS[attr] ?? attr, value: '—' };
     }
 
     let val: string;
-    if (secondaryAttr === 'apparent_temperature' || secondaryAttr === 'dew_point') {
+    if (attr === 'apparent_temperature' || attr === 'dew_point') {
       val = fmtTemp(typeof v === 'number' ? v : undefined, current.unit);
     } else if (typeof v === 'number') {
-      val = `${Math.round(v * 10) / 10}${units[secondaryAttr] ?? ''}`;
+      val = `${Math.round(v * 10) / 10}${SECONDARY_UNITS[attr] ?? ''}`;
     } else {
       val = String(v);
     }
-    return { label: labels[secondaryAttr] ?? secondaryAttr, value: val };
+    return { label: SECONDARY_LABELS[attr] ?? attr, value: val };
   }
 
-  $: secondary = secondaryRow(data?.current);
+  /** Resolved secondary rows in the user's chosen order. Skips entries
+   *  that come back null (no current data); in practice secondaryRowFor
+   *  always returns a row when current is present (em-dash for missing). */
+  $: secondaryList = secondaryAttrs
+    .map((a) => secondaryRowFor(data?.current, a))
+    .filter((r): r is { label: string; value: string } => r !== null);
 </script>
 
 {#if data}
@@ -186,9 +201,26 @@
         {/if}
         <div class="big-temp">{fmtTemp(data.current.temp, data.current.unit)}<span class="unit">{temperatureUnit === 'auto' ? data.current.unit : temperatureUnit}</span></div>
         <div class="condition">{humanCondition(data.current.condition)}</div>
-        {#if secondary}
-          <div class="secondary"><span>{secondary.label}</span><strong>{secondary.value}</strong></div>
+        {#if secondaryList.length > 0}
+          <div class="secondary-list">
+            {#each secondaryList as s, i (s.label + i)}
+              <div class="secondary"><span>{s.label}</span><strong>{s.value}</strong></div>
+            {/each}
+          </div>
         {/if}
+      </div>
+    {:else if secondaryList.length > 0}
+      <!-- Current conditions hidden but secondary list still requested:
+           render it on its own, no big-temp / condition above it. -->
+      <div class="current secondary-only">
+        {#if showName}
+          <div class="row"><span class="name">{displayName}</span></div>
+        {/if}
+        <div class="secondary-list standalone">
+          {#each secondaryList as s, i (s.label + i)}
+            <div class="secondary"><span>{s.label}</span><strong>{s.value}</strong></div>
+          {/each}
+        </div>
       </div>
     {/if}
 
@@ -271,15 +303,32 @@
     font-size: calc(min(7cqmin, 11cqh) * var(--cosmos-font-scale, 1));
     text-transform: capitalize;
   }
+  /* List wrapper. Top divider is on the wrapper so multiple rows don't
+   * stack divider lines. */
+  .secondary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .secondary-list.standalone {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+    gap: 0.35rem;
+  }
   .secondary {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem;
-    margin-top: 0.35rem;
-    padding-top: 0.4rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
     font-size: calc(min(6cqmin, 10cqh) * var(--cosmos-font-scale, 1));
+  }
+  .current.secondary-only .secondary {
+    /* When standalone, give the list slightly more room for breathing. */
+    font-size: calc(min(7cqmin, 11cqh) * var(--cosmos-font-scale, 1));
   }
   .secondary span { opacity: 0.6; }
   .secondary strong {
