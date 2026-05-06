@@ -43,6 +43,18 @@ export async function registerStatic(app: FastifyInstance, dir: string): Promise
     if (req.method !== 'GET' || req.url.startsWith('/api') || req.url.startsWith('/ws')) {
       return reply.code(404).send({ error: 'not found' });
     }
+    // Only fall back to index.html for navigation requests (HTML pages). For
+    // asset paths — anything under /_app/, /moods/, or with a file extension
+    // in the last segment — return a real 404. Falling back to HTML would
+    // poison the browser's strict-MIME check (e.g. when a stale cached
+    // index.html references a since-rebuilt JS hash).
+    const path = req.url.split('?')[0];
+    const lastSeg = path.slice(path.lastIndexOf('/') + 1);
+    const looksLikeAsset =
+      path.startsWith('/_app/') ||
+      path.startsWith('/moods/') ||
+      /\.[a-z0-9]{1,8}$/i.test(lastSeg);
+    if (looksLikeAsset) return reply.code(404).send({ error: 'not found' });
     return sendIndex(req, reply);
   });
 }
