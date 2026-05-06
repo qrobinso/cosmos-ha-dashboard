@@ -26,6 +26,19 @@ Inside the iframe, `window.cosmos` exposes:
 
 The API is **read-only**. Service calls are not yet supported.
 
+## Scene tokens (CSS vars)
+
+Cosmos sets these on `:root` and updates them live with the scene:
+
+| Variable | Use |
+|---|---|
+| `--cosmos-font-family` | `font-family: var(--cosmos-font-family, system-ui)` |
+| `--cosmos-font-scale` | `font-size: calc(1rem * var(--cosmos-font-scale, 1))` |
+| `--cosmos-bg` | `background: var(--cosmos-bg, transparent)` |
+| `--cosmos-w` / `--cosmos-h` | iframe pixel size for `clamp()` math |
+
+Reach for these instead of reading `cosmos.font.*` from JS — your styles track the scene automatically.
+
 ## Sandbox
 
 The iframe runs with `sandbox="allow-scripts"`. That means:

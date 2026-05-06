@@ -56,6 +56,28 @@ Inside the iframe, `window.cosmos` exposes a small read-only API.
 
 The API is intentionally read-only in v1. Calling HA services from inside the iframe is on the v2 list, gated behind an explicit "allow service calls" toggle.
 
+## Scene tokens (CSS variables)
+
+Beyond the JS API, Cosmos sets a handful of CSS custom properties on `:root` inside the iframe and updates them live as the scene's settings change. Reaching for these via `var(...)` is almost always nicer than reading `cosmos.font.*` from JS — your styling tracks the scene with no extra wiring.
+
+| Variable | Source | Use it for |
+|---|---|---|
+| `--cosmos-font-family` | scene's typography | `font-family: var(--cosmos-font-family, system-ui)` |
+| `--cosmos-font-scale` | scene's font scale knob | `font-size: calc(1rem * var(--cosmos-font-scale, 1))` |
+| `--cosmos-bg` | solid background color, or first stop of a gradient | `background: var(--cosmos-bg, transparent)` for surfaces that should blend |
+| `--cosmos-w` / `--cosmos-h` | iframe pixel size | `clamp()` / `min()` math without a `cosmos:resize` listener |
+| `--cosmos-scene-id` / `--cosmos-scene-name` | scene metadata | `[data-scene]` selectors, or `content: var(...)` in pseudo-elements |
+
+Recommended baseline for any canvas:
+
+```html
+<div style="width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui);font-size:calc(1rem * var(--cosmos-font-scale,1));color:#f5f5f5">
+  …your content…
+</div>
+```
+
+The variables update on every scene push and on resize, so picking them up via CSS means your typography and sizing stay in lockstep with the rest of the scene without you writing any JS.
+
 ## Sandbox
 
 The iframe runs with `sandbox="allow-scripts"`. The browser enforces:

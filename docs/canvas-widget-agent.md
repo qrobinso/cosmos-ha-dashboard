@@ -2,6 +2,8 @@
 
 This document is intended to be pasted into an LLM agent's system prompt or pulled in as a tool/reference document. It describes exactly what the agent should output when generating canvas widget content for Cosmos.
 
+For the surrounding scene shape (background, typography, layout, publishing flow), pair this with [`scene-agent.md`](./scene-agent.md). The typical flow is: design the scene shape from `scene-agent.md`, then author the `canvas.config.content` field using this guide, then publish via the API.
+
 ## Contract
 
 You are emitting a complete HTML body for a Cosmos canvas widget. Output ONLY the HTML; no markdown fences, no preamble, no closing chatter. The output should be ready to drop into the widget's `content` field.
@@ -9,7 +11,7 @@ You are emitting a complete HTML body for a Cosmos canvas widget. Output ONLY th
 Example completion:
 
 ```html
-<div style="display:grid;place-items:center;width:100%;height:100%;font-family:system-ui;color:#f5f5f5">
+<div style="display:grid;place-items:center;width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui);color:#f5f5f5">
   <div>{{ states("sensor.power") }} W</div>
 </div>
 ```
@@ -52,6 +54,20 @@ Subscribe is the live binding; reach for it when an animation needs to react to 
 
 `window.addEventListener('cosmos:resize', () => recompute())` fires when `cosmos.size` changes.
 
+### Scene tokens (CSS custom properties — preferred)
+
+Cosmos sets these on `:root` and updates them live whenever the scene changes. Use `var(...)` instead of reading `cosmos.font.*` from JS — no listeners, no race with `cosmos.ready`.
+
+| Variable | Source | Typical use |
+|---|---|---|
+| `--cosmos-font-family` | scene's `typography.font_family` | `font-family: var(--cosmos-font-family, system-ui)` |
+| `--cosmos-font-scale` | scene's `typography.font_scale` | `font-size: calc(1rem * var(--cosmos-font-scale, 1))` |
+| `--cosmos-bg` | scene background — solid color, or first stop of a gradient | `background: var(--cosmos-bg, transparent)` for blend-in surfaces |
+| `--cosmos-w` / `--cosmos-h` | iframe pixel size | `clamp()`/`min()` calculations |
+| `--cosmos-scene-id` / `--cosmos-scene-name` | scene metadata as strings | `[data-scene]` selectors, or `content: var(...)` in pseudo-elements |
+
+**Rule of thumb:** every canvas should set `font-family: var(--cosmos-font-family, system-ui)` on its root element so the typography matches the rest of the scene. Override locally for headlines/numerals if you want a typographic accent — never override globally with a hardcoded family.
+
 ## What's forbidden
 
 - `<script src="https://...">` — cross-origin scripts won't load. Inline scripts only.
@@ -60,10 +76,191 @@ Subscribe is the live binding; reach for it when an animation needs to react to 
 - Top-frame navigation, popups, forms, pointer-lock — sandboxed away by the browser.
 - `@font-face` loading from cross-origin URLs — embed fonts as data URLs if you must.
 
+## HA entity reference
+
+Inside a canvas you read live HA data two ways:
+
+- **Templates (server-side):** `{{ states("light.lamp") }}`, `{{ state_attr("media_player.spotify", "media_title") }}` — full Jinja, evaluated by HA before the canvas renders.
+- **JS (in-iframe):** `cosmos.entity('light.lamp')` returns `{ entity_id, state, attributes }`; `cosmos.subscribe('light.lamp', cb)` re-fires on changes.
+
+The reference below lists the `state` shape and the `attributes` keys Cosmos itself extracts for each domain — these are the keys most likely to be present and useful. HA entities can carry other attributes too; this is the curated set that's reliable across mainstream integrations.
+
+### `weather.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | The current condition word: `"sunny"`, `"cloudy"`, `"partlycloudy"`, `"rainy"`, `"snowy"`, `"clear-night"`, `"fog"`, `"hail"`, `"lightning"`, `"lightning-rainy"`, `"pouring"`, `"windy"`, `"windy-variant"`. |
+| `attributes` | `temperature` (number) | Current temperature. |
+| | `temperature_unit` (string) | `"°C"` or `"°F"` (look for the `F`). |
+| | `humidity` (number, %) | |
+| | `pressure` (number, hPa or inHg per HA's unit settings) | |
+| | `wind_speed` (number) | Unit per HA settings. |
+| | `wind_bearing` (number degrees, or string like `"NE"`) | |
+| | `visibility` (number) | |
+| | `cloud_coverage` (number, %) | |
+| | `uv_index` (number) | |
+| | `apparent_temperature`, `dew_point` (numbers) | When provided. |
+
+Forecasts (`daily`, `hourly`, `twice_daily`) are not on the entity in HA 2024.4+; they're fetched via a service call. If the agent needs forecast data inside a canvas, prefer using a `weather` widget elsewhere on the scene, OR write Jinja that calls `state_attr(...)` for any legacy-style forecast attribute.
+
+### `media_player.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | One of `"playing"`, `"paused"`, `"idle"`, `"on"`, `"off"`, `"standby"`, `"buffering"`, `"unknown"`. |
+| `attributes` | `friendly_name` (string) | |
+| | `media_title` (string) | |
+| | `media_artist` (string) | |
+| | `media_album_name` (string) | |
+| | `entity_picture` (string, URL) | Album art. **Relative path** (e.g. `/api/media_player_proxy/...`) — to render this from inside the canvas, prefix it with the absolute HA URL the user knows. Cosmos's own `MediaPlayer` widget absolutizes this via `mediaUrlBase` server-side; in a canvas you don't have that, so you typically render album art only when `entity_picture` already starts with `http`. |
+| | `media_position` (number, seconds) | |
+| | `media_duration` (number, seconds) | |
+| | `volume_level` (number, 0–1) | |
+| | `is_volume_muted` (boolean) | |
+| | `source` (string) | Currently selected input. |
+| | `app_name` (string) | "Spotify", "YouTube", etc. |
+| | `supported_features` (number, bitmask) | Bits: `1=PAUSE`, `4=VOLUME_SET`, `16=PREV`, `32=NEXT`, `2048=SELECT_SOURCE`, `16384=PLAY`. AND-mask to test capability. |
+
+### `camera.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | `"idle"`, `"recording"`, `"streaming"`, `"unavailable"`. |
+| `attributes` | `friendly_name` (string) | |
+| | `entity_picture` (string, URL) | Signed snapshot URL from HA. |
+
+**Live snapshot/stream URLs:** the iframe origin is `null` so it cannot use `entity_picture` (signed token, expires) reliably. Cosmos exposes a same-origin proxy at `/api/ha-media/api/camera_proxy/{entity_id}` (still-frame) and `/api/ha-media/api/camera_proxy_stream/{entity_id}` (MJPEG stream), but these are reachable from the parent display — **not from the null-origin canvas iframe** (cross-origin to its own server). To put a camera image in a canvas, prefer the dedicated `camera` widget over re-implementing it in a canvas.
+
+### `calendar.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | `"on"` if an event is currently active, otherwise `"off"`. |
+| `attributes` | `message` (string) | Current/next event title. |
+| | `start_time`, `end_time` (string, ISO-ish) | Of the current/next event. |
+| | `description` (string) | |
+| | `location` (string) | |
+| | `all_day` (boolean) | |
+
+For multiple upcoming events, use the `calendar` widget — it pulls a windowed list via `calendar.get_events` which the canvas API doesn't expose.
+
+### `light.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | `"on"` or `"off"`. |
+| `attributes` | `brightness` (number, 0–255) | |
+| | `color_mode` (string) | `"hs"`, `"xy"`, `"rgb"`, `"rgbw"`, `"color_temp"`, `"brightness"`, `"onoff"`. |
+| | `hs_color` (`[hue, saturation]`) / `rgb_color` (`[r,g,b]`) | When color-capable. |
+| | `color_temp_kelvin` (number) | For tunable-white lights. |
+| | `effect` (string) | Active effect name. |
+
+### `switch.*`, `input_boolean.*`
+
+| Source | Field |
+|---|---|
+| `state` | `"on"` or `"off"`. |
+| `attributes.friendly_name` (string) | |
+
+### `binary_sensor.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | `"on"` (problem/active) or `"off"` (clear). |
+| `attributes` | `device_class` (string) | `"motion"`, `"door"`, `"window"`, `"smoke"`, `"moisture"`, `"occupancy"`, `"battery"`, `"connectivity"`, `"plug"`, `"presence"`, etc. Drives display semantics. |
+| | `friendly_name` (string) | |
+
+### `sensor.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | The numeric or text reading. Always parse with `Number(state)` if you expect numbers — HA can return `"unavailable"` or `"unknown"`. |
+| `attributes` | `unit_of_measurement` (string) | `"W"`, `"°C"`, `"%"`, `"hPa"`, etc. |
+| | `device_class` (string) | `"temperature"`, `"humidity"`, `"power"`, `"energy"`, `"battery"`, `"illuminance"`, `"pressure"`, `"voltage"`, `"current"`, etc. |
+| | `state_class` (string) | `"measurement"` (instantaneous), `"total"` / `"total_increasing"` (cumulative). |
+| | `friendly_name` (string) | |
+| | `last_changed` (ISO timestamp) | Useful with `relative_time(...)` in Jinja. |
+
+### `climate.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | HVAC mode: `"off"`, `"heat"`, `"cool"`, `"heat_cool"`, `"auto"`, `"dry"`, `"fan_only"`. |
+| `attributes` | `current_temperature` (number) | Room reading. |
+| | `temperature` (number) | Setpoint (single). |
+| | `target_temp_high`, `target_temp_low` (number) | Setpoints (range). |
+| | `current_humidity`, `humidity` (number) | |
+| | `hvac_action` (string) | What it's actually doing right now: `"heating"`, `"cooling"`, `"idle"`, `"off"`, `"fan"`, `"drying"`, `"defrosting"`. |
+| | `fan_mode`, `swing_mode`, `preset_mode` (string) | |
+
+### `cover.*`
+
+| Source | Field |
+|---|---|
+| `state` | `"open"`, `"closed"`, `"opening"`, `"closing"`. |
+| `attributes.current_position` (number, 0–100) | Percent open. |
+| `attributes.current_tilt_position` (number, 0–100) | If applicable. |
+
+### `lock.*`
+
+| Source | Field |
+|---|---|
+| `state` | `"locked"`, `"unlocked"`, `"locking"`, `"unlocking"`, `"jammed"`, `"unknown"`. |
+| `attributes.friendly_name` (string) | |
+
+### `person.*` / `device_tracker.*`
+
+| Source | Field | Notes |
+|---|---|---|
+| `state` | string | Zone name or `"home"` / `"not_home"`. |
+| `attributes` | `latitude`, `longitude` (number) | |
+| | `gps_accuracy` (number, meters) | |
+| | `source_type` (string) | `"gps"`, `"router"`, `"bluetooth"`, etc. |
+| | `entity_picture` (string) | Avatar (`person.*` only, signed URL — see camera notes). |
+
+### `sun.sun`
+
+| Source | Field |
+|---|---|
+| `state` | `"above_horizon"` or `"below_horizon"`. |
+| `attributes.elevation` (number, degrees) | |
+| `attributes.azimuth` (number, degrees) | |
+| `attributes.next_dawn`, `next_dusk`, `next_midnight`, `next_noon`, `next_rising`, `next_setting` (ISO timestamps) | |
+
+### Time helpers (no entity needed)
+
+These are Jinja-only, valid inside `{{ }}`:
+
+- `now()` — current time as a `datetime`.
+- `utcnow()` — UTC variant.
+- `as_timestamp(...)` — converts string/datetime to a Unix timestamp.
+- `relative_time(states.<entity>.last_changed)` — `"5 minutes ago"`.
+- `today_at("18:30")`, `now() + timedelta(hours=1)` — arithmetic.
+
+Inside JS you have the standard `Date` and `Intl.DateTimeFormat` — prefer those for live ticking clocks (don't subscribe to `now()` via templates; that re-renders the whole canvas).
+
+### Reading attributes — the two ways
+
+```html
+<!-- Jinja: server-side, baked into the rendered HTML. Re-renders on entity change. -->
+<div>{{ state_attr("media_player.spotify", "media_title") }}</div>
+
+<!-- JS: live, no re-render. -->
+<div id="title"></div>
+<script>
+  cosmos.subscribe('media_player.spotify', (e) => {
+    document.getElementById('title').textContent = e.attributes.media_title || '—';
+  });
+</script>
+```
+
+Reach for Jinja when the value should be baked-in once. Reach for JS subscribe when the canvas needs to react smoothly without a full re-render (animations, scroll position, etc.).
+
 ## Style hints
 
 - Always size your root to `width: 100%; height: 100%`. The canvas fills its grid cell, which is variable.
-- Use `cosmos.font.family` so the canvas blends with the surrounding scene typography.
+- Apply `font-family: var(--cosmos-font-family, system-ui)` to your root so typography matches the surrounding scene. Use `calc(1rem * var(--cosmos-font-scale, 1))` for body copy that should track the scene's scale knob.
+- For surfaces that should blend with the scene, reach for `var(--cosmos-bg, transparent)` rather than a hardcoded color.
 - Prefer light, airy layouts. Cosmos kiosk surfaces are usually viewed from across a room.
 - Pure-CSS animations beat JS animations. Use `requestAnimationFrame` only when CSS can't express the effect.
 - Keep total document under 50,000 characters. Larger payloads slow scene pushes.
@@ -73,9 +270,9 @@ Subscribe is the live binding; reach for it when an animation needs to react to 
 ### "Number card" — show one HA value with a label
 
 ```html
-<div style="padding:1.5rem;font-family:system-ui;color:#f5f5f5">
+<div style="padding:1.5rem;font-family:var(--cosmos-font-family,system-ui);color:#f5f5f5">
   <div style="opacity:0.6;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">{LABEL}</div>
-  <div style="font-size:3rem;font-weight:200;line-height:1.1">{{ states("{ENTITY}") }} {UNIT}</div>
+  <div style="font-size:calc(3rem * var(--cosmos-font-scale,1));font-weight:200;line-height:1.1">{{ states("{ENTITY}") }} {UNIT}</div>
 </div>
 ```
 
@@ -102,7 +299,7 @@ Subscribe is the live binding; reach for it when an animation needs to react to 
 ### "Static info card" — fixed content, no templates, no JS
 
 ```html
-<div style="padding:1rem;font-family:system-ui;color:#f5f5f5">
+<div style="padding:1rem;font-family:var(--cosmos-font-family,system-ui);color:#f5f5f5">
   <h2 style="margin:0;font-weight:300">{TITLE}</h2>
   <p style="margin:0.5rem 0 0;opacity:0.85;line-height:1.5">{BODY}</p>
 </div>
