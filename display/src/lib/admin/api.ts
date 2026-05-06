@@ -86,6 +86,11 @@ export const api = {
         })
       );
     },
+    async delete(displayName: string): Promise<void> {
+      await ensureOk(
+        await fetch(`/api/displays/${encodeURIComponent(displayName)}`, { method: 'DELETE' })
+      );
+    },
   },
   transitions: {
     async list(): Promise<{ id: string; name: string }[]> {

@@ -16,6 +16,21 @@
   // AM/PM only meaningful in 12h mode. Default on for 12h, irrelevant for 24h.
   $: showAmPm = (widget.config as { show_ampm?: boolean }).show_ampm !== false;
 
+  // Per-widget typography overrides — when set, take precedence over the
+  // scene-wide font family / weight applied on .scene-canvas. Empty / unset
+  // values fall back to inheritance (the scene's choice).
+  $: fontFamily = (widget.config as { font_family?: string }).font_family;
+  $: fontWeight = (widget.config as { font_weight?: string | number }).font_weight;
+  $: fontFamilyCss = fontFamily
+    ? `var(--cosmos-font-${fontFamily.replace(/\s+/g, '')}, system-ui, sans-serif)`
+    : null;
+  $: clockStyle = [
+    fontFamilyCss ? `font-family: ${fontFamilyCss};` : '',
+    // Drive the time-digit weight via a CSS variable so the override beats
+    // .time's default `font-weight: 200` rule without an !important hack.
+    fontWeight ? `--cosmos-clock-weight: ${fontWeight};` : '',
+  ].join(' ');
+
   $: hmStr = (() => {
     const m = String(now.getMinutes()).padStart(2, '0');
     if (format === '12h') {
@@ -73,7 +88,7 @@
 </script>
 
 <FitContent>
-  <div class="clock">
+  <div class="clock" style={clockStyle}>
     <div class="time">
       <span class="hm">{hmStr}</span>
       {#if showSeconds}
@@ -104,7 +119,7 @@
   }
   .time {
     font-size: calc(min(28cqmin, 38cqh) * var(--cosmos-font-scale, 1));
-    font-weight: 200;
+    font-weight: var(--cosmos-clock-weight, 200);
     line-height: 1.1;
     letter-spacing: -0.02em;
     display: inline-flex;

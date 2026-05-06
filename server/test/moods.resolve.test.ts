@@ -64,7 +64,7 @@ describe('resolveMood', () => {
       };
       const cfg: MoodConfig = { enabled: true, strategy: 'time' };
       const resolved = resolveMood(cfg, ctx(new Date('2030-01-01T12:00:00Z'), { 'sun.sun': sun }));
-      expect(resolved?.url).toBe('/moods/clouds.mp4');
+      expect(resolved?.url).toBe('/moods/clouds2.mp4');
     });
 
     it('uses sun.sun below_horizon to pick the night mood', () => {
@@ -105,7 +105,7 @@ describe('resolveMood', () => {
       // Use a Date the local-time fallback will treat as midday regardless of TZ.
       const noon = new Date(2030, 0, 1, 13, 0, 0);
       const resolved = resolveMood(cfg, ctx(noon));
-      expect(resolved?.url).toBe('/moods/clouds.mp4');
+      expect(resolved?.url).toBe('/moods/clouds2.mp4');
     });
 
     it('falls back to clock when sun.sun is missing (deep night → stars)', () => {
@@ -128,8 +128,9 @@ describe('resolveMood', () => {
     });
 
     it.each([
-      ['sunny', '/moods/clouds.mp4'],
-      ['partlycloudy', '/moods/clouds.mp4'],
+      ['sunny', '/moods/clouds2.mp4'],
+      ['partlycloudy', '/moods/clouds2.mp4'],
+      ['cloudy', '/moods/clouds2.mp4'],
       ['rainy', '/moods/rain.mp4'],
       ['pouring', '/moods/rain.mp4'],
       ['snowy', '/moods/snow.mp4'],
@@ -141,11 +142,11 @@ describe('resolveMood', () => {
       expect(resolved?.url).toBe(expected);
     });
 
-    it('falls back to clouds for unknown weather conditions', () => {
+    it('falls back to clouds2 for unknown weather conditions', () => {
       const ent: EntityState = { entity_id: 'weather.home', state: 'mysterious', attributes: {} };
       const cfg: MoodConfig = { enabled: true, strategy: 'weather', weatherEntity: 'weather.home' };
       const resolved = resolveMood(cfg, ctx(new Date(), { 'weather.home': ent }));
-      expect(resolved?.url).toBe('/moods/clouds.mp4');
+      expect(resolved?.url).toBe('/moods/clouds2.mp4');
     });
   });
 });

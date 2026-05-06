@@ -51,6 +51,9 @@ export type SceneRoutesDeps = {
   /** Fired when a scene is created, renamed, or deleted — used to
    *  refresh MQTT discovery's scene-select options list. */
   onScenesListChanged?: () => void;
+  /** Fired when a display is deleted, with the display id + name. Used
+   *  to drop in-memory state, MQTT discovery entries, and rotation timers. */
+  onDisplayDeleted?: (displayId: string, name: string) => void;
 };
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
@@ -175,6 +178,21 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       deps.displays.setOrientation(display.id, orientation);
       deps.onDisplayConfigChanged?.(display.id);
       return deps.displays.getById(display.id);
+    }
+  );
+
+  app.delete<{ Params: { name: string } }>(
+    '/api/displays/:name',
+    async (req, reply) => {
+      const display = deps.displays.getByName(req.params.name);
+      if (!display) return reply.code(404).send({ error: 'display not found' });
+      const id = display.id;
+      const name = display.name;
+      // Stop rotation, drop in-memory state, clear MQTT discovery — all
+      // wired up by the host through onDisplayDeleted.
+      deps.onDisplayDeleted?.(id, name);
+      deps.displays.delete(id);
+      return reply.code(204).send();
     }
   );
 }

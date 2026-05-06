@@ -27,10 +27,10 @@ describe('scanMoodsDir', () => {
   });
 
   it('uses catalog metadata when an id matches', () => {
-    writeFileSync(join(dir, 'clouds.mp4'), '');
+    writeFileSync(join(dir, 'clouds2.mp4'), '');
     const [entry] = scanMoodsDir(dir);
-    expect(entry.id).toBe('clouds');
-    expect(entry.label).toBe('Drifting clouds');
+    expect(entry.id).toBe('clouds2');
+    expect(entry.label).toBe('Soft clouds');
     expect(entry.tags.length).toBeGreaterThan(0);
   });
 

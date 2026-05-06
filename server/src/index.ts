@@ -170,6 +170,7 @@ async function main() {
     onRotationChanged,
     onDisplayConfigChanged: (displayId) => wssRef?.pushDisplayConfigTo(displayId),
     onScenesListChanged,
+    onDisplayDeleted,
   });
   await registerStatic(app, config.staticDir);
   async function publishDiscovery(): Promise<void> {
@@ -191,6 +192,30 @@ async function main() {
   }
   function onScenesListChanged() {
     void publishDiscovery().catch((err) => console.error('publishDiscovery failed', err));
+  }
+
+  /** Called when a display row is deleted. Tears down all in-memory and
+   *  MQTT state for that display so HA stops showing its entities. */
+  function onDisplayDeleted(displayId: string, _name: string) {
+    stopRotation(displayId);
+    lastAnnouncedScene.delete(displayId);
+    previousSceneByDisplay.delete(displayId);
+    if (mqttClient) {
+      const id = displayId;
+      const discoveryTopics = [
+        `homeassistant/sensor/cosmos_${id}_current_scene/config`,
+        `homeassistant/binary_sensor/cosmos_${id}_online/config`,
+        `homeassistant/notify/cosmos_${id}_show_message/config`,
+        `homeassistant/button/cosmos_${id}_dismiss_message/config`,
+        `homeassistant/button/cosmos_${id}_last_scene/config`,
+        `homeassistant/select/cosmos_${id}_active_scene/config`,
+      ];
+      // Empty retained payload tells HA's MQTT integration to forget the
+      // entity. Same trick for the per-display state topics.
+      for (const t of discoveryTopics) mqttClient.publish(t, '', { retain: true });
+      mqttClient.publish(`cosmos/${id}/online`, '', { retain: true });
+      mqttClient.publish(`cosmos/${id}/current_scene`, '', { retain: true });
+    }
   }
   function publishOffline(displayId: string, _name: string) {
     mqttClient?.publish(`cosmos/${displayId}/online`, 'offline', { retain: true });

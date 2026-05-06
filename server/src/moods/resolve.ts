@@ -80,7 +80,7 @@ export function resolveMood(config: MoodConfig | null | undefined, ctx: ResolveC
     const ent = ctx.readEntity(config.weatherEntity);
     if (!ent) return null;
     const condition = (ent.state || '').toLowerCase();
-    const moodId = WEATHER_TO_MOOD[condition] ?? 'clouds';
+    const moodId = WEATHER_TO_MOOD[condition] ?? 'clouds2';
     return buildResolved(moodId, opacity);
   }
 

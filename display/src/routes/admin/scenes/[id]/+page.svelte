@@ -608,6 +608,35 @@
                 <span>Display the date below the time</span>
               </label>
             </Field>
+            <div class="inline-fields">
+              <Field label="Font (override)">
+                <select
+                  value={configStr(w.config, 'font_family')}
+                  on:change={(e) => { w.config = { ...w.config, font_family: e.currentTarget.value }; widgets = widgets; }}
+                >
+                  <option value="">— Use scene font —</option>
+                  {#each FONT_FAMILIES as f (f)}<option value={f}>{f}</option>{/each}
+                </select>
+              </Field>
+              <Field label="Weight (override)">
+                <select
+                  value={configStr(w.config, 'font_weight')}
+                  on:change={(e) => { w.config = { ...w.config, font_weight: e.currentTarget.value }; widgets = widgets; }}
+                >
+                  <option value="">— Default —</option>
+                  <option value="100">100 · Thin</option>
+                  <option value="200">200 · ExtraLight</option>
+                  <option value="300">300 · Light</option>
+                  <option value="400">400 · Regular</option>
+                  <option value="500">500 · Medium</option>
+                  <option value="600">600 · Semibold</option>
+                  <option value="700">700 · Bold</option>
+                  <option value="800">800 · Extrabold</option>
+                  <option value="900">900 · Black</option>
+                </select>
+              </Field>
+            </div>
+            <span class="hint">Per-clock typography overrides the scene's typography for this widget only.</span>
           {:else if w.kind === 'weather'}
             <Field label="Weather entity">
               <EntityPicker

@@ -45,6 +45,7 @@ export type HttpDeps = {
   onRotationChanged?: (displayId: string) => void;
   onDisplayConfigChanged?: (displayId: string) => void;
   onScenesListChanged?: () => void;
+  onDisplayDeleted?: (displayId: string, name: string) => void;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -83,6 +84,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     onRotationChanged: deps.onRotationChanged,
     onDisplayConfigChanged: deps.onDisplayConfigChanged,
     onScenesListChanged: deps.onScenesListChanged,
+    onDisplayDeleted: deps.onDisplayDeleted,
   });
 
   return app;

@@ -29,6 +29,7 @@ export type DisplaysRepo = {
   setCurrentScene(id: string, sceneId: string | null): void;
   setRotation(id: string, rotation: Rotation | null): void;
   setOrientation(id: string, orientation: Orientation): void;
+  delete(id: string): void;
 };
 
 type Row = {
@@ -84,6 +85,7 @@ export function createDisplaysRepo(db: DB): DisplaysRepo {
   const updateCurrentScene = db.prepare('UPDATE displays SET current_scene_id = ? WHERE id = ?');
   const updateRotation = db.prepare('UPDATE displays SET rotation_json = ? WHERE id = ?');
   const updateOrientation = db.prepare('UPDATE displays SET orientation = ? WHERE id = ?');
+  const deleteDisplay = db.prepare('DELETE FROM displays WHERE id = ?');
 
   return {
     registerByName(name) {
@@ -118,6 +120,10 @@ export function createDisplaysRepo(db: DB): DisplaysRepo {
     },
     setOrientation(id, orientation) {
       updateOrientation.run(orientation, id);
+    },
+    delete(id) {
+      // FK ON DELETE CASCADE on scenes_displays handles assignment cleanup.
+      deleteDisplay.run(id);
     },
   };
 }
