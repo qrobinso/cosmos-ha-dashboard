@@ -18,7 +18,9 @@ const COSMOS_DEVICE = {
  *
  *   - notify.cosmos_<display>_show_message   — push a banner
  *   - button.cosmos_<display>_dismiss_message — clear the banner
- *   - select.cosmos_<display>_active_scene    — switch the active scene
+ *   - notify.cosmos_<display>_show_alert     — temporary scene swap with auto-revert
+ *   - button.cosmos_<display>_last_scene     — switch back to the previous scene
+ *   - select.cosmos_<display>_active_scene   — switch the active scene
  *
  * Scene names must be passed in so the select's `options` list matches
  * the configured scenes; republish on scene CRUD to keep them in sync.
@@ -79,6 +81,27 @@ export function buildDiscoveryPayloads(
         unique_id: `cosmos_${d.id}_dismiss_message`,
         command_topic: `cosmos/${d.id}/message/dismiss`,
         payload_press: '',
+        device: COSMOS_DEVICE,
+      }),
+      retain: true,
+    });
+
+    // ── Notify: temporary scene swap with auto-revert ───────────────
+    // HA's notify takes `message` + optional `title`. We map:
+    //   message → scene_name (the scene to flash)
+    //   title   → dwell in seconds (string-coerced; defaults to 5)
+    // The command_template wraps both into the JSON payload Cosmos's
+    // commands.ts parser expects. transition_id isn't exposed here;
+    // callers who want to override the transition should use the REST
+    // endpoint or `mqtt.publish` directly.
+    out.push({
+      topic: `homeassistant/notify/cosmos_${d.id}_show_alert/config`,
+      payload: JSON.stringify({
+        name: `${d.name} Show Alert`,
+        unique_id: `cosmos_${d.id}_show_alert`,
+        command_topic: `cosmos/${d.id}/scene/alert`,
+        command_template:
+          "{\"scene_name\": {{ value | to_json }}, \"dwell_ms\": {{ (title | default('5')) | int * 1000 }}}",
         device: COSMOS_DEVICE,
       }),
       retain: true,

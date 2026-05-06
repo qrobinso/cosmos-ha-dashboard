@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Feat: Scene alert is now visible in Home Assistant as `notify.cosmos_<display>_show_alert` via MQTT discovery. Pass the scene name as `message` and (optional) dwell-in-seconds as `title`. Republishes after restart; existing installs may need to restart the addon for the entity to appear.
+
 ## 0.2.1
 
 - Feat: Scene **alerts** — a new MQTT command `cosmos/<display>/scene/alert` (payload `{"scene_name":"…","dwell_ms":N,"transition_id"?:"…"}`) flips a display to a specific scene for a fixed dwell, then auto-reverts to whatever was on screen before. Server-resident timer (survives display reconnects). Manual scene changes mid-dwell cancel the auto-revert. Chained alerts preserve the original revert target so a display can't get trapped in alert mode. Parallel REST endpoint `POST /api/displays/:name/scene/alert {sceneId, dwellMs, transitionId?}` for testing/admin use.

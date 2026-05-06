@@ -11,11 +11,12 @@ describe('buildDiscoveryPayloads', () => {
       ['Morning', 'Evening']
     );
 
-    expect(out.length).toBe(12); // 2 displays * 6 entities
+    expect(out.length).toBe(14); // 2 displays * 7 entities
 
     expect(out.filter((p) => p.topic.includes('/sensor/')).length).toBe(2);
     expect(out.filter((p) => p.topic.includes('/binary_sensor/')).length).toBe(2);
-    expect(out.filter((p) => p.topic.includes('/notify/')).length).toBe(2);
+    // show_message + show_alert = 2 notifies per display
+    expect(out.filter((p) => p.topic.includes('/notify/')).length).toBe(4);
     // dismiss_message + last_scene = 2 buttons per display
     expect(out.filter((p) => p.topic.includes('/button/')).length).toBe(4);
     expect(out.filter((p) => p.topic.includes('/select/')).length).toBe(2);
@@ -56,6 +57,17 @@ describe('buildDiscoveryPayloads', () => {
     );
     expect(cfg.command_topic).toBe('cosmos/d1/message/dismiss');
     expect(cfg.payload_press).toBe('');
+  });
+
+  it('emits a notify entity wired to the scene/alert command topic', () => {
+    const out = buildDiscoveryPayloads([{ id: 'd1', name: 'A' }]);
+    const cfg = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_show_alert/config'))!.payload
+    );
+    expect(cfg.command_topic).toBe('cosmos/d1/scene/alert');
+    expect(cfg.command_template).toContain('scene_name');
+    expect(cfg.command_template).toContain('dwell_ms');
+    expect(cfg.name).toBe('A Show Alert');
   });
 
   it('emits a button entity for switching back to the last-used scene', () => {
