@@ -1,13 +1,15 @@
 /* Cosmos Admin theme — modern, simple, mobile-friendly.
-   Calm dark surface, single warm accent, generous touch targets, system-feeling
-   typography. Designed to work equally well on a phone and a 32" monitor. */
+   Cosmic-night dark surface (matches the favicon: deep navy field with an
+   off-center radial glow), warm-gold action accent (the star), cool-violet
+   secondary accent (the orbital arc). Generous touch targets, system-feeling
+   typography. Works equally well on a phone and a 32" monitor. */
 
 :root {
-  /* Surfaces */
-  --c-bg: #0c0d12;
-  --c-surface: #14161d;
-  --c-surface-2: #1b1e27;
-  --c-surface-hover: #232732;
+  /* Surfaces — slight navy undertone, echoing the favicon's #06080f→#1a2340 field. */
+  --c-bg: #08090f;
+  --c-surface: #11141d;
+  --c-surface-2: #181d2a;
+  --c-surface-hover: #222838;
 
   /* Lines */
   --c-line: rgba(255, 255, 255, 0.08);
@@ -18,10 +20,20 @@
   --c-fg-2: #b6bac7;
   --c-fg-3: #6f7488;
 
-  /* Accent (warm, matches the wall display) */
-  --c-accent: #f3a26a;
-  --c-accent-soft: #b8794a;
-  --c-accent-tint: rgba(243, 162, 106, 0.14);
+  /* Warm accent — the favicon's star (#ffd17a core, #fff5db hot center).
+     This is the "action" color: primary buttons, focus rings, active nav. */
+  --c-accent: #ffd17a;
+  --c-accent-hot: #fff5db;     /* hover / pressed peak */
+  --c-accent-soft: #b8945a;
+  --c-accent-tint: rgba(255, 209, 122, 0.14);
+
+  /* Cool accent — the favicon's orbital arc (moonlight blue → soft violet
+     → aurora teal). Used sparingly for celestial / metadata moments: scene
+     pills, brand mark, atmospheric backdrops. NEVER use as a primary CTA. */
+  --c-cool: #a8a6ff;
+  --c-cool-soft: #8fb6ef;
+  --c-cool-warm: #5fd3a3;
+  --c-cool-tint: rgba(168, 166, 255, 0.12);
 
   /* Status */
   --c-danger: #f06b75;
@@ -54,7 +66,16 @@
 }
 
 .cosmos-admin {
-  background: var(--c-bg);
+  /* Layered atmospheric backdrop — directly mirrors the favicon's composition:
+     a cool celestial wash drifting from upper-left, a warm star-bloom in the
+     lower-right. background-attachment: fixed pins it as ambient light, so
+     scrolling content drifts past a steady atmosphere instead of repeating
+     the gradient down the page. */
+  background:
+    radial-gradient(ellipse 90% 60% at 22% -8%, rgba(168, 166, 255, 0.07), transparent 62%),
+    radial-gradient(ellipse 60% 45% at 86% 108%, rgba(255, 209, 122, 0.045), transparent 55%),
+    var(--c-bg);
+  background-attachment: fixed;
   color: var(--c-fg);
   font-family: var(--f-sans);
   font-feature-settings: 'cv11';
@@ -174,8 +195,9 @@
   border-color: var(--c-accent);
 }
 .cosmos-admin button.primary:hover {
-  background: #ffb678;
-  border-color: #ffb678;
+  /* Hover lifts to the hot center color — the bright peak of the star. */
+  background: var(--c-accent-hot);
+  border-color: var(--c-accent-hot);
 }
 .cosmos-admin button.ghost {
   background: transparent;
@@ -217,7 +239,10 @@
   color: var(--c-fg-2);
   white-space: nowrap;
 }
-.tag.accent { color: var(--c-accent); border-color: rgba(243, 162, 106, 0.4); background: var(--c-accent-tint); }
+.tag.accent { color: var(--c-accent); border-color: rgba(255, 209, 122, 0.4); background: var(--c-accent-tint); }
+/* Cool variant for celestial/descriptive metadata (scene types, transition
+ * names, widget counts) — keeps the warm accent reserved for action. */
+.tag.cool { color: var(--c-cool); border-color: rgba(168, 166, 255, 0.35); background: var(--c-cool-tint); }
 .tag.success { color: var(--c-success); border-color: rgba(109, 213, 140, 0.4); }
 .tag.danger { color: var(--c-danger); border-color: rgba(240, 107, 117, 0.4); }
 .tag.muted { color: var(--c-fg-3); }
@@ -263,16 +288,17 @@
   vertical-align: middle;
 }
 
-/* Page-load reveal */
+/* Page-load reveal — fade-up with a faint cool atmospheric drift, echoing the
+ * favicon's lit-from-above feel without distracting from content. */
 @keyframes cosmos-fade-up {
-  from { opacity: 0; transform: translateY(0.4rem); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(0.55rem); filter: blur(0.5px); }
+  to { opacity: 1; transform: none; filter: none; }
 }
-.reveal { animation: cosmos-fade-up 350ms var(--ease) both; }
+.reveal { animation: cosmos-fade-up 420ms var(--ease) both; }
 .reveal-1 { animation-delay: 0ms; }
-.reveal-2 { animation-delay: 60ms; }
-.reveal-3 { animation-delay: 120ms; }
-.reveal-4 { animation-delay: 180ms; }
+.reveal-2 { animation-delay: 70ms; }
+.reveal-3 { animation-delay: 140ms; }
+.reveal-4 { animation-delay: 210ms; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { animation: none; }
 }
