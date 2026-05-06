@@ -7,6 +7,47 @@
   import WidgetCanvas from '$lib/admin/WidgetCanvas.svelte';
   import EntityPicker from '$lib/admin/EntityPicker.svelte';
   import type { Background, Typography, WidgetKind, WidgetState, Layout, MoodConfig } from '$lib/types';
+  import { CANVAS_EXAMPLES } from '$lib/admin/canvasExamples';
+  // Vite imports raw markdown as a string with the `?raw` suffix.
+  import canvasHelpRaw from '$lib/admin/canvas-help.md?raw';
+  // Tiny markdown → HTML pass: just paragraph + heading + code block + table.
+  // Keeping it dependency-free; if you need full markdown later swap in
+  // `marked` or similar.
+  const canvasHelpHtml = canvasHelpRaw
+    .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.*)$/gm, '<h1>$1</h1>')
+    .replace(/```([\s\S]*?)```/g, (_, body) => `<pre><code>${body.trim().replace(/</g, '&lt;')}</code></pre>`)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^\| (.+) \|$/gm, (line) => '<tr>' + line.slice(2, -2).split(' | ').map((c) => `<td>${c}</td>`).join('') + '</tr>')
+    .replace(/(\n<tr>.*<\/tr>)+/gs, (block) => `<table>${block}</table>`);
+
+  let helpOpen: Record<number, boolean> = {};
+
+  function insertCanvasExample(idx: number, exampleId: string) {
+    const ex = CANVAS_EXAMPLES.find((e) => e.id === exampleId);
+    if (!ex) return;
+    const current = (widgets[idx].config as { content?: string }).content ?? '';
+    if (current.trim() && !confirm('Replace current canvas content with the example?')) return;
+    widgets[idx].config = { ...widgets[idx].config, content: ex.content };
+    widgets = widgets;
+  }
+
+  function openCanvasPreview(widgetId: string) {
+    window.open(`/preview-canvas?id=${encodeURIComponent(widgetId)}`, `cosmos-canvas-${widgetId}`, 'width=720,height=480,noopener');
+  }
+
+  function canvasTabHandler(e: KeyboardEvent) {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    const ta = e.currentTarget as HTMLTextAreaElement;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const v = ta.value;
+    ta.value = v.slice(0, start) + '\t' + v.slice(end);
+    ta.selectionStart = ta.selectionEnd = start + 1;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 
   type Widget = WidgetState;
 
@@ -94,7 +135,7 @@
     if (!preset) return;
     background = { ...background, colors: [...preset.colors] };
   }
-  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text', 'camera'];
+  const WIDGET_KINDS: WidgetKind[] = ['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text', 'camera', 'canvas'];
 
   const WIDGET_KIND_LABELS: Record<WidgetKind, string> = {
     clock: 'Clock',
@@ -105,6 +146,7 @@
     statistics: 'Statistics / history',
     text: 'Text',
     camera: 'Camera',
+    canvas: 'Canvas (HTML/JS)',
   };
 
   /** Available secondary-info rows for the weather widget, in default
@@ -316,6 +358,11 @@
         show_name: false,
         show_state: false,
         name: '',
+      };
+    }
+    if (kind === 'canvas') {
+      w.config = {
+        content: '<div style="display:grid;place-items:center;width:100%;height:100%;font-family:system-ui;color:#f5f5f5">\n  <div>Hello, canvas!</div>\n</div>',
       };
     }
     widgets[idx] = w;
@@ -1063,6 +1110,31 @@
                 <span>Show state badge (idle / recording / streaming)</span>
               </label>
             </div>
+          {:else if w.kind === 'canvas'}
+            <Field label="Content (HTML / CSS / JS)">
+              <div class="canvas-editor-toolbar">
+                <button type="button" class="ghost" on:click={() => helpOpen[i] = !helpOpen[i]}>
+                  ⓘ How this works
+                </button>
+                <select on:change={(e) => { insertCanvasExample(i, e.currentTarget.value); e.currentTarget.value = ''; }}>
+                  <option value="">📋 Insert example…</option>
+                  {#each CANVAS_EXAMPLES as ex (ex.id)}<option value={ex.id}>{ex.label}</option>{/each}
+                </select>
+                <button type="button" class="ghost" on:click={() => openCanvasPreview(w.id)}>🚀 Open preview</button>
+              </div>
+              {#if helpOpen[i]}
+                <div class="canvas-help">{@html canvasHelpHtml}</div>
+              {/if}
+              <textarea
+                rows="14"
+                class="canvas-content"
+                placeholder="Type or paste HTML/CSS/JS. Use {'{{'} states('sensor.foo') {'}}'} for live values."
+                value={configStr(w.config, 'content')}
+                on:input={(e) => { w.config = { ...w.config, content: e.currentTarget.value }; widgets = widgets; }}
+                on:keydown={canvasTabHandler}
+              ></textarea>
+              <span class="hint">{configStr(w.config, 'content').length.toLocaleString()} chars · soft limit ~50,000.</span>
+            </Field>
           {/if}
         </div>
       {/each}
@@ -1317,4 +1389,42 @@
     color: #888;
     font-size: 0.9rem;
   }
+  .canvas-editor-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  textarea.canvas-content {
+    width: 100%;
+    min-height: 14rem;
+    max-height: 40rem;
+    resize: vertical;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    tab-size: 2;
+  }
+  .canvas-help {
+    background: #0e0e0e;
+    border: 1px solid #2a2a2a;
+    border-radius: 0.5rem;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.5rem;
+    color: #ccc;
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+  .canvas-help h1 { font-size: 1.05rem; margin: 0.25rem 0 0.4rem; }
+  .canvas-help h2 { font-size: 0.95rem; margin: 0.6rem 0 0.3rem; color: #e5e5e5; }
+  .canvas-help h3 { font-size: 0.88rem; margin: 0.5rem 0 0.25rem; color: #ddd; }
+  .canvas-help table { width: 100%; border-collapse: collapse; margin: 0.4rem 0; font-size: 0.82rem; }
+  .canvas-help td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .canvas-help code, .canvas-help pre {
+    background: #1a1a1a;
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+    font-family: ui-monospace, monospace;
+  }
+  .canvas-help pre { padding: 0.6rem 0.85rem; overflow-x: auto; }
 </style>
