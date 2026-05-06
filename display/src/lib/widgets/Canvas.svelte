@@ -29,18 +29,19 @@
   function context() {
     const w = wrapperEl?.clientWidth ?? 0;
     const h = wrapperEl?.clientHeight ?? 0;
-    const fontFamily = (typeof document !== 'undefined'
-      ? getComputedStyle(document.body).fontFamily
-      : 'system-ui') || 'system-ui';
-    const fontScale = Number(
-      (typeof document !== 'undefined'
-        ? getComputedStyle(document.body).getPropertyValue('--cosmos-font-scale')
-        : '1') || '1',
-    ) || 1;
+    const rawFamily = scene.typography?.font_family || 'system-ui';
+    const fontFamily = /[\s",]/.test(rawFamily) ? rawFamily : `"${rawFamily}", system-ui`;
+    const fontScale = typeof scene.typography?.font_scale === 'number' && scene.typography.font_scale > 0
+      ? scene.typography.font_scale
+      : 1;
+    const bg = scene.background.type === 'solid'
+      ? scene.background.color
+      : (scene.background.colors?.[0] ?? '');
     return {
       size: { w, h },
       scene: { id: scene.id, name: scene.name },
       font: { family: fontFamily, scale: fontScale },
+      tokens: { bg },
     };
   }
 
@@ -101,6 +102,14 @@
   if (typeof window !== 'undefined') {
     window.addEventListener('message', onMessage);
   }
+
+  $: sceneSig = JSON.stringify({
+    f: scene.typography?.font_family,
+    s: scene.typography?.font_scale,
+    b: scene.background,
+    n: scene.name,
+  });
+  $: if (iframeEl && sceneSig) postContext();
 
   onMount(() => {
     resizeObs = new ResizeObserver(() => postContext());

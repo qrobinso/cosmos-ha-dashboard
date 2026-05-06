@@ -2,6 +2,10 @@
  *  Runs inside the iframe with origin `null`. Communicates with the parent
  *  via `postMessage`. Read-only — no service calls, no mutation. */
 export const CANVAS_BRIDGE_SCRIPT = `
+<style>
+  html, body { width: 100%; height: 100%; margin: 0; padding: 0; box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: inherit; }
+</style>
 <script>
 (function () {
   var COSMOS_VERSION = '1.0.0';
@@ -16,6 +20,7 @@ export const CANVAS_BRIDGE_SCRIPT = `
     size: { w: 0, h: 0 },
     scene: { id: '', name: '' },
     font: { family: 'system-ui', scale: 1 },
+    tokens: { bg: '' },
     version: COSMOS_VERSION,
     ready: ready,
     entity: function (id) { return entitiesById[id] || null; },
@@ -38,6 +43,20 @@ export const CANVAS_BRIDGE_SCRIPT = `
     if (ctx.size) { cosmos.size.w = ctx.size.w; cosmos.size.h = ctx.size.h; }
     if (ctx.scene) { cosmos.scene.id = ctx.scene.id; cosmos.scene.name = ctx.scene.name; }
     if (ctx.font) { cosmos.font.family = ctx.font.family; cosmos.font.scale = ctx.font.scale; }
+    if (ctx.tokens) { cosmos.tokens.bg = ctx.tokens.bg || ''; }
+    applyCssVars();
+  }
+
+  function applyCssVars() {
+    var root = document.documentElement && document.documentElement.style;
+    if (!root) return;
+    root.setProperty('--cosmos-font-family', cosmos.font.family);
+    root.setProperty('--cosmos-font-scale', String(cosmos.font.scale));
+    root.setProperty('--cosmos-w', cosmos.size.w + 'px');
+    root.setProperty('--cosmos-h', cosmos.size.h + 'px');
+    root.setProperty('--cosmos-bg', cosmos.tokens.bg);
+    root.setProperty('--cosmos-scene-id', cosmos.scene.id);
+    root.setProperty('--cosmos-scene-name', cosmos.scene.name);
   }
 
   window.addEventListener('message', function (ev) {
