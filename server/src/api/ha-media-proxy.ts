@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { Readable } from 'node:stream';
 
 /**
  * Forwards `GET /api/ha-media/<path>?<query>` to the configured HA host,
@@ -45,11 +46,24 @@ export function registerHaMediaProxyRoutes(app: FastifyInstance, deps: HaMediaPr
       if (ct) reply.header('content-type', ct);
       const cl = upstream.headers.get('content-length');
       if (cl) reply.header('content-length', cl);
-      // Album art changes rarely; let the browser cache for a few minutes.
-      reply.header('cache-control', 'private, max-age=300');
 
-      const buf = Buffer.from(await upstream.arrayBuffer());
-      return reply.send(buf);
+      // MJPEG / multipart streams have no content-length and must never be
+      // buffered — `arrayBuffer()` would hang forever on the infinite stream.
+      // Camera snapshots also shouldn't be cached (each request gets the
+      // current frame). Album art and other bounded assets keep the short
+      // browser cache they had before.
+      const isStream =
+        !cl ||
+        (ct ? ct.toLowerCase().includes('multipart/') : false) ||
+        path.startsWith('api/camera_proxy');
+      reply.header('cache-control', isStream ? 'no-store' : 'private, max-age=300');
+
+      if (!upstream.body) {
+        return reply.send();
+      }
+      // Pipe the upstream body through. Works for both bounded JPEG snapshots
+      // and unbounded MJPEG streams without holding bytes in memory.
+      return reply.send(Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]));
     } catch (err) {
       console.error(`ha-media proxy failed for ${path}`, err);
       return reply.code(502).send({ error: 'upstream fetch failed' });
