@@ -9,6 +9,7 @@ import { registerHaEntityRoutes } from './ha-entities.js';
 import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerMoodRoutes } from './moods.js';
 import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
+import { registerDocsRoutes } from './docs.js';
 import type { AlertManager } from '../scenes/alerts.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
@@ -56,6 +57,9 @@ export type HttpDeps = {
   /** Server-side alert timer manager. When provided, the scene-alert endpoint
    *  is registered. Manual scene activations also cancel any active alert. */
   alerts?: AlertManager;
+  /** Absolute path to the bundled `docs/` directory. When provided, the
+   *  `/api/docs` and `/api/docs/:slug` routes are registered. */
+  docsDir?: string;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -103,6 +107,10 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
       extras: deps.canvasExtras,
       onExtrasChanged: deps.onCanvasExtrasChanged,
     });
+  }
+
+  if (deps.docsDir) {
+    registerDocsRoutes(app, { docsDir: deps.docsDir });
   }
 
   return app;

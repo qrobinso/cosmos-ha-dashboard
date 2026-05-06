@@ -44,6 +44,11 @@ COPY --from=builder /build/node_modules /app/node_modules
 # Display static build
 COPY --from=builder /build/display/build /app/display/build
 
+# Bundled docs — surfaced through the admin /docs page and the /api/docs
+# endpoint. Must sit at /app/docs because the server resolves the repo root
+# as two dirs above its compiled entrypoint at /app/server/dist/index.js.
+COPY --from=builder /build/docs /app/docs
+
 # App entrypoint (lives next to this Dockerfile in addon/)
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh

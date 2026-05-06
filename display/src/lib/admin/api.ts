@@ -132,4 +132,14 @@ export const api = {
       });
     },
   },
+  docs: {
+    async list(): Promise<{ slug: string; title: string }[]> {
+      return jsonOr(await fetch('/api/docs'), []);
+    },
+    async get(slug: string): Promise<string | null> {
+      const res = await fetch(`/api/docs/${encodeURIComponent(slug)}`);
+      if (!res.ok) return null;
+      return await res.text();
+    },
+  },
 };
