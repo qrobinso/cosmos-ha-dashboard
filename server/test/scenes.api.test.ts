@@ -188,6 +188,9 @@ describe('scenes REST API', () => {
       payload: { display_name: 'Living Room', entity_ids: ['sensor.power', 'sensor.temp'] },
     });
     expect(res.statusCode).toBe(204);
+    const recorded = ctx.canvasExtras.list('Living Room', 'w1');
+    expect(recorded).toContain('sensor.power');
+    expect(recorded).toContain('sensor.temp');
   });
 
   it('POST /api/canvases/:widgetId/subscribe rejects malformed bodies', async () => {
