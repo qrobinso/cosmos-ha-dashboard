@@ -91,6 +91,42 @@ describe('buildSceneState', () => {
     });
     expect(state.resolvedMood?.url).toBe('/moods/rain.mp4');
   });
+
+  it('returns CanvasData with literal template marks when no canvasResolver is wired', async () => {
+    const scene: Scene = {
+      ...baseScene,
+      widgets: [
+        {
+          id: 'c1',
+          kind: 'canvas',
+          position: { col: 1, row: 1, w: 4, h: 4 },
+          config: { content: '<h1>{{ states("sensor.power") }}</h1>' },
+        },
+      ],
+    } as Scene;
+    const state = await buildSceneState(scene, { top: 0, right: 0, bottom: 0, left: 0 });
+    const widget = state.widgets[0];
+    expect(widget.kind).toBe('canvas');
+    expect(widget.data).toEqual({ resolved: '<h1>{{ states("sensor.power") }}</h1>', liveEntityIds: [] });
+  });
+
+  it('uses the canvasResolver when provided', async () => {
+    const scene: Scene = {
+      ...baseScene,
+      widgets: [
+        {
+          id: 'c2',
+          kind: 'canvas',
+          position: { col: 1, row: 1, w: 4, h: 4 },
+          config: { content: '<h1>{{ states("x") }}</h1>' },
+        },
+      ],
+    } as Scene;
+    const state = await buildSceneState(scene, { top: 0, right: 0, bottom: 0, left: 0 }, {
+      canvasResolver: async (_id, _content) => ({ resolved: '<h1>42</h1>', entityIds: ['x'] }),
+    });
+    expect(state.widgets[0].data).toEqual({ resolved: '<h1>42</h1>', liveEntityIds: ['x'] });
+  });
 });
 
 function reposFor() {
