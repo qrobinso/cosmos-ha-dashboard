@@ -408,6 +408,10 @@ async function main() {
       wss.close();
       await app.close();
       unsubHaStateChange?.();
+      // Tear down template subscriptions while the HA socket is still live
+      // so `unsubscribe` messages actually reach HA.
+      canvasResolver.dispose();
+      templatesClient?.close();
       await haClient?.close();
       await mqttClient?.close();
       db.close();
