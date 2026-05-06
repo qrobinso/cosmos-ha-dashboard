@@ -9,6 +9,8 @@ export const CANVAS_BRIDGE_SCRIPT = `
   var subscribers = {};
   var resolveReady;
   var ready = new Promise(function (r) { resolveReady = r; });
+  var initReceived = false;
+  var readyInterval = null;
 
   var cosmos = {
     size: { w: 0, h: 0 },
@@ -43,6 +45,8 @@ export const CANVAS_BRIDGE_SCRIPT = `
     var msg = ev.data;
     if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('cosmos:') !== 0) return;
     if (msg.type === 'cosmos:init') {
+      initReceived = true;
+      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
       applyContext(msg.context || {});
       var list = msg.entities || [];
       for (var i = 0; i < list.length; i++) entitiesById[list[i].entity_id] = list[i];
@@ -61,7 +65,17 @@ export const CANVAS_BRIDGE_SCRIPT = `
     }
   });
 
-  try { window.parent.postMessage({ type: 'cosmos:ready' }, '*'); } catch (e) {}
+  function emitReady() {
+    try { window.parent.postMessage({ type: 'cosmos:ready' }, '*'); } catch (e) {}
+  }
+  emitReady();
+  readyInterval = setInterval(function () {
+    if (initReceived) {
+      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+      return;
+    }
+    emitReady();
+  }, 200);
 })();
 </script>
 `;

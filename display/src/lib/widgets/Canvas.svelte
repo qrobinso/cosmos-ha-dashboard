@@ -15,6 +15,11 @@
   let resizeObs: ResizeObserver | null = null;
   let lastEntityById = new Map<string, EntityState>();
   let extraSubscribed = new Set<string>();
+  let prevContent: string | undefined;
+  $: if (content !== prevContent) {
+    extraSubscribed = new Set();
+    prevContent = content;
+  }
 
   function buildSrcdoc(html: string): string {
     return CANVAS_BRIDGE_SCRIPT + (html || '');
@@ -85,14 +90,19 @@
     postState(entity);
   }
 
-  onMount(() => {
+  if (typeof window !== 'undefined') {
     window.addEventListener('message', onMessage);
+  }
+
+  onMount(() => {
     resizeObs = new ResizeObserver(() => postContext());
     if (wrapperEl) resizeObs.observe(wrapperEl);
   });
 
   onDestroy(() => {
-    window.removeEventListener('message', onMessage);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('message', onMessage);
+    }
     resizeObs?.disconnect();
   });
 </script>
