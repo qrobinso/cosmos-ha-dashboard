@@ -7,7 +7,6 @@
   import WidgetCanvas from '$lib/admin/WidgetCanvas.svelte';
   import EntityPicker from '$lib/admin/EntityPicker.svelte';
   import type { Background, Typography, WidgetKind, WidgetState, Layout, MoodConfig } from '$lib/types';
-  import { CANVAS_EXAMPLES } from '$lib/admin/canvasExamples';
   // Vite imports raw markdown as a string with the `?raw` suffix.
   import canvasHelpRaw from '$lib/admin/canvas-help.md?raw';
   // Tiny markdown → HTML pass: just paragraph + heading + code block + table.
@@ -24,21 +23,6 @@
       return '<tr>' + line.slice(2, -2).split(' | ').map((c) => `<td>${c}</td>`).join('') + '</tr>';
     })
     .replace(/(\n<tr>.*<\/tr>)+/gs, (block) => `<table>${block}</table>`);
-
-  let helpOpen: Record<number, boolean> = {};
-
-  function insertCanvasExample(idx: number, exampleId: string) {
-    const ex = CANVAS_EXAMPLES.find((e) => e.id === exampleId);
-    if (!ex) return;
-    const current = (widgets[idx].config as { content?: string }).content ?? '';
-    if (current.trim() && !confirm('Replace current canvas content with the example?')) return;
-    widgets[idx].config = { ...widgets[idx].config, content: ex.content };
-    widgets = widgets;
-  }
-
-  function openCanvasPreview(widgetId: string) {
-    window.open(`/preview-canvas?id=${encodeURIComponent(widgetId)}`, `cosmos-canvas-${widgetId}`, 'width=720,height=480,noopener');
-  }
 
   function canvasTabHandler(e: KeyboardEvent) {
     if (e.key !== 'Tab') return;
@@ -1116,18 +1100,19 @@
           {:else if w.kind === 'canvas'}
             <Field label="Content (HTML / CSS / JS)">
               <div class="canvas-editor-toolbar">
-                <button type="button" class="ghost" on:click={() => helpOpen[i] = !helpOpen[i]}>
+                <span
+                  class="help-tip"
+                  tabindex="0"
+                  role="button"
+                  aria-label="How this works"
+                  aria-describedby="canvas-help-tooltip-{i}"
+                >
                   ⓘ How this works
-                </button>
-                <select on:change={(e) => { insertCanvasExample(i, e.currentTarget.value); e.currentTarget.value = ''; }}>
-                  <option value="">📋 Insert example…</option>
-                  {#each CANVAS_EXAMPLES as ex (ex.id)}<option value={ex.id}>{ex.label}</option>{/each}
-                </select>
-                <button type="button" class="ghost" on:click={() => openCanvasPreview(w.id)}>🚀 Open preview</button>
+                  <span class="help-tooltip" id="canvas-help-tooltip-{i}" role="tooltip">
+                    {@html canvasHelpHtml}
+                  </span>
+                </span>
               </div>
-              {#if helpOpen[i]}
-                <div class="canvas-help">{@html canvasHelpHtml}</div>
-              {/if}
               <textarea
                 rows="14"
                 class="canvas-content"
@@ -1408,26 +1393,63 @@
     line-height: 1.5;
     tab-size: 2;
   }
-  .canvas-help {
+  .help-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    color: var(--c-fg-2);
+    cursor: help;
+    user-select: none;
+    border: 1px solid var(--c-line);
+    background: var(--c-surface);
+  }
+  .help-tip:hover, .help-tip:focus-visible { color: var(--c-fg); outline: none; }
+  .help-tooltip {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    z-index: 30;
+    width: min(28rem, 80vw);
+    max-height: 24rem;
+    overflow-y: auto;
+    padding: 0.85rem 1rem;
     background: #0e0e0e;
+    color: #ccc;
     border: 1px solid #2a2a2a;
     border-radius: 0.5rem;
-    padding: 0.85rem 1rem;
-    margin-bottom: 0.5rem;
-    color: #ccc;
-    font-size: 0.88rem;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    font-size: 0.85rem;
     line-height: 1.55;
+    cursor: default;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 150ms var(--ease), transform 150ms var(--ease), visibility 0s linear 150ms;
+    pointer-events: none;
   }
-  .canvas-help h1 { font-size: 1.05rem; margin: 0.25rem 0 0.4rem; }
-  .canvas-help h2 { font-size: 0.95rem; margin: 0.6rem 0 0.3rem; color: #e5e5e5; }
-  .canvas-help h3 { font-size: 0.88rem; margin: 0.5rem 0 0.25rem; color: #ddd; }
-  .canvas-help table { width: 100%; border-collapse: collapse; margin: 0.4rem 0; font-size: 0.82rem; }
-  .canvas-help td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
-  .canvas-help code, .canvas-help pre {
+  .help-tip:hover .help-tooltip,
+  .help-tip:focus-visible .help-tooltip,
+  .help-tooltip:hover {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition-delay: 0s;
+    pointer-events: auto;
+  }
+  .help-tooltip h1 { font-size: 1rem; margin: 0.1rem 0 0.4rem; color: #f0f0f0; }
+  .help-tooltip h2 { font-size: 0.9rem; margin: 0.6rem 0 0.3rem; color: #e5e5e5; }
+  .help-tooltip h3 { font-size: 0.85rem; margin: 0.5rem 0 0.25rem; color: #ddd; }
+  .help-tooltip table { width: 100%; border-collapse: collapse; margin: 0.4rem 0; font-size: 0.8rem; }
+  .help-tooltip td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .help-tooltip code, .help-tooltip pre {
     background: #1a1a1a;
     padding: 0.05rem 0.3rem;
     border-radius: 0.25rem;
     font-family: ui-monospace, monospace;
   }
-  .canvas-help pre { padding: 0.6rem 0.85rem; overflow-x: auto; }
+  .help-tooltip pre { padding: 0.6rem 0.85rem; overflow-x: auto; }
 </style>
