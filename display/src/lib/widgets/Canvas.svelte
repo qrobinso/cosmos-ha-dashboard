@@ -6,6 +6,7 @@
   export let widget: WidgetState;
   export let scene: SceneState;
   export let displayName: string;
+  export let entitiesById: Map<string, import('$lib/types').EntityState> = new Map();
 
   $: data = (widget.data as CanvasData | null) ?? { resolved: '', liveEntityIds: [] };
   $: content = data.resolved;
@@ -81,8 +82,15 @@
     }
   }
 
-  $: if (data.liveEntityIds && iframeEl) {
-    void data.liveEntityIds;
+  $: if (iframeEl && data.liveEntityIds) {
+    for (const id of data.liveEntityIds) {
+      const e = entitiesById.get(id);
+      if (!e) continue;
+      const prev = lastEntityById.get(id);
+      if (!prev || prev.state !== e.state || JSON.stringify(prev.attributes) !== JSON.stringify(e.attributes)) {
+        forwardEntity(e);
+      }
+    }
   }
 
   export function forwardEntity(entity: EntityState) {

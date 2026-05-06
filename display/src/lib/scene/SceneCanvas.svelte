@@ -17,6 +17,23 @@
   export let displayName: string | null = null;
 
   const fontVar = (family: string) => `var(--cosmos-font-${family.replace(/\s+/g, '')}, system-ui, sans-serif)`;
+
+  $: entitiesById = (() => {
+    const map = new Map<string, import('$lib/types').EntityState>();
+    for (const w of scene.widgets) {
+      const d = w.data as unknown;
+      if (!d || typeof d !== 'object') continue;
+      const e = d as { entity_id?: string; state?: string; attributes?: Record<string, unknown> };
+      if (typeof e.entity_id === 'string' && typeof e.state === 'string') {
+        map.set(e.entity_id, {
+          entity_id: e.entity_id,
+          state: e.state,
+          attributes: (e.attributes ?? {}) as Record<string, unknown>,
+        });
+      }
+    }
+    return map;
+  })();
 </script>
 
 <div
@@ -61,7 +78,7 @@
         {:else if w.kind === 'camera'}
           <Camera widget={w} />
         {:else if w.kind === 'canvas'}
-          <Canvas widget={w} {scene} displayName={displayName ?? ''} />
+          <Canvas widget={w} {scene} {entitiesById} displayName={displayName ?? ''} />
         {/if}
       </WidgetSlot>
     {/each}
