@@ -152,6 +152,14 @@ export type CameraData = {
   available: boolean;
 };
 
+export type CanvasData = {
+  /** Content with Jinja templates already substituted by HA. */
+  resolved: string;
+  /** Entity ids the rendered template depends on, plus any iframe-side
+   *  subscriptions registered via POST /api/canvases/:widgetId/subscribe. */
+  liveEntityIds: string[];
+};
+
 export type WidgetData =
   | ClockData
   | WeatherData
@@ -159,7 +167,8 @@ export type WidgetData =
   | CalendarData
   | MediaPlayerData
   | StatisticsData
-  | CameraData;
+  | CameraData
+  | CanvasData;
 
 export type WidgetState = Widget & { data: WidgetData };
 

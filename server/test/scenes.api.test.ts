@@ -157,4 +157,25 @@ describe('scenes REST API', () => {
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.json())).toBe(true);
   });
+
+  it('POST /api/scenes accepts a canvas widget and round-trips its content', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [
+          {
+            kind: 'canvas',
+            position: { col: 1, row: 1, w: 4, h: 4 },
+            config: { content: '<h1>Hello {{ states("sensor.power") }}</h1>' },
+          },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.widgets[0].kind).toBe('canvas');
+    expect(body.widgets[0].config.content).toBe('<h1>Hello {{ states("sensor.power") }}</h1>');
+  });
 });

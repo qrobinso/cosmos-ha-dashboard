@@ -18,7 +18,7 @@ export type Background =
       sun_adaptive?: boolean;
     };
 export type Typography = { font_family: string; font_scale: number };
-export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera';
+export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
 
 export type Widget = {
   id: string;

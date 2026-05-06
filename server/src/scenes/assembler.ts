@@ -48,6 +48,10 @@ export type DataResolvers = {
    *  the browser fetches album art / camera snapshots from HA directly
    *  rather than from the Cosmos server. */
   mediaUrlBase?: string;
+  /** Resolve a canvas widget's content via HA's template engine. Returns
+   *  the substituted string and the entity ids it depends on. Without
+   *  this resolver, canvas widgets render as-is with literal {{ }} marks. */
+  canvasResolver?: (widgetId: string, content: string) => Promise<{ resolved: string; entityIds: string[] }>;
 };
 
 /**
@@ -372,6 +376,17 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
       return null;
     case 'camera':
       return await cameraData(widget, resolver);
+    case 'canvas': {
+      const cfg = widget.config as { content?: unknown };
+      const content = typeof cfg.content === 'string' ? cfg.content : '';
+      // Without a canvasResolver wired in (added in Task 4), pass content
+      // through unchanged so existing scenes keep rendering.
+      if (!deps.canvasResolver) {
+        return { resolved: content, liveEntityIds: [] };
+      }
+      const result = await deps.canvasResolver(widget.id, content);
+      return { resolved: result.resolved, liveEntityIds: result.entityIds };
+    }
   }
 }
 
@@ -438,6 +453,7 @@ export type AssemblePushArgs = {
   readEntitySync?: DataResolvers['readEntitySync'];
   /** Base URL of the HA instance for absolutizing media art paths. */
   mediaUrlBase?: string;
+  canvasResolver?: DataResolvers['canvasResolver'];
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -460,6 +476,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
     resolveWeatherForecasts: args.resolveWeatherForecasts,
     readEntitySync: args.readEntitySync,
     mediaUrlBase: args.mediaUrlBase,
+    canvasResolver: args.canvasResolver,
   });
   const transition = resolveTransition(args);
   return transition ? { type: 'scene', state, transition } : { type: 'scene', state };

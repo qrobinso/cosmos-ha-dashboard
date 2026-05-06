@@ -10,7 +10,7 @@ export type Background =
       sun_adaptive?: boolean;
     };
 export type Typography = { font_family: string; font_scale: number };
-export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera';
+export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
 
 export type WeatherForecastType = 'daily' | 'hourly' | 'twice_daily';
 
@@ -113,6 +113,11 @@ export type CameraData = {
   available: boolean;
 };
 
+export type CanvasData = {
+  resolved: string;
+  liveEntityIds: string[];
+};
+
 export type WidgetData =
   | null
   | WeatherData
@@ -120,7 +125,8 @@ export type WidgetData =
   | CalendarData
   | MediaPlayerData
   | StatisticsData
-  | CameraData;
+  | CameraData
+  | CanvasData;
 
 export type WidgetState = {
   id: string;
