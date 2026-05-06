@@ -19,6 +19,9 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - `src/ha/supervisor.ts` — helpers for Supervisor service discovery. When `SUPERVISOR_TOKEN` is set (i.e. running as an HA app (a.k.a. add-on)), the server falls back to `http://supervisor/core` for HA Core API and queries `http://supervisor/services/mqtt` for the broker URL.
 - `src/api/ha-entities.ts` — `GET /api/ha/entities` listing cached HA entities (or mock fixtures when HA is disabled). Used by the admin editor's entity picker.
 - `src/moods/` — Scene Mood Engine. `catalog.ts` defines bundled mood ids + the time/weather → mood mapping tables; `resolve.ts` is a pure resolver from `MoodConfig` to `{url, blend}`; `types.ts` holds the shared types. `src/api/moods.ts` exposes `GET /api/moods`. Assembler reads `sun.sun` (time strategy) or the configured weather entity (weather strategy) via the new `readEntitySync` hook; the resolved mood ships on `SceneState.resolvedMood` and the HA state-changed handler marks displays dirty when those entities change.
+- `src/ha/templates.ts` — TemplatesClient. Wraps HA's `render_template` WS subscription with ref-counted sharing across callers and error pass-through.
+- `src/scenes/canvas.ts` — `createCanvasResolver` bridges the assembler to TemplatesClient, tracking per-widget cleanups so re-resolves drop the previous subscription.
+- `src/api/canvases.ts` — `POST /api/canvases/:widgetId/subscribe` records iframe-side entity-id requests in a per-(display, widget) extras store. Cleared on display disconnect.
 
 ## Conventions
 

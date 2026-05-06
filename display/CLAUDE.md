@@ -15,6 +15,8 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
   - `Clock.svelte` — renders local time + date; updates every 30s.
   - `Weather.svelte` — renders `widget.data` as `WeatherData`.
   - `EntityTile.svelte` — type-aware: picks a renderer based on entity domain (`light`, `switch`, `binary_sensor`, `sensor`, `climate`, `lock`, `cover`, fallback).
+  - `Canvas.svelte` — sandboxed iframe widget. Mounts with `sandbox="allow-scripts"`, srcdoc = bridge script + resolved content. Forwards entity-state changes from SceneCanvas to the iframe via `postMessage`. Re-mounts only on `widget.config.content` change (`{#key content}`); state-only updates flow as messages.
+  - `canvasBridge.ts` — the bridge script as a const string, injected into every canvas iframe.
 - `src/lib/backgrounds/` — `Background.svelte` dispatches to `Solid.svelte` or `Gradient.svelte`. Gradient runs an infinite CSS animation (continuously moving) and respects `prefers-reduced-motion`.
 - `src/lib/fonts.css` — `@fontsource/*` imports. Defines `--cosmos-font-Inter` etc. CSS variables.
 - `src/lib/transitions/controller.ts` — `TransitionController` state machine. Drives the Out → Bridge → In phases on incoming scene changes. Ignores `prefers-reduced-motion` deliberately: this is a passive wall kiosk, not a general-purpose page, and Android Chrome's reduced-motion default would otherwise collapse all transitions to a 120 ms fade.
@@ -23,6 +25,7 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
 - `src/lib/overlay/MessageOverlay.svelte` — toast/banner overlay layered above the scene canvas. Auto-dismisses on `timeout_ms`; tappable to dismiss early. Reduced-motion safe.
 - `src/lib/scene/MoodLayer.svelte` — looping `<video>` element rendered between the background and widget grid when `scene.resolvedMood` is present. Uses `mix-blend-mode: screen` so any black in the source clip drops out. Pauses on the first frame when `prefers-reduced-motion: reduce`. Mounted with `{#key scene.id}` so it remounts per scene. Source files live in `static/moods/`.
 - `src/lib/admin/` — admin-only utilities. Includes `api.ts` (typed fetch helpers), `Field.svelte` (label + slot form-field), `WidgetCanvas.svelte` (drag-and-drop grid editor for the scene editor), and `theme.css` (the admin design system).
+- `src/lib/admin/canvasExamples.ts` + `canvas-help.md` — editor's Insert-example dropdown content + How-this-works panel source.
 - `src/lib/admin/theme.css` — the admin design system. Scoped to `.cosmos-admin` ancestor class so it never leaks into the kiosk display. Defines a calm, modern dark palette (deep neutral surfaces, single warm accent `--c-accent`), system-friendly typography (Inter for UI, JetBrains Mono for data tags/IDs), 44px touch targets, hairline borders, focus rings, motion via `cubic-bezier(0.2, 0.8, 0.2, 1)`, and a `.reveal` page-load fade-up. Mobile-first; everything stacks on narrow viewports and broadens at `@media (min-width: 600px)` and `720px` breakpoints.
 - `src/routes/admin/` — admin editor pages, all wrapped in the `.cosmos-admin` shell:
   - `+layout.svelte` — sticky translucent topbar with a brand mark, **desktop pill nav** ≥720px, and a **hamburger sheet menu** below 720px. Imports `theme.css`. Centered max-width 64rem main column.
@@ -33,6 +36,7 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
   - `settings/+page.svelte` — safe-area padding form with a live SVG-style preview rectangle that updates as you type. 4-up grid on desktop, 2-up on mobile.
 
   Everything is **iframe-friendly** so Plan 6's HA sidebar panel mounts the editor without any extra work.
+- `src/routes/preview-canvas/+page.svelte` — standalone full-window preview at `/preview-canvas?id=<widgetId>` for canvas authors iterating without scene chrome.
 
 ## Conventions
 

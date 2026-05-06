@@ -83,6 +83,14 @@ If `mqtt_host` is left blank, Cosmos transparently uses the broker exposed by Ho
 
 All scenes, displays, transitions, and settings live in `/data/cosmos.db` inside the app. HA persists `/data` across app restarts and updates.
 
+## Canvas widget
+
+The canvas widget runs sandboxed HTML/CSS/JS authored by you or an LLM agent. Templates inside the content (`{{ states("sensor.foo") }}`) are rendered by Home Assistant — full HA Jinja compatibility. The iframe gets a read-only `cosmos` JS bridge for live entity subscriptions.
+
+See [`docs/canvas-widget.md`](https://github.com/qrobinso/cosmos-ha-dashboard/blob/main/docs/canvas-widget.md) for the full guide and [`docs/canvas-widget-agent.md`](https://github.com/qrobinso/cosmos-ha-dashboard/blob/main/docs/canvas-widget-agent.md) for the agent contract.
+
+Recommended: one canvas per scene. Multiple sandboxed iframes on a tablet running 24/7 are measurably expensive on memory + CPU.
+
 ## Support
 
 Report issues at <https://github.com/qrobinso/cosmos-ha-dashboard>.
