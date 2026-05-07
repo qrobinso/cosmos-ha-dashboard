@@ -68,6 +68,62 @@ Cosmos sets these on `:root` and updates them live whenever the scene changes. U
 
 **Rule of thumb:** every canvas should set `font-family: var(--cosmos-font-family, system-ui)` on its root element so the typography matches the rest of the scene. Override locally for headlines/numerals if you want a typographic accent — never override globally with a hardcoded family.
 
+## Updating an existing canvas
+
+When the user asks you to *change* a canvas already on a scene (rather than create a new one), use the per-widget endpoints. They let you patch one widget without round-tripping the whole scene.
+
+### 1. Find the widget id
+
+```bash
+# All widgets across all scenes
+GET /api/widgets
+
+# Filter by scene name + kind — usually what you want
+GET /api/widgets?scene=Kitchen&kind=canvas
+```
+
+Each entry is `{ id, sceneId, sceneName, kind, position, config }`. The widget `id` is stable across saves — once you have it, you can hold onto it.
+
+### 2. Replace the canvas content (raw HTML, smallest request)
+
+```bash
+PUT /api/widgets/<widget-id>/content
+Content-Type: text/html
+
+<div style="...">{{ states("sensor.power") }} W</div>
+```
+
+Or as JSON if your client doesn't do `text/html` cleanly:
+
+```bash
+PUT /api/widgets/<widget-id>/content
+Content-Type: application/json
+
+{ "content": "<div>...</div>" }
+```
+
+This shortcut only works on `kind: canvas` — other widget kinds get a 400.
+
+### 3. Or patch any config field with a partial update
+
+```bash
+PATCH /api/widgets/<widget-id>
+Content-Type: application/json
+
+{ "config": { "content": "<div>...</div>", "name": "kitchen-power" } }
+```
+
+`config` is shallow-merged — keys you don't include are left alone. `position` can also be patched (e.g. to resize: `{ "position": { "col": 1, "row": 1, "w": 6, "h": 4 } }`).
+
+Both endpoints push the updated scene to every display showing it, so the wall display refreshes within a second.
+
+### Typical agent loop
+
+1. `GET /api/widgets?scene=<name>&kind=canvas` → pick the target widget's `id`
+2. `PUT /api/widgets/<id>/content` with the new HTML
+
+Two requests, no scene round-trip, no widget-id management.
+
 ## What's forbidden
 
 - `<script src="https://...">` — cross-origin scripts won't load. Inline scripts only.

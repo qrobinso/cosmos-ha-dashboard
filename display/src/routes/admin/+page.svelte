@@ -80,9 +80,6 @@
   });
   onDestroy(() => { if (pollHandle) clearInterval(pollHandle); });
 
-  $: scenesCount = scenes.length;
-  $: displaysCount = displays.length;
-  $: onlineCount = displays.filter(isOnline).length;
   /** Sort online devices first so the user sees what's live without scrolling.
    *  Within each group, preserve the API's natural order (creation time). */
   $: sortedDisplays = [...displays].sort((a, b) => {
@@ -101,39 +98,14 @@
 {#if loading}
   <p class="loading">Loading…</p>
 {:else}
-  <section class="stats reveal reveal-2">
-    <a class="stat" href="/admin/scenes">
-      <span class="stat-label">Scenes</span>
-      <span class="stat-value">{scenesCount}</span>
-      <span class="stat-foot">Manage layouts &amp; widgets</span>
-    </a>
-    <a class="stat" href="/admin/displays">
-      <span class="stat-label">Displays</span>
-      <span class="stat-value">{displaysCount}</span>
-      <span class="stat-foot">
-        {#if displaysCount > 0}
-          <span class="dot online"></span>
-          {onlineCount} online now
-        {:else}
-          Connect a device to begin
-        {/if}
-      </span>
-    </a>
-    <a class="stat" href="/admin/settings">
-      <span class="stat-label">Settings</span>
-      <span class="stat-value">⚙</span>
-      <span class="stat-foot">Safe-area &amp; advanced</span>
-    </a>
-  </section>
-
   {#if displays.length === 0}
-    <section class="empty-card reveal reveal-3">
+    <section class="empty-card reveal reveal-2">
       <h2>No displays yet</h2>
       <p>Open <span class="mono">http://&lt;host&gt;:8099/</span> on a wall tablet to register your first display.</p>
     </section>
   {:else}
     <section
-      class="display-grid reveal reveal-3"
+      class="display-grid reveal reveal-2"
       class:single={displays.length === 1}
       class:dense={displays.length >= 3}
     >
@@ -261,50 +233,6 @@
   .hero p { font-size: 1rem; }
 
   .loading { color: var(--c-fg-3); }
-
-  .stats {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-  }
-  .stat {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 1.25rem;
-    background: var(--c-surface);
-    border: 1px solid var(--c-line);
-    border-radius: var(--radius-md);
-    text-decoration: none;
-    color: var(--c-fg);
-    transition: background 150ms var(--ease), border-color 150ms var(--ease), transform 150ms var(--ease);
-  }
-  .stat:hover {
-    background: var(--c-surface-hover);
-    border-color: var(--c-line-strong);
-    transform: translateY(-1px);
-  }
-  .stat-label {
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--c-fg-3);
-  }
-  .stat-value {
-    font-size: 2.5rem;
-    line-height: 1;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    color: var(--c-fg);
-  }
-  .stat-foot {
-    font-size: 0.85rem;
-    color: var(--c-fg-2);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
 
   .empty-card {
     background: var(--c-surface);
@@ -596,7 +524,4 @@
     box-shadow: 0 0 0 2px rgba(109, 213, 140, 0.18);
   }
 
-  @media (min-width: 600px) {
-    .stats { grid-template-columns: repeat(3, 1fr); }
-  }
 </style>

@@ -45,7 +45,10 @@ export type SceneInput = Omit<Scene, 'id' | 'widgets' | 'defaultTransitionId' | 
   defaultTransitionId?: string | null;
   floatWidgets?: boolean;
   mood?: MoodConfig;
-  widgets: Omit<Widget, 'id'>[];
+  /** Widgets may carry an existing `id` to preserve identity across saves
+   *  (so PATCH endpoints can address the same widget twice in a row). When
+   *  `id` is omitted, a fresh UUID is generated. */
+  widgets: Array<Omit<Widget, 'id'> & { id?: string }>;
 };
 
 export type ScenesRepo = {
@@ -166,8 +169,13 @@ export function createScenesRepo(db: DB): ScenesRepo {
   function writeWidgets(sceneId: string, ws: SceneInput['widgets']): Widget[] {
     deleteWidgetsForScene.run(sceneId);
     const out: Widget[] = [];
+    const seen = new Set<string>();
     for (const w of ws) {
-      const id = randomUUID();
+      // Preserve incoming ids when valid + unique, otherwise mint fresh ones.
+      // Stable ids let agent PATCH calls and Svelte keyed-each blocks survive
+      // a save without re-mounting / losing the addressing handle.
+      const id = w.id && !seen.has(w.id) ? w.id : randomUUID();
+      seen.add(id);
       insertWidget.run(id, sceneId, w.kind, JSON.stringify(w.position), JSON.stringify(w.config));
       out.push({ id, kind: w.kind, position: w.position, config: w.config });
     }

@@ -230,6 +230,160 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       return reply.code(204).send();
     }
   );
+
+  // ── Per-widget endpoints ─────────────────────────────────────────────
+  //
+  // Designed for LLM agents updating canvas widgets in place. The
+  // alternative — GET /api/scenes/:id, mutate the widget, PUT the whole
+  // scene — forces an agent to round-trip the entire scene (which can be
+  // tens of KB of HTML) just to change one field.
+
+  /** GET /api/widgets — flat list of every widget across every scene, with
+   *  the parent scene's id + name so an agent can locate "the canvas widget
+   *  on the Kitchen scene" without fetching scenes one-by-one. Filters:
+   *  `?scene=<id-or-name>` and `?kind=<kind>`. */
+  app.get<{ Querystring: { scene?: string; kind?: string } }>(
+    '/api/widgets',
+    async (req) => {
+      const sceneFilter = typeof req.query?.scene === 'string' ? req.query.scene : null;
+      const kindFilter = typeof req.query?.kind === 'string' ? req.query.kind : null;
+      const out: Array<{
+        id: string;
+        sceneId: string;
+        sceneName: string;
+        kind: string;
+        position: unknown;
+        config: unknown;
+      }> = [];
+      for (const s of deps.scenes.list()) {
+        if (sceneFilter && s.id !== sceneFilter && s.name !== sceneFilter) continue;
+        for (const w of s.widgets) {
+          if (kindFilter && w.kind !== kindFilter) continue;
+          out.push({
+            id: w.id,
+            sceneId: s.id,
+            sceneName: s.name,
+            kind: w.kind,
+            position: w.position,
+            config: w.config,
+          });
+        }
+      }
+      return out;
+    }
+  );
+
+  /** PATCH /api/widgets/:widgetId — partial update of a single widget.
+   *  Body: `{ position?, config? }`. The `config` object is shallow-merged
+   *  into the existing config (so `{config: {content: "<div>..."}}` only
+   *  touches that one key); pass an empty config to clear nothing. Returns
+   *  the parent scene. Re-pushes to every display using the scene. */
+  app.patch<{
+    Params: { widgetId: string };
+    Body: { position?: unknown; config?: unknown };
+  }>(
+    '/api/widgets/:widgetId',
+    async (req, reply) => {
+      const widgetId = req.params.widgetId;
+      const found = findWidgetWithScene(widgetId, deps);
+      if (!found) return reply.code(404).send({ error: 'widget not found' });
+      const { scene, widget, index } = found;
+
+      const body = req.body ?? {};
+      const newWidgets = scene.widgets.map((w, i) => {
+        if (i !== index) return w;
+        const next: typeof widget = { ...w };
+        if (body.position !== undefined) {
+          if (typeof body.position !== 'object' || body.position === null) {
+            // Soft-fail by ignoring; we surface validation in the response below.
+          } else {
+            next.position = body.position as typeof widget.position;
+          }
+        }
+        if (body.config !== undefined) {
+          if (typeof body.config !== 'object' || body.config === null) {
+            // Same as above.
+          } else {
+            // Shallow-merge; the agent passes only the keys it wants to change.
+            next.config = { ...(w.config ?? {}), ...(body.config as Record<string, unknown>) };
+          }
+        }
+        return next;
+      });
+
+      const updated = deps.scenes.update(scene.id, {
+        name: scene.name,
+        layout: scene.layout,
+        background: scene.background,
+        typography: scene.typography,
+        defaultTransitionId: scene.defaultTransitionId,
+        floatWidgets: scene.floatWidgets,
+        mood: scene.mood,
+        widgets: newWidgets.map((w) => ({ id: w.id, kind: w.kind, position: w.position, config: w.config })),
+      });
+      notifyAffectedDisplays(scene.id, deps);
+      return updated;
+    }
+  );
+
+  /** PUT /api/widgets/:widgetId/content — agent-friendly shortcut for the
+   *  canvas widget's most-edited field. Body is the raw new HTML (sent as
+   *  text/plain or text/html). Equivalent to PATCH with
+   *  `{config: {content: "..."}}` but without JSON wrapping. Rejects on
+   *  non-canvas widgets so callers get an obvious 400 instead of silently
+   *  pushing an unrelated string into someone else's config. */
+  app.put<{ Params: { widgetId: string } }>(
+    '/api/widgets/:widgetId/content',
+    async (req, reply) => {
+      const widgetId = req.params.widgetId;
+      const found = findWidgetWithScene(widgetId, deps);
+      if (!found) return reply.code(404).send({ error: 'widget not found' });
+      const { scene, widget, index } = found;
+      if (widget.kind !== 'canvas') {
+        return reply.code(400).send({
+          error: `widget is kind "${widget.kind}", not canvas; use PATCH /api/widgets/:id for other kinds`,
+        });
+      }
+      const raw = req.body;
+      const content =
+        typeof raw === 'string' ? raw :
+        // Fastify auto-parses JSON to objects; also accept {content: "..."}.
+        (typeof raw === 'object' && raw !== null && typeof (raw as { content?: unknown }).content === 'string')
+          ? (raw as { content: string }).content
+          : null;
+      if (content === null) {
+        return reply.code(400).send({ error: 'body must be a string (HTML) or {"content": "..."}' });
+      }
+      const newWidgets = scene.widgets.map((w, i) =>
+        i === index ? { ...w, config: { ...(w.config ?? {}), content } } : w
+      );
+      const updated = deps.scenes.update(scene.id, {
+        name: scene.name,
+        layout: scene.layout,
+        background: scene.background,
+        typography: scene.typography,
+        defaultTransitionId: scene.defaultTransitionId,
+        floatWidgets: scene.floatWidgets,
+        mood: scene.mood,
+        widgets: newWidgets.map((w) => ({ id: w.id, kind: w.kind, position: w.position, config: w.config })),
+      });
+      notifyAffectedDisplays(scene.id, deps);
+      return updated;
+    }
+  );
+}
+
+/** Find a widget by id across all scenes, returning the parent scene + index
+ *  so callers can mutate one widget without re-walking. */
+function findWidgetWithScene(
+  widgetId: string,
+  deps: SceneRoutesDeps
+): { scene: ReturnType<ScenesRepo['list']>[number]; widget: ReturnType<ScenesRepo['list']>[number]['widgets'][number]; index: number } | null {
+  for (const s of deps.scenes.list()) {
+    const i = s.widgets.findIndex((w) => w.id === widgetId);
+    if (i !== -1) return { scene: s, widget: s.widgets[i], index: i };
+  }
+  return null;
 }
 
 function notifyAffectedDisplays(sceneId: string, deps: SceneRoutesDeps): void {

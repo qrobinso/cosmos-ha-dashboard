@@ -16,6 +16,8 @@ A complete agent flow is three calls:
 
 Steps 2 and 3 can be combined in spirit by passing `"makeDefault": true` to step 2, but `activate` is what causes the wall display to transition to the new scene immediately.
 
+For **updating** an existing scene rather than creating one, jump to [Updating an existing scene](#updating-an-existing-scene) — it's a different (and usually shorter) loop.
+
 ## Scene payload schema
 
 ```ts
@@ -224,6 +226,101 @@ Zero widgets is valid and useful. Use this for a scene the user wants running on
 ```
 
 One thing, huge. The display becomes a giant readout. Best for a tablet that's only ever showing this scene.
+
+## Updating an existing scene
+
+When the user asks you to *change* something on an existing scene (rather than create a new one), use the focused per-widget endpoints. Round-tripping the entire scene is wasteful and can churn unrelated widget state.
+
+### Discovery
+
+```bash
+# All scenes
+GET /api/scenes
+# → [{ id, name, background, typography, widgets: [...], ... }, ...]
+
+# All widgets across all scenes (flatter, easier to filter)
+GET /api/widgets
+
+# Filter widgets by scene name + kind — usually what you want
+GET /api/widgets?scene=Kitchen&kind=canvas
+# → [{ id, sceneId, sceneName, kind, position, config }, ...]
+```
+
+Widget `id`s are stable across saves. Once you have one you can hold onto it for repeated patches.
+
+### Update one widget — the most common agent task
+
+For a canvas's HTML body, the smallest possible request:
+
+```bash
+PUT /api/widgets/<widget-id>/content
+Content-Type: text/html
+
+<div style="...">{{ states("sensor.power") }} W</div>
+```
+
+Or as JSON: `{ "content": "<div>...</div>" }`. This shortcut is canvas-only.
+
+For any other config field (or any other widget kind), use the partial PATCH:
+
+```bash
+PATCH /api/widgets/<widget-id>
+Content-Type: application/json
+
+{ "config": { "format": "h:mm", "show_seconds": true } }
+```
+
+`config` is shallow-merged — keys you don't include are left alone. `position` can also be patched (e.g. to resize: `{ "position": { "col": 1, "row": 1, "w": 12, "h": 8 } }`).
+
+Both endpoints push the updated scene to every display showing it; the wall display refreshes within a second.
+
+### Update scene-level fields (background, typography, transition)
+
+For changes that affect the whole scene rather than one widget — a different background, font family, default transition — you still need the scene-level PUT:
+
+```bash
+PUT /api/scenes/<scene-id>
+Content-Type: application/json
+
+# Body is the full SceneInput. Fetch first with GET /api/scenes/<id>,
+# mutate, send back. Widget ids you preserve will be honored — only
+# omit `id` to mint a fresh widget.
+```
+
+Prefer per-widget PATCH whenever the change is local to one widget — it's faster and doesn't disturb the rest of the scene's identity.
+
+### Show a scene briefly, then revert (alerts)
+
+If the user asks "flash the doorbell scene for 15 seconds when someone rings," that's a **scene alert**, not a permanent activation:
+
+```bash
+POST /api/displays/<name>/scene/alert
+Content-Type: application/json
+
+{ "sceneId": "scene-doorbell-abc", "dwellMs": 15000 }
+# Optional: "transitionId": "builtin-cross-fade"
+```
+
+The display flips to the named scene, holds for `dwellMs`, then auto-reverts to whatever was on screen before. The timer lives server-side, so it survives reconnects. Manual scene changes mid-dwell cancel the auto-revert. Chained alerts preserve the original revert target so a display can't get trapped.
+
+This is the right tool for transient notifications (doorbell, oven timer, motion alert) — much cleaner than `/scene/activate` followed by a delayed second `/scene/activate`.
+
+### Typical agent loops
+
+**"Update the Kitchen canvas to show today's energy use":**
+
+1. `GET /api/widgets?scene=Kitchen&kind=canvas` → pick the target widget's `id`
+2. `PUT /api/widgets/<id>/content` with the new HTML
+
+**"Change the morning scene to Fraunces font":**
+
+1. `GET /api/scenes` → find the scene's `id`
+2. `GET /api/scenes/<id>` → get the full body
+3. `PUT /api/scenes/<id>` with `typography.font_family` updated
+
+**"Show the doorbell scene for 15s when X happens":**
+
+1. `POST /api/displays/<name>/scene/alert` with `{sceneId, dwellMs:15000}`
 
 ## End-to-end example (cURL)
 

@@ -80,6 +80,13 @@ export type HttpDeps = {
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
+  // Accept text/plain and text/html bodies (the canvas-content shortcut at
+  // PUT /api/widgets/:id/content lets agents POST raw HTML without JSON
+  // wrapping). Cap at 256KB so a wedged client can't blow up memory.
+  app.addContentTypeParser(/^text\/(plain|html|markdown).*/, { parseAs: 'string', bodyLimit: 256 * 1024 }, (_req, body, done) => {
+    done(null, body);
+  });
+
   app.post<{ Body: { name?: unknown } }>('/api/displays/register', async (req, reply) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     if (!name) return reply.code(400).send({ error: 'name is required' });
