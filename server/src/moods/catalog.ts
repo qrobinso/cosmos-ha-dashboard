@@ -25,6 +25,8 @@ export const MOOD_CATALOG: MoodCatalogEntry[] = [
   { id: 'orb1',        label: 'Orb',             file: 'orb1.mp4',        tags: ['ambient'] },
   { id: 'flames',      label: 'Flames',          file: 'flames.mp4',      tags: ['evening', 'fireplace'] },
   { id: 'tree',        label: 'Tree',            file: 'tree.mp4',        tags: ['ambient'] },
+  { id: 'lightning',       label: 'Lightning',       file: 'lightning.mp4',       tags: ['lightning', 'lightning-rainy', 'storm'] },
+  { id: 'water-droplets',  label: 'Water droplets',  file: 'water-droplets.mp4',  tags: ['rainy', 'pouring'] },
 ];
 
 export function getMoodById(id: string): MoodCatalogEntry | null {
