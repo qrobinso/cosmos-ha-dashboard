@@ -5,7 +5,7 @@ import { createDisplaysRepo } from './store/displays.js';
 import { createSettingsRepo } from './store/settings.js';
 import { createScenesRepo } from './store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from './store/transitions.js';
-import { buildHttpApp } from './api/http.js';
+import { buildHttpApp, readTransitionSpeed } from './api/http.js';
 import { attachWsHub } from './api/ws.js';
 import { registerStatic } from './static.js';
 import { makeHaClient } from './ha/client.js';
@@ -283,10 +283,14 @@ async function main() {
    *  meter ticking every 100 ms) saturates the WS and the display's main
    *  thread can't keep up with the CSS animation pipeline. */
   const DIRTY_FLUSH_MS = 250;
-  /** During this many ms after a scene change, defer reactive re-pushes so
-   *  the in-flight transition animation has the main thread to itself. The
-   *  longest builtin transition is ~1100 ms; 1200 gives a small buffer. */
-  const TRANSITION_QUIET_MS = 1200;
+  /** Base quiet-window duration in ms — sized to cover the longest builtin
+   *  transition (~1100 ms) at 1× speed, with a small buffer. The actual
+   *  window scales with the global transition-speed multiplier so it always
+   *  outlasts the in-flight animation, no matter how slow the user picks. */
+  const TRANSITION_QUIET_BASE_MS = 1200;
+  function transitionQuietMs(): number {
+    return Math.round(TRANSITION_QUIET_BASE_MS * readTransitionSpeed(settings));
+  }
   function markDisplayDirty(displayId: string) {
     dirtyDisplays.add(displayId);
     if (dirtyFlushTimer) return;
@@ -296,12 +300,13 @@ async function main() {
     dirtyFlushTimer = null;
     const now = Date.now();
     const ids = Array.from(dirtyDisplays);
+    const quietMs = transitionQuietMs();
     let earliestUnblock = Infinity;
     for (const id of ids) {
       const since = now - (lastSceneChangeAt.get(id) ?? 0);
-      if (since < TRANSITION_QUIET_MS) {
+      if (since < quietMs) {
         // Keep this id in the dirty set; we'll retry once the transition window closes.
-        earliestUnblock = Math.min(earliestUnblock, TRANSITION_QUIET_MS - since);
+        earliestUnblock = Math.min(earliestUnblock, quietMs - since);
         continue;
       }
       dirtyDisplays.delete(id);

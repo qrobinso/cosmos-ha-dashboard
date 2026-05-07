@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.8
+
+- Fix: The transition-quiet window (which suppresses HA-driven re-pushes during an in-flight animation) now scales with the global transition-speed multiplier. At 5× speed a transition takes ~5.5 s; the quiet window expands to match so reactive entity churn doesn't restart juddering the animation halfway through.
+
 ## 0.2.7
 
 - Tweak: Transition-speed multiplier now caps at 5× (was 3×), so very long, deliberate transitions are possible — useful for ambient / installation use cases.
