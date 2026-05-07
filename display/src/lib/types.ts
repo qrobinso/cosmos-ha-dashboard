@@ -159,6 +159,11 @@ export type SceneState = {
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
   resolvedMood?: ResolvedMood;
+  /** Entity-state snapshots for every entity any canvas widget on this scene
+   *  references (templates + iframe `cosmos.subscribe(...)` requests). The
+   *  display merges these into the map forwarded to canvas iframes so
+   *  canvases can read entities that aren't bound to any other widget. */
+  liveEntities?: EntityState[];
 };
 
 export type OverlayMessage = {

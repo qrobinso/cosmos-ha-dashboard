@@ -6,6 +6,11 @@ import type { FastifyInstance } from 'fastify';
 export type CanvasExtrasStore = {
   add(displayName: string, widgetId: string, entityIds: string[]): void;
   list(displayName: string, widgetId: string): string[];
+  /** Union of every entity id this display has subscribed to across ANY
+   *  canvas widget. Used by the HA state-change handler to know whether
+   *  a state change should re-push the display, even when no widget on
+   *  the scene other than a canvas references the entity. */
+  entitiesForDisplay(displayName: string): Set<string>;
   /** Drop all extras for the given display (called from the WS hub when
    *  a display disconnects). */
   clearDisplay(displayName: string): void;
@@ -31,6 +36,15 @@ export function createCanvasExtrasStore(): CanvasExtrasStore {
     list(displayName, widgetId) {
       const perWidget = byDisplay.get(displayName)?.get(widgetId);
       return perWidget ? Array.from(perWidget) : [];
+    },
+    entitiesForDisplay(displayName) {
+      const perDisplay = byDisplay.get(displayName);
+      const out = new Set<string>();
+      if (!perDisplay) return out;
+      for (const set of perDisplay.values()) {
+        for (const id of set) out.add(id);
+      }
+      return out;
     },
     clearDisplay(displayName) {
       byDisplay.delete(displayName);

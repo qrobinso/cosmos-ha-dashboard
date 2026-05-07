@@ -364,7 +364,14 @@ async function main() {
           widgetUses &&
           scene.widgets.some((w) => (w.config as { entity_id?: string }).entity_id === entity.entity_id);
         const ambientMatches = sceneAmbientEntityIds(scene).has(entity.entity_id);
-        if (widgetMatches || ambientMatches) markDisplayDirty(d.id);
+        // Canvas widgets can subscribe to entities via cosmos.subscribe(...)
+        // that no other widget references. The extras store tracks those per
+        // display; if THIS display has the changing entity in its extras AND
+        // its active scene actually contains a canvas widget, re-push.
+        const sceneHasCanvas = scene.widgets.some((w) => w.kind === 'canvas');
+        const canvasMatches =
+          sceneHasCanvas && canvasExtras.entitiesForDisplay(d.name).has(entity.entity_id);
+        if (widgetMatches || ambientMatches || canvasMatches) markDisplayDirty(d.id);
       }
     });
   }

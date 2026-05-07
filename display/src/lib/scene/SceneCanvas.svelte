@@ -20,6 +20,7 @@
 
   $: entitiesById = (() => {
     const map = new Map<string, import('$lib/types').EntityState>();
+    // First, raw widgets whose data shape IS an EntityState (entity_tile etc.)
     for (const w of scene.widgets) {
       const d = w.data as unknown;
       if (!d || typeof d !== 'object') continue;
@@ -30,6 +31,16 @@
           state: e.state,
           attributes: (e.attributes ?? {}) as Record<string, unknown>,
         });
+      }
+    }
+    // Then, server-provided liveEntities for canvas widgets — these cover
+    // entities referenced ONLY by canvas templates / cosmos.subscribe(...)
+    // calls and are not the data of any other widget. Layered second so
+    // their snapshot wins when an entity ALSO drives another widget on
+    // the scene (server-resolved state is authoritative).
+    if (scene.liveEntities) {
+      for (const e of scene.liveEntities) {
+        map.set(e.entity_id, e);
       }
     }
     return map;

@@ -7,6 +7,7 @@ import type {
   CalendarData,
   CalendarEvent,
   CameraData,
+  CanvasData,
   MediaPlayerData,
   StatisticsData,
   StatisticsPoint,
@@ -416,6 +417,33 @@ export async function buildSceneState(
   for (const w of scene.widgets) {
     widgets.push({ ...w, data: await dataFor(w, deps) });
   }
+
+  // Snapshot every entity any canvas widget on this scene references — both
+  // template-derived (via the canvas resolver) and iframe-side
+  // cosmos.subscribe(...) requests (via canvasExtras). Without this, the
+  // display has no path to forward entity state for canvas-only entities.
+  const canvasEntityIds = new Set<string>();
+  for (const w of widgets) {
+    if (w.kind !== 'canvas') continue;
+    const d = w.data as CanvasData | null;
+    if (!d) continue;
+    for (const id of d.liveEntityIds) canvasEntityIds.add(id);
+  }
+  let liveEntities: EntityState[] | undefined;
+  if (canvasEntityIds.size > 0) {
+    const resolver = deps.resolveEntity ?? mockEntityResolver;
+    const out: EntityState[] = [];
+    for (const id of canvasEntityIds) {
+      try {
+        const e = await resolver(id);
+        if (e && e.entity_id) out.push(e);
+      } catch {
+        // Skip unresolvable ids; the canvas falls back to its UI defaults.
+      }
+    }
+    if (out.length > 0) liveEntities = out;
+  }
+
   const now = new Date();
   const readEntitySync = deps.readEntitySync ?? (() => null);
   const resolvedMood = resolveMood(scene.mood, { now, readEntity: readEntitySync });
@@ -441,6 +469,7 @@ export async function buildSceneState(
     widgets,
     safeArea,
     ...(resolvedMood ? { resolvedMood } : {}),
+    ...(liveEntities ? { liveEntities } : {}),
   };
 }
 

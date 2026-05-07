@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Fix: Canvas `cosmos.subscribe(...)` now actually delivers entity state for canvas-only entities. Previously, an entity referenced ONLY by a canvas widget (not by any other widget on the scene) had its id added to `liveEntityIds` but its actual state was never shipped to the iframe — so `update` callbacks never fired and any UI driven by `cosmos.subscribe` rendered blank. The server now snapshots every canvas-referenced entity into a new `liveEntities` field on the scene push, the display merges them into the map forwarded to canvases, and HA state changes for those entities trigger a re-push so updates flow live.
+
 ## 0.2.9
 
 - Feat: New live **Home Assistant entities** doc in the admin Docs tab. Lists every entity Cosmos has cached from your HA install — grouped by domain, with `entity_id`, friendly name, current state, and unit/device-class. Tap "Copy markdown" to drop the whole snapshot into your agent's system prompt so it knows which entity_ids exist on your install. Snapshot regenerates each time you load the page.

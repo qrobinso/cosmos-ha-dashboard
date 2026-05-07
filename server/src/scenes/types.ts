@@ -178,6 +178,12 @@ export type SceneState = Omit<Scene, 'widgets'> & {
   /** Resolved mood for the active period; absent when the scene's mood is off
    *  or its strategy can't resolve (e.g. weather entity not yet known). */
   resolvedMood?: ResolvedMood;
+  /** Snapshot of every entity referenced by a canvas widget on this scene
+   *  (template-derived + iframe-side `cosmos.subscribe(...)` requests).
+   *  Display-side `SceneCanvas` merges these into the entitiesById map it
+   *  forwards to canvas iframes, so canvases can read entity state for
+   *  entities that aren't displayed by any other widget on the scene. */
+  liveEntities?: EntityState[];
 };
 
 export type ScenePushPayload = {
