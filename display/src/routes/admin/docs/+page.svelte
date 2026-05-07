@@ -10,7 +10,18 @@
   let activeMarkdown = '';
   let activeHtml = '';
   let loading = true;
-  let copyState: 'idle' | 'copied' = 'idle';
+  let copyState: 'idle' | 'copied' | 'error' = 'idle';
+  let proseEl: HTMLDivElement | null = null;
+  let query = '';
+  let matchCount = 0;
+  let totalSections = 0;
+
+  /** Section index: each entry is one block of DOM elements bounded by an h2
+   *  (or h3 — whichever heading level dominates the doc), plus the lower-cased
+   *  text of the entire block for fast filtering. Rebuilt every time a doc
+   *  loads. */
+  type Section = { elements: HTMLElement[]; text: string };
+  let sections: Section[] = [];
 
   // Configure marked once: GFM-flavored, line-break preserved (so the
   // pasted-in tables and lists in the agent contracts render correctly).
@@ -24,6 +35,10 @@
     activeSlug = slug;
     activeMarkdown = '';
     activeHtml = '';
+    query = '';
+    sections = [];
+    matchCount = 0;
+    totalSections = 0;
     const md = await api.docs.get(slug);
     if (md === null) {
       activeMarkdown = '';
@@ -35,17 +50,116 @@
     // Scroll the content pane to top after swap
     await tick();
     contentEl?.scrollTo({ top: 0, behavior: 'smooth' });
+    indexSections();
   }
 
-  async function copyMarkdown() {
-    if (!activeMarkdown) return;
-    try {
-      await navigator.clipboard.writeText(activeMarkdown);
-      copyState = 'copied';
-      setTimeout(() => { copyState = 'idle'; }, 1600);
-    } catch (err) {
-      console.error('clipboard write failed', err);
+  /** Group rendered elements by heading level. Some docs (entity reference)
+   *  use h3 as the unit; others (the contracts) use h2. Pick the heaviest tag
+   *  in the doc as the section delimiter. h1 is always treated as the doc
+   *  title and never grouped. */
+  function indexSections() {
+    if (!proseEl) return;
+    const children = Array.from(proseEl.children) as HTMLElement[];
+    const h3Count = children.filter((c) => c.tagName === 'H3').length;
+    const h2Count = children.filter((c) => c.tagName === 'H2').length;
+    // h3 wins when there are noticeably more of them — e.g. the entity ref
+    // has a single h2 ("HA entity reference") and ~14 h3s under it. h2 wins
+    // for the contract docs (Contract / What's available / What's forbidden).
+    const delim = h3Count >= Math.max(3, h2Count + 2) ? 'H3' : 'H2';
+
+    sections = [];
+    let current: Section | null = null;
+    for (const el of children) {
+      if (el.tagName === 'H1') continue; // never grouped
+      if (el.tagName === delim || (delim === 'H3' && el.tagName === 'H2')) {
+        // New section starts. h2s in an h3-delimited doc still seed sections
+        // so a search like "entity reference" matches the parent heading.
+        if (current) sections.push(current);
+        current = { elements: [el], text: (el.textContent || '').toLowerCase() };
+      } else if (current) {
+        current.elements.push(el);
+        current.text += ' ' + (el.textContent || '').toLowerCase();
+      } else {
+        // Pre-first-heading prose — treat as its own section so it isn't
+        // permanently hidden when a query is active.
+        current = { elements: [el], text: (el.textContent || '').toLowerCase() };
+      }
     }
+    if (current) sections.push(current);
+    totalSections = sections.length;
+    matchCount = totalSections;
+    // Initial pass clears any leftover hide state from a prior doc.
+    applyFilter();
+  }
+
+  /** Show every section whose combined text contains the query (case-
+   *  insensitive). Empty query restores everything. */
+  function applyFilter() {
+    if (!proseEl) return;
+    const q = query.trim().toLowerCase();
+    if (q === '') {
+      for (const s of sections) for (const el of s.elements) el.style.display = '';
+      matchCount = totalSections;
+      return;
+    }
+    let n = 0;
+    for (const s of sections) {
+      const hit = s.text.includes(q);
+      if (hit) n++;
+      for (const el of s.elements) el.style.display = hit ? '' : 'none';
+    }
+    matchCount = n;
+  }
+
+  $: if (proseEl) { void query; applyFilter(); }
+
+  /** Copy text to clipboard with a robust fallback. The async Clipboard API
+   *  requires a secure context (HTTPS or localhost). Cosmos in HA Ingress
+   *  serves over plain HTTP on the LAN, so navigator.clipboard is often
+   *  undefined or rejects with a SecurityError. The legacy execCommand path
+   *  works in any context but requires the source element to be in the DOM
+   *  and selected synchronously inside a user-gesture handler. */
+  function copyText(text: string): boolean {
+    // Try the modern API first — when it works, it's the cleanest path.
+    if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => {
+        // Async failure: fall through to the legacy path below by re-running.
+        legacyCopy(text);
+      });
+      return true;
+    }
+    return legacyCopy(text);
+  }
+
+  function legacyCopy(text: string): boolean {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      // Visible-but-off-screen so iOS/Android still register the selection.
+      ta.style.position = 'fixed';
+      ta.style.top = '0';
+      ta.style.left = '0';
+      ta.style.width = '1px';
+      ta.style.height = '1px';
+      ta.style.opacity = '0';
+      ta.setAttribute('readonly', '');
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (err) {
+      console.error('legacy clipboard copy failed', err);
+      return false;
+    }
+  }
+
+  function copyMarkdown() {
+    if (!activeMarkdown) return;
+    const ok = copyText(activeMarkdown);
+    copyState = ok ? 'copied' : 'error';
+    setTimeout(() => { copyState = 'idle'; }, 1800);
   }
 
   let contentEl: HTMLDivElement;
@@ -99,12 +213,40 @@
       {#if activeSlug}
         <div class="content-toolbar">
           <span class="slug mono">{activeSlug}.md</span>
-          <button type="button" class="copy" on:click={copyMarkdown} disabled={!activeMarkdown}>
-            {copyState === 'copied' ? '✓ Copied' : 'Copy markdown'}
-          </button>
+          <div class="toolbar-actions">
+            <div class="search">
+              <span class="search-icon" aria-hidden="true">⌕</span>
+              <input
+                type="search"
+                placeholder="Filter sections…"
+                bind:value={query}
+                aria-label="Filter doc sections"
+              />
+              {#if query}
+                <span class="search-count" aria-live="polite">{matchCount}/{totalSections}</span>
+                <button type="button" class="search-clear" aria-label="Clear filter" on:click={() => (query = '')}>×</button>
+              {/if}
+            </div>
+            <button
+              type="button"
+              class="copy"
+              class:copied={copyState === 'copied'}
+              class:error={copyState === 'error'}
+              on:click={copyMarkdown}
+              disabled={!activeMarkdown}
+            >
+              {#if copyState === 'copied'}✓ Copied
+              {:else if copyState === 'error'}✗ Copy failed
+              {:else}Copy markdown
+              {/if}
+            </button>
+          </div>
         </div>
         <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-        <div class="prose">{@html activeHtml}</div>
+        <div class="prose" bind:this={proseEl}>{@html activeHtml}</div>
+        {#if query && matchCount === 0}
+          <p class="no-matches">No sections match "{query}".</p>
+        {/if}
       {/if}
     </article>
   </div>
@@ -195,17 +337,97 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
     padding-bottom: 1rem;
     margin-bottom: 1rem;
     border-bottom: 1px solid var(--c-line);
   }
-  .slug { color: var(--c-fg-3); font-size: 0.82rem; }
+  .slug { color: var(--c-fg-3); font-size: 0.82rem; flex-shrink: 0; }
+
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Compact search input that lives inside the toolbar — visually distinct
+     from the surrounding card so it reads as an action, not body content. */
+  .search {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-line);
+    border-radius: 999px;
+    padding: 0 0.6rem 0 0.65rem;
+    transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+    height: 2.1rem;
+  }
+  .search:focus-within {
+    border-color: var(--c-accent);
+    box-shadow: 0 0 0 3px var(--c-accent-tint);
+  }
+  .search-icon {
+    color: var(--c-fg-3);
+    font-size: 0.95rem;
+    line-height: 1;
+    padding-right: 0.4rem;
+  }
+  .search input {
+    /* Override the global input chrome — this is a toolbar control, not
+       a form field. */
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: 100%;
+    width: 12rem;
+    font-size: 0.85rem;
+    color: var(--c-fg);
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .search input::placeholder { color: var(--c-fg-3); }
+  .search-count {
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    color: var(--c-fg-3);
+    padding: 0 0.45rem 0 0.25rem;
+    flex-shrink: 0;
+  }
+  .search-clear {
+    width: 1.4rem;
+    height: 1.4rem;
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    color: var(--c-fg-3);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .search-clear:hover { color: var(--c-fg); }
+
   .copy {
     min-height: 0;
-    height: auto;
-    padding: 0.45rem 0.85rem;
+    height: 2.1rem;
+    padding: 0 0.85rem;
     font-size: 0.82rem;
+  }
+  .copy.copied { color: var(--c-success); border-color: rgba(109, 213, 140, 0.45); }
+  .copy.error { color: var(--c-danger); border-color: rgba(240, 107, 117, 0.45); }
+
+  .no-matches {
+    color: var(--c-fg-3);
+    font-size: 0.9rem;
+    padding: 1rem 0;
+    text-align: center;
   }
 
   /* Prose: tuned for technical docs. Generous line-height, JetBrains Mono
