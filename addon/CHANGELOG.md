@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Change: Removed the nightly 04:00 self-reload. The reload was defensive insurance against Chromium media-pipeline memory creep on long-running displays, but the cost — Android Chrome dropping fullscreen every morning, requiring a tap to recover — exceeded the benefit. Other long-running mitigations (WebSocket heartbeat + clean reconnect, minute-anchored clock, MoodLayer reuse on shared mood URLs, FitContent timeout cleanup, transform-based gradient animation) all stay in place. If memory creep ever shows up in practice this can come back as an opt-in setting.
+- Feat: Per-widget update endpoints for agents — `GET /api/widgets[?scene&kind]`, `PATCH /api/widgets/:id`, and a `PUT /api/widgets/:id/content` shortcut that accepts raw HTML for canvas widgets. Lets an LLM agent update a single widget without round-tripping the whole scene. Widget ids are now also stable across saves.
+- Feat: Docs page in the admin gained an in-page section filter (the entity reference is now searchable by domain) and a clipboard fallback that works under HA Ingress's plain-HTTP context.
+
 ## 0.3.0
 
 - Fix: Canvas `cosmos.subscribe(...)` now actually delivers entity state for canvas-only entities. Previously, an entity referenced ONLY by a canvas widget (not by any other widget on the scene) had its id added to `liveEntityIds` but its actual state was never shipped to the iframe — so `update` callbacks never fired and any UI driven by `cosmos.subscribe` rendered blank. The server now snapshots every canvas-referenced entity into a new `liveEntities` field on the scene push, the display merges them into the map forwarded to canvases, and HA state changes for those entities trigger a re-push so updates flow live.
