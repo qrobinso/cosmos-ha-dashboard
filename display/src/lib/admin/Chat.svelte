@@ -14,6 +14,10 @@
   let hasKey = false;
   let model = '';
   let loaded = false;
+  /** ms offset such that `clientTime + serverOffset ≈ serverTime`. Fetched
+   *  once on mount; applied to every rendered message timestamp so all
+   *  times show the server's clock, not the browser's. */
+  let serverOffset = 0;
 
   // Restore conversation from localStorage *before* mounting useChat — once
   // useChat is initialized its initialMessages can't be reset.
@@ -60,10 +64,18 @@
 
   onMount(async () => {
     try {
-      const settings = await api.agent.getSettings();
+      const [settings, serverTime] = await Promise.all([
+        api.agent.getSettings(),
+        api.agent.getServerTime().catch(() => null),
+      ]);
       hasKey = settings.hasKey;
       model = settings.model;
       confirmRequiredTools = settings.confirmRequiredTools ?? [];
+      // Account for round-trip: assume the server response was generated
+      // halfway between request and receipt. Cheap NTP-style estimate.
+      if (serverTime) {
+        serverOffset = serverTime.now - Date.now();
+      }
     } catch {
       // server might not be ready yet; the inline error banner will catch it.
     }
@@ -94,6 +106,37 @@
    *  User messages stay as plain text — the agent doesn't need to render their markdown. */
   function renderMarkdown(text: string): string {
     return marked.parse(text, { gfm: true, breaks: true, async: false }) as string;
+  }
+
+  /** Read a Message.createdAt regardless of whether it's a Date object (live)
+   *  or an ISO string (restored from localStorage), and shift to server time. */
+  function formatMessageTime(raw: unknown, offsetMs: number): { label: string; iso: string } {
+    let baseMs: number;
+    if (raw instanceof Date) {
+      baseMs = raw.getTime();
+    } else if (typeof raw === 'string') {
+      const parsed = Date.parse(raw);
+      baseMs = Number.isFinite(parsed) ? parsed : Date.now();
+    } else if (typeof raw === 'number') {
+      baseMs = raw;
+    } else {
+      baseMs = Date.now();
+    }
+    const serverMs = baseMs + offsetMs;
+    const d = new Date(serverMs);
+
+    // "Today at 6:32 PM" / "Yesterday at 6:32 PM" / "May 5 at 6:32 PM"
+    // Day-comparison uses server-shifted "now" so it matches the message side.
+    const nowD = new Date(Date.now() + offsetMs);
+    const sameDay = d.toDateString() === nowD.toDateString();
+    const yest = new Date(nowD.getTime() - 86400_000);
+    const isYesterday = d.toDateString() === yest.toDateString();
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    let label: string;
+    if (sameDay) label = `Today at ${time}`;
+    else if (isYesterday) label = `Yesterday at ${time}`;
+    else label = `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${time}`;
+    return { label, iso: d.toISOString() };
   }
 
   /** Pick the seasonal/holiday suggestion most relevant to a given date.
@@ -193,22 +236,26 @@
     {/if}
 
     {#each $messages as m (m.id)}
+      {@const ts = formatMessageTime(m.createdAt, serverOffset)}
       <div class="msg msg-{m.role}">
-        <div class="msg-bubble">
-          {#if m.content}
-            {#if m.role === 'assistant'}
-              <div class="md">{@html renderMarkdown(m.content)}</div>
-            {:else}
-              <div class="text">{m.content}</div>
+        <div class="msg-col">
+          <div class="msg-bubble">
+            {#if m.content}
+              {#if m.role === 'assistant'}
+                <div class="md">{@html renderMarkdown(m.content)}</div>
+              {:else}
+                <div class="text">{m.content}</div>
+              {/if}
             {/if}
-          {/if}
-          {#if m.toolInvocations}
-            <div class="tool-list">
-              {#each m.toolInvocations as inv (inv.toolCallId)}
-                <ChatToolCall invocation={inv} {confirmRequiredTools} {addToolResult} />
-              {/each}
-            </div>
-          {/if}
+            {#if m.toolInvocations}
+              <div class="tool-list">
+                {#each m.toolInvocations as inv (inv.toolCallId)}
+                  <ChatToolCall invocation={inv} {confirmRequiredTools} {addToolResult} />
+                {/each}
+              </div>
+            {/if}
+          </div>
+          <time class="msg-time" datetime={ts.iso}>{ts.label}</time>
         </div>
       </div>
     {/each}
@@ -395,8 +442,26 @@
   .msg-user { justify-content: flex-end; }
   .msg-assistant, .msg-error { justify-content: flex-start; }
 
-  .msg-bubble {
+  /* Stack the bubble + timestamp vertically so the time label sits just
+     under the bubble, hugged to the same edge as the bubble itself. */
+  .msg-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
     max-width: 85%;
+  }
+  .msg-user .msg-col { align-items: flex-end; }
+  .msg-assistant .msg-col, .msg-error .msg-col { align-items: flex-start; }
+
+  .msg-time {
+    font-size: 0.7rem;
+    color: var(--c-fg-3);
+    opacity: 0.7;
+    padding: 0 0.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .msg-bubble {
     padding: 0.75rem 1rem;
     border-radius: 1rem;
     font-size: 0.92rem;

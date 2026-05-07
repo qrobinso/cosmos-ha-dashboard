@@ -145,6 +145,10 @@ export const api = {
       await ensureOk(res);
       return (await res.json()) as { hasKey: boolean; model: string; confirmRequiredTools: string[] };
     },
+    async getServerTime(): Promise<{ now: number; iso: string }> {
+      const res = await fetch('/api/agent/time');
+      return (await res.json()) as { now: number; iso: string };
+    },
   },
   moods: {
     async list(): Promise<{ id: string; label: string; tags: string[] }[]> {

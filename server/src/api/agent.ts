@@ -46,6 +46,16 @@ export function registerAgentRoutes(app: FastifyInstance, deps: AgentRoutesDeps)
     };
   });
 
+  /** GET /api/agent/time — server's wall-clock at request time. Used by the
+   *  chat UI to anchor message timestamps to the server's clock instead of
+   *  the browser's (which can drift, especially on wall tablets that may
+   *  have NTP disabled). The browser computes offset = now - Date.now()
+   *  once on mount and applies it to every message's createdAt. */
+  app.get('/api/agent/time', async () => ({
+    now: Date.now(),
+    iso: new Date().toISOString(),
+  }));
+
   /** PUT /api/agent/settings — set the OpenRouter key and/or model. Pass
    *  empty string for `key` to clear; omit to leave unchanged. */
   app.put<{ Body: { key?: unknown; model?: unknown } }>(

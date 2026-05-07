@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.5
+
+- Feat: Each chat message now shows a timestamp ("Today at 6:32 PM" / "Yesterday at 6:32 PM" / "May 5 at 6:32 PM"), anchored to the **server's** clock instead of the browser's. The chat fetches the server time once on mount and applies the offset to every message — so timestamps stay consistent even on a wall tablet whose clock has drifted. New `GET /api/agent/time` endpoint backs it.
+
 ## 0.4.4
 
 - Tweak: Agent chat page is now sized to fit the viewport without scrolling — calc(100dvh - 6rem) on mobile, calc(100dvh - 8rem) on desktop, with min-height dropped to 22rem so it doesn't force overflow on small phones. Header wraps title + Clear button cleanly on narrow screens, model line is smaller and breaks long ids, scroll padding tightens, and the textarea uses 16px font (prevents iOS Safari zoom-on-focus). Mobile-friendly all the way down to a 320px viewport.
