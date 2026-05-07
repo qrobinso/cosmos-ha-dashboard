@@ -38,7 +38,7 @@
     // through the user. matches server's maxSteps.
     maxSteps: 5,
   });
-  const { messages, input, handleSubmit, isLoading, error, addToolResult, setMessages, stop } = chat;
+  const { messages, input, handleSubmit, isLoading, error, addToolResult, setMessages, stop, append } = chat;
 
   let scrollEl: HTMLDivElement;
   let inputEl: HTMLTextAreaElement;
@@ -95,6 +95,57 @@
   function renderMarkdown(text: string): string {
     return marked.parse(text, { gfm: true, breaks: true, async: false }) as string;
   }
+
+  /** Pick the seasonal/holiday suggestion most relevant to a given date.
+   *  Pure function — easy to unit-test and predictable across timezones (uses
+   *  the user's local date). */
+  function holidaySuggestion(now: Date): string | null {
+    const m = now.getMonth() + 1;
+    const d = now.getDate();
+    if (m === 12 && d <= 25) return 'Make a Christmas countdown scene';
+    if ((m === 12 && d >= 26) || (m === 1 && d <= 5)) return 'Build a New Year countdown scene';
+    if (m === 2 && d <= 14) return "Make a Valentine's Day scene with warm pinks";
+    if (m === 3 && d <= 17) return "Make a St. Patrick's Day scene";
+    if (m === 4) return 'Build a spring scene with soft pastel gradients';
+    if (m === 5) return 'Make a late-spring scene with garden vibes';
+    if (m === 6 || m === 7) return 'Build a summer scene with bright sunny colors';
+    if (m === 7 && d >= 1 && d <= 4) return 'Build a Fourth of July scene with red, white, and blue';
+    if (m === 8) return 'Make a hazy late-summer scene';
+    if (m === 9) return 'Make a cozy early-fall scene with autumn tones';
+    if (m === 10) return 'Build a Halloween-themed scene with spooky accents';
+    if (m === 11 && d <= 28) return 'Make a Thanksgiving warm-autumn scene';
+    if (m === 11 && d >= 29) return 'Make an early-holiday scene with twinkling lights';
+    return null;
+  }
+
+  /** Time-of-day suggestion. */
+  function timeOfDaySuggestion(now: Date): string {
+    const h = now.getHours();
+    if (h >= 5 && h < 11) return 'Make a bright morning scene with the time and weather';
+    if (h >= 11 && h < 17) return 'Build a daytime dashboard with my key sensors';
+    if (h >= 17 && h < 21) return 'Create a calming evening scene with warm tones';
+    return 'Make an ambient night scene with stars and the time';
+  }
+
+  /** Build a fresh list of clickable starter prompts. Re-runs on mount and
+   *  when the user clears history, so the wording feels current. */
+  function buildSuggestions(now: Date): string[] {
+    const out: string[] = [];
+    out.push(timeOfDaySuggestion(now));
+    const holiday = holidaySuggestion(now);
+    if (holiday) out.push(holiday);
+    out.push('Change the canvas on my main scene to use blue accents');
+    out.push('List my scenes');
+    return out;
+  }
+
+  // Recomputed each component mount + every render where $messages becomes
+  // empty again (after Clear). Suggestions are cheap, recompute is fine.
+  $: suggestions = $messages.length === 0 ? buildSuggestions(new Date()) : [];
+
+  function sendSuggestion(text: string) {
+    void append({ role: 'user', content: text });
+  }
 </script>
 
 <div class="chat">
@@ -129,12 +180,15 @@
     {#if $messages.length === 0}
       <div class="empty">
         <h2>What should I build?</h2>
-        <ul>
-          <li>"List my scenes"</li>
-          <li>"Make a kitchen morning scene with the time and a sunrise gradient"</li>
-          <li>"Change the canvas on the Energy scene to use blue accents"</li>
-          <li>"Activate the Morning scene on Living Room"</li>
-        </ul>
+        <p class="empty-sub">Tap a starter, or type your own ask below.</p>
+        <div class="suggestion-chips">
+          {#each suggestions as s (s)}
+            <button type="button" class="suggestion" on:click={() => sendSuggestion(s)}>
+              <span class="suggestion-icon" aria-hidden="true">✦</span>
+              <span>{s}</span>
+            </button>
+          {/each}
+        </div>
       </div>
     {/if}
 
@@ -279,22 +333,39 @@
   }
   .empty > * { pointer-events: auto; }
   .empty ul, .empty li { pointer-events: auto; }
-  .empty h2 { color: var(--c-fg-2); margin-bottom: 0.85rem; font-weight: 300; }
-  .empty ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  .empty h2 { color: var(--c-fg-2); margin-bottom: 0.4rem; font-weight: 300; max-width: 36rem; }
+  .empty-sub { color: var(--c-fg-3); font-size: 0.85rem; margin: 0 0 1rem; max-width: 36rem; }
+
+  .suggestion-chips {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    font-size: 0.9rem;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 36rem;
   }
-  .empty li {
+  .suggestion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    text-align: left;
     background: var(--c-surface-2);
-    padding: 0.5rem 0.85rem;
-    border-radius: var(--radius-sm);
     border: 1px solid var(--c-line);
+    color: var(--c-fg-2);
+    padding: 0.65rem 1rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease), transform 120ms var(--ease);
+    min-height: 0;
+    line-height: 1.3;
   }
+  .suggestion:hover {
+    background: var(--c-accent-tint);
+    border-color: var(--c-accent);
+    color: var(--c-fg);
+    transform: translateY(-1px);
+  }
+  .suggestion-icon { color: var(--c-accent); flex-shrink: 0; }
 
   .msg { display: flex; }
   .msg-user { justify-content: flex-end; }
@@ -378,9 +449,15 @@
   }
 
   .composer {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: flex-end;
+    /* flex: none locks the composer at content size — its height is the
+       tallest grid item (the textarea, capped at max-height below). Grid
+       inside, not flex, so `flex: 1` on the textarea can't accidentally
+       expand it cross-axis (the bug that was making this stretch up the
+       page when the chat history was empty). */
+    flex: none;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
     gap: 0.5rem;
     background: var(--c-surface);
     border: 1px solid var(--c-line);
@@ -388,7 +465,7 @@
     padding: 0.5rem;
   }
   .composer textarea {
-    flex: 1;
+    width: 100%;
     background: transparent;
     border: none;
     color: var(--c-fg);
@@ -398,11 +475,13 @@
     padding: 0.4rem 0.5rem;
     min-height: 2.4rem;
     max-height: 10rem;
+    box-sizing: border-box;
     outline: none;
   }
   .composer textarea:disabled { color: var(--c-fg-3); }
   .composer-actions {
     display: flex;
     gap: 0.4rem;
+    align-self: end;
   }
 </style>

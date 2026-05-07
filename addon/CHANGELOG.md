@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+- Fix: Composer no longer stretches up the page when the chat is empty. Switched the input box from a flex-row with `flex: 1` on the textarea (which was also expanding cross-axis) to a CSS grid with explicit columns; the textarea is now hard-capped at its `max-height: 10rem` regardless of how much vertical space is available.
+- Feat: Empty-state hints are now **clickable starter chips** that fire the prompt to the agent immediately. The list is generated each time you open the page (or clear history) based on the time of day (morning / daytime / evening / night) and the calendar (Christmas, New Year, Valentine's, Halloween, Thanksgiving, etc.) — so the suggestions always feel current.
+- Fix: The agent was inventing entity_ids (e.g. `weather.home`, `sensor.power`) it had never seen in the user's actual install, causing canvas widgets to render literal `{{ states("...") }}` text on the wall. The system prompt now has a much stronger "Entity ID Discipline" section that forbids guessing entity_ids, requires the agent to use only entities visible in the LIVE HA ENTITIES catalog (or a fresh `list_ha_entities` call), and mandates defensive defaults like `| default('—')` so unknown / unavailable states render as a dash instead of leaking the raw template.
+
 ## 0.4.2
 
 - Feat: Action chips appear in the agent chat after any scene-mutating tool finishes (`create_scene`, `update_scene`, `patch_widget`, `update_widget_content`). One chip opens the scene in the editor; another sends it to a display — single display = one-click; multiple displays = pop-up picker. Saves the user from chasing through the chat to find the next step.
