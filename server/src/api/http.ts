@@ -37,7 +37,7 @@ export function readSafeArea(settings: SettingsRepo): SafeArea {
  *  display for minutes. */
 export const DEFAULT_TRANSITION_SPEED = 1.0;
 export const MIN_TRANSITION_SPEED = 0.25;
-export const MAX_TRANSITION_SPEED = 3.0;
+export const MAX_TRANSITION_SPEED = 5.0;
 export function readTransitionSpeed(settings: SettingsRepo): number {
   const raw = settings.get('transition_speed_multiplier');
   if (!raw) return DEFAULT_TRANSITION_SPEED;

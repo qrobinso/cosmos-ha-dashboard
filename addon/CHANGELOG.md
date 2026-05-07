@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7
+
+- Tweak: Transition-speed multiplier now caps at 5× (was 3×), so very long, deliberate transitions are possible — useful for ambient / installation use cases.
+
 ## 0.2.6
 
 - Feat: New **Transition speed** control under Settings. Global multiplier applied to every scene transition's `out` and `in` phases — pick a preset (Slow / Normal / Fast) or fine-tune with a slider (0.25× – 3×). 1.0× is the baked-in default; lower is snappier, higher is more cinematic. Persists across restarts and applies on the next scene change.
