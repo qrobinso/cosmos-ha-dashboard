@@ -113,6 +113,11 @@ async function main() {
   // current scene id transitions from A→B, A is recorded as previous.
   const lastAnnouncedScene = new Map<string, string>();
   const previousSceneByDisplay = new Map<string, string>();
+  /** Wall-clock time of the most recent scene change per display. Reactive
+   *  HA-driven re-pushes that fall inside the transition window
+   *  (TRANSITION_QUIET_MS) are deferred so the in-flight CSS animation isn't
+   *  competing with main-thread JSON parsing + Svelte rerenders. */
+  const lastSceneChangeAt = new Map<string, number>();
   const onSceneChanged = (
     displayId: string,
     opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
@@ -126,6 +131,7 @@ async function main() {
       if (prev && prev !== cur) previousSceneByDisplay.set(displayId, prev);
       if (cur) lastAnnouncedScene.set(displayId, cur);
     }
+    lastSceneChangeAt.set(displayId, Date.now());
     wssRef
       ?.pushSceneTo(displayId, { explicitTransitionId: opts?.explicitTransitionId })
       .catch((err) => console.error('pushSceneTo failed', err));
@@ -271,17 +277,39 @@ async function main() {
   // We coalesce per-display dirty flags and flush them ~50ms later in one batch.
   const dirtyDisplays = new Set<string>();
   let dirtyFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Debounce window for entity-driven re-pushes. 250 ms is well below human
+   *  perception for ambient state updates and caps push rate at 4 Hz, which
+   *  is plenty for a wall display. Below this, a chatty entity (e.g. power
+   *  meter ticking every 100 ms) saturates the WS and the display's main
+   *  thread can't keep up with the CSS animation pipeline. */
+  const DIRTY_FLUSH_MS = 250;
+  /** During this many ms after a scene change, defer reactive re-pushes so
+   *  the in-flight transition animation has the main thread to itself. The
+   *  longest builtin transition is ~1100 ms; 1200 gives a small buffer. */
+  const TRANSITION_QUIET_MS = 1200;
   function markDisplayDirty(displayId: string) {
     dirtyDisplays.add(displayId);
     if (dirtyFlushTimer) return;
-    dirtyFlushTimer = setTimeout(() => {
-      dirtyFlushTimer = null;
-      const ids = Array.from(dirtyDisplays);
-      dirtyDisplays.clear();
-      for (const id of ids) {
-        wssRef?.pushSceneTo(id).catch((err) => console.error('pushSceneTo failed', err));
+    dirtyFlushTimer = setTimeout(flushDirty, DIRTY_FLUSH_MS);
+  }
+  function flushDirty() {
+    dirtyFlushTimer = null;
+    const now = Date.now();
+    const ids = Array.from(dirtyDisplays);
+    let earliestUnblock = Infinity;
+    for (const id of ids) {
+      const since = now - (lastSceneChangeAt.get(id) ?? 0);
+      if (since < TRANSITION_QUIET_MS) {
+        // Keep this id in the dirty set; we'll retry once the transition window closes.
+        earliestUnblock = Math.min(earliestUnblock, TRANSITION_QUIET_MS - since);
+        continue;
       }
-    }, 50);
+      dirtyDisplays.delete(id);
+      wssRef?.pushSceneTo(id).catch((err) => console.error('pushSceneTo failed', err));
+    }
+    if (dirtyDisplays.size > 0 && Number.isFinite(earliestUnblock)) {
+      dirtyFlushTimer = setTimeout(flushDirty, earliestUnblock);
+    }
   }
 
   const templatesClient = haClient ? createTemplatesClient(haClient.connection) : null;

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5
+
+- Fix: Smoother animations on real Home Assistant deployments. The server's reactive scene-push debounce was 50 ms, which let chatty entities (power meters, anything with `relative_time(...)` in a template) flood the WebSocket at 20 Hz and starve the display's main thread mid-transition. Bumped to 250 ms (caps push rate at 4 Hz — still imperceptible for ambient data). On top of that, dirty-flushes are now deferred for 1.2 s after every scene change so the in-flight CSS transition has the main thread to itself. Local instances with mock data were never affected; this only matters for live HA setups.
+
 ## 0.2.4
 
 - Feat: Scene alerts now expose a proper picker UI in the Home Assistant automation builder. Each display gets three new entities: `select.cosmos_<display>_alert_scene` (which scene to flash, populated with all your scene names), `number.cosmos_<display>_alert_dwell` (how long, in seconds), and `button.cosmos_<display>_alert_fire` (press to fire). In an automation, set the select + number, then press the button — same flow as a thermostat. Picks persist across server restarts. The legacy `notify.cosmos_<display>_show_alert` stays for direct mqtt/notify use.
