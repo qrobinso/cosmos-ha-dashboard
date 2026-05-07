@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.4
+
+- Tweak: Agent chat page is now sized to fit the viewport without scrolling — calc(100dvh - 6rem) on mobile, calc(100dvh - 8rem) on desktop, with min-height dropped to 22rem so it doesn't force overflow on small phones. Header wraps title + Clear button cleanly on narrow screens, model line is smaller and breaks long ids, scroll padding tightens, and the textarea uses 16px font (prevents iOS Safari zoom-on-focus). Mobile-friendly all the way down to a 320px viewport.
+
 ## 0.4.3
 
 - Fix: Composer no longer stretches up the page when the chat is empty. Switched the input box from a flex-row with `flex: 1` on the textarea (which was also expanding cross-axis) to a CSS grid with explicit columns; the textarea is now hard-capped at its `max-height: 10rem` regardless of how much vertical space is available.

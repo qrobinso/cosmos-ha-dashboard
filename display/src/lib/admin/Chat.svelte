@@ -258,15 +258,20 @@
 
 <style>
   .chat {
-    /* Flex column with min-height:0 on the scroll child is the standard
-       robust pattern for "fill remaining height; scroll the middle". The
-       100dvh handles mobile address-bar shrink correctly. The fixed minus
-       accounts for the topbar (~60px) + admin-main vertical padding. */
+    /* Pin the chat to the viewport so the page itself never scrolls. The
+       .scroll child handles overflow. Chrome math:
+         topbar           ~3.5rem (mobile) / ~3.75rem (desktop)
+         admin-main pad   2rem (mobile) / 4rem (desktop)
+         our gap+slop     ~0.5rem
+       100dvh handles mobile keyboard / address-bar shrink correctly. */
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    height: calc(100dvh - 7rem);
-    min-height: 30rem;
+    gap: 0.85rem;
+    height: calc(100dvh - 6rem);
+    min-height: 22rem;
+  }
+  @media (min-width: 720px) {
+    .chat { height: calc(100dvh - 8rem); }
   }
 
   .chat-header {
@@ -274,16 +279,31 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .chat-header h1 {
+    /* Smaller on mobile so the title + Clear button fit on one row. */
+    font-size: clamp(1.15rem, 4.5vw, 2rem);
+    line-height: 1.15;
+    margin-top: 0.15rem;
   }
   .clear-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
     flex-shrink: 0;
+    /* Slightly smaller on mobile so it doesn't dominate the title. */
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+    min-height: 0;
   }
-  .chat-header h1 { font-size: clamp(1.5rem, 3vw, 2rem); margin-top: 0.2rem; }
-  .model-line { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--c-fg-3); }
+  .model-line {
+    margin: 0.3rem 0 0;
+    font-size: 0.75rem;
+    color: var(--c-fg-3);
+    word-break: break-all;
+  }
   .model-line code { font-family: ui-monospace, 'JetBrains Mono', monospace; }
   .muted { color: var(--c-fg-3); }
 
@@ -307,14 +327,14 @@
     background: var(--c-surface);
     border: 1px solid var(--c-line);
     border-radius: var(--radius-sm);
-    padding: 1rem;
+    padding: 0.75rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    /* When .empty is the only child, anchor it to the visual center via the
-       container's own justify-content. .msg children override with default
-       flex-start naturally — they layer at the top once any history exists. */
+    gap: 0.85rem;
     position: relative;
+  }
+  @media (min-width: 600px) {
+    .scroll { padding: 1rem; gap: 1rem; }
   }
 
   .empty {
@@ -328,8 +348,12 @@
     justify-content: center;
     text-align: center;
     color: var(--c-fg-3);
-    padding: 2rem;
+    padding: 1rem;
     pointer-events: none;
+    overflow-y: auto;
+  }
+  @media (min-width: 600px) {
+    .empty { padding: 2rem; }
   }
   .empty > * { pointer-events: auto; }
   .empty ul, .empty li { pointer-events: auto; }
@@ -458,11 +482,11 @@
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: end;
-    gap: 0.5rem;
+    gap: 0.4rem;
     background: var(--c-surface);
     border: 1px solid var(--c-line);
     border-radius: var(--radius-sm);
-    padding: 0.5rem;
+    padding: 0.4rem;
   }
   .composer textarea {
     width: 100%;
@@ -470,13 +494,19 @@
     border: none;
     color: var(--c-fg);
     font-family: inherit;
-    font-size: 0.95rem;
+    /* 16px base prevents iOS Safari zooming the viewport on focus. */
+    font-size: 1rem;
     resize: none;
     padding: 0.4rem 0.5rem;
-    min-height: 2.4rem;
-    max-height: 10rem;
+    min-height: 2.6rem;
+    /* Cap mobile shorter than desktop so the keyboard doesn't push the
+       message area too small when the textarea grows. */
+    max-height: 6.5rem;
     box-sizing: border-box;
     outline: none;
+  }
+  @media (min-width: 720px) {
+    .composer textarea { max-height: 10rem; }
   }
   .composer textarea:disabled { color: var(--c-fg-3); }
   .composer-actions {
