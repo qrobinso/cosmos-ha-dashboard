@@ -92,7 +92,7 @@ export function registerDocsRoutes(app: FastifyInstance, deps: DocsRoutesDeps): 
 /** Render the current HA entity cache as agent-friendly markdown. Grouped by
  *  domain, with the entity_id, friendly_name, state, unit, and device_class
  *  (when present). The whole page is a static snapshot — refresh to update. */
-function renderHaEntitiesDoc(haClient: HaClient | null): string {
+export function renderHaEntitiesDoc(haClient: HaClient | null): string {
   const header =
     `# Home Assistant entities (live)\n\n` +
     `> Snapshot of every entity Cosmos has cached from your Home Assistant install.\n` +

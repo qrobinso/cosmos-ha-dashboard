@@ -381,6 +381,33 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       return updated;
     }
   );
+
+  /** DELETE /api/widgets/:widgetId — remove a single widget from its parent
+   *  scene. Returns the updated scene, re-pushes to displays. Used by the
+   *  in-product agent's confirm-required `delete_widget` tool. */
+  app.delete<{ Params: { widgetId: string } }>(
+    '/api/widgets/:widgetId',
+    async (req, reply) => {
+      const widgetId = req.params.widgetId;
+      const found = findWidgetWithScene(widgetId, deps);
+      if (!found) return reply.code(404).send({ error: 'widget not found' });
+      const { scene, index } = found;
+      const newWidgets = scene.widgets.filter((_, i) => i !== index);
+      const updated = deps.scenes.update(scene.id, {
+        name: scene.name,
+        layout: scene.layout,
+        background: scene.background,
+        typography: scene.typography,
+        defaultTransitionId: scene.defaultTransitionId,
+        floatWidgets: scene.floatWidgets,
+        mood: scene.mood,
+        widgets: newWidgets.map((w) => ({ id: w.id, kind: w.kind, position: w.position, config: w.config })),
+      });
+      notifyAffectedDisplays(scene.id, deps);
+      deps.onScenesMutated?.();
+      return updated;
+    }
+  );
 }
 
 /** Find a widget by id across all scenes, returning the parent scene + index

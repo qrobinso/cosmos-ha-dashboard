@@ -12,6 +12,14 @@
   let savingSpeed = false;
   let savedSpeed = false;
 
+  // Agent (OpenRouter) settings — key is never returned from the server, so the
+  // input is empty by default; submitting an empty string clears the stored key.
+  let agentKeyInput = '';
+  let agentModel = '';
+  let agentHasKey = false;
+  let savingAgent = false;
+  let savedAgent = false;
+
   /** Three named presets map to multipliers; the slider stores the raw number. */
   const SPEED_PRESETS: { label: string; value: number }[] = [
     { label: 'Slow', value: 1.5 },
@@ -20,13 +28,16 @@
   ];
 
   onMount(async () => {
-    const [sa, ts] = await Promise.all([
+    const [sa, ts, ag] = await Promise.all([
       api.settings.getSafeArea(),
       api.settings.getTransitionSpeed(),
+      api.agent.getSettings().catch(() => ({ hasKey: false, model: '', confirmRequiredTools: [] })),
     ]);
     safeArea = sa;
     transitionSpeed = ts.multiplier;
     transitionSpeedRange = { min: ts.min, max: ts.max, default: ts.default };
+    agentHasKey = ag.hasKey;
+    agentModel = ag.model;
     loaded = true;
   });
 
@@ -61,6 +72,38 @@
 
   function pickPreset(value: number) {
     transitionSpeed = value;
+  }
+
+  async function saveAgent() {
+    savingAgent = true;
+    savedAgent = false;
+    try {
+      const payload: { key?: string; model?: string } = {};
+      if (agentModel.trim()) payload.model = agentModel.trim();
+      if (agentKeyInput) payload.key = agentKeyInput;
+      const res = await api.agent.updateSettings(payload);
+      agentHasKey = res.hasKey;
+      agentModel = res.model;
+      agentKeyInput = ''; // never echo the key back
+      savedAgent = true;
+      setTimeout(() => (savedAgent = false), 2000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'save failed');
+    } finally {
+      savingAgent = false;
+    }
+  }
+
+  async function clearAgentKey() {
+    if (!confirm('Clear the OpenRouter key? The agent will be disabled until you set a new one.')) return;
+    savingAgent = true;
+    try {
+      const res = await api.agent.updateSettings({ key: '' });
+      agentHasKey = res.hasKey;
+      agentKeyInput = '';
+    } finally {
+      savingAgent = false;
+    }
   }
 </script>
 
@@ -132,6 +175,47 @@
         {savingSpeed ? 'Saving…' : 'Save changes'}
       </button>
       {#if savedSpeed}<span class="status"><span class="check">✓</span> Saved</span>{/if}
+    </div>
+  </section>
+
+  <section class="card reveal reveal-4">
+    <h2>AI agent</h2>
+    <p class="hint">
+      Cosmos can use an LLM via <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a>
+      to generate scenes and canvas widgets from natural-language asks. Your key stays on this server;
+      only the prompts and responses go over the wire.
+    </p>
+
+    <Field label="OpenRouter API key">
+      <input
+        type="password"
+        bind:value={agentKeyInput}
+        placeholder={agentHasKey ? '••••••••• (key is set — type to replace)' : 'sk-or-v1-…'}
+        autocomplete="off"
+      />
+    </Field>
+
+    <Field label="Model">
+      <input
+        type="text"
+        bind:value={agentModel}
+        placeholder="anthropic/claude-sonnet-4-6"
+        autocomplete="off"
+      />
+    </Field>
+    <p class="hint" style="margin-top: 0.25rem;">
+      Anything from <a href="https://openrouter.ai/models" target="_blank" rel="noopener">openrouter.ai/models</a>.
+      Recommended: <code>anthropic/claude-sonnet-4-6</code>, <code>openai/gpt-5</code>, <code>google/gemini-2.5-pro</code>.
+    </p>
+
+    <div class="actions">
+      <button class="primary" on:click={saveAgent} disabled={savingAgent || (!agentKeyInput && !agentModel.trim())}>
+        {savingAgent ? 'Saving…' : 'Save changes'}
+      </button>
+      {#if agentHasKey}
+        <button class="ghost" on:click={clearAgentKey} disabled={savingAgent}>Clear key</button>
+      {/if}
+      {#if savedAgent}<span class="status"><span class="check">✓</span> Saved</span>{/if}
     </div>
   </section>
 {/if}

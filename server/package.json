@@ -10,12 +10,15 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^0.0.72",
     "@fastify/static": "^7.0.4",
+    "ai": "^3.4.33",
     "better-sqlite3": "^11.0.0",
     "fastify": "^4.28.0",
     "home-assistant-js-websocket": "^9.6.0",
     "mqtt": "^5.15.1",
-    "ws": "^8.17.0"
+    "ws": "^8.17.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.10",

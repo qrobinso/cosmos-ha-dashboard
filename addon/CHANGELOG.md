@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Feat: **In-product agent** at `/admin/agent`. Type natural-language asks — "make me a kitchen morning tile", "change the canvas to use blue accents", "activate the Morning scene on Living Room" — and Cosmos uses an LLM via OpenRouter to inspect and modify your scenes and canvas widgets directly. Set your OpenRouter API key + model under Settings → **AI agent**. Activate / delete actions surface a confirm card in the chat before anything lands; everything else (create, patch, content updates) auto-executes. Conversation persists per-browser. The system prompt bundles the existing scene + canvas-widget agent contracts plus a live snapshot of your HA entity catalog, so the model has correct entity_ids for your specific install.
+
 ## 0.3.2
 
 - Fix: Glitchy/slow scene transitions when switching between canvas scenes and non-canvas scenes. Two compounding leaks were forcing redundant scene re-pushes during transitions: (1) iframe-side `cosmos.subscribe(...)` extras kept growing across scene switches because they were only cleared on full display disconnect; (2) HA template subscriptions for canvas widgets that no longer existed in any scene kept firing entity-update callbacks forever. The extras store now prunes per-display on every scene push to keep only widget ids actually on the new scene, and the canvas resolver now garbage-collects subscriptions for removed widgets after every scene/widget mutation. Also added a 5-second hard cap on the canvas iframe's ready-emission loop so a torn-down iframe can't keep running its 200ms heartbeat in the detached context.

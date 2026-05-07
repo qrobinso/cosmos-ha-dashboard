@@ -93,6 +93,11 @@
   <span class="eyebrow">Overview</span>
   <h1>Your displays, at a glance.</h1>
   <p>Live previews of every connected wall display. Tap a chip to switch a display's scene — every change broadcasts instantly.</p>
+  <a class="agent-cta" href="/admin/agent">
+    <span class="agent-cta-icon" aria-hidden="true">✨</span>
+    <span class="agent-cta-label">Ask the agent</span>
+    <span class="agent-cta-arrow" aria-hidden="true">→</span>
+  </a>
 </header>
 
 {#if loading}
@@ -231,6 +236,29 @@
     line-height: 1.15;
   }
   .hero p { font-size: 1rem; }
+
+  .agent-cta {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.4rem;
+    padding: 0.65rem 1.1rem;
+    border-radius: 999px;
+    background: var(--c-accent-tint);
+    border: 1px solid var(--c-accent);
+    color: var(--c-fg);
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: background 150ms var(--ease), transform 150ms var(--ease);
+  }
+  .agent-cta:hover { background: color-mix(in srgb, var(--c-accent) 25%, var(--c-surface)); transform: translateY(-1px); }
+  .agent-cta-arrow { transition: transform 200ms var(--ease); }
+  .agent-cta:hover .agent-cta-arrow { transform: translateX(2px); }
+  @media (max-width: 480px) {
+    .agent-cta { width: 100%; justify-content: center; align-self: stretch; }
+  }
 
   .loading { color: var(--c-fg-3); }
 

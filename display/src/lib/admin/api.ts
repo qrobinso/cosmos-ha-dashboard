@@ -131,6 +131,21 @@ export const api = {
       return jsonOr(await fetch(url), []);
     },
   },
+  agent: {
+    async getSettings(): Promise<{ hasKey: boolean; model: string; confirmRequiredTools: string[] }> {
+      const res = await fetch('/api/agent/settings');
+      return (await res.json()) as { hasKey: boolean; model: string; confirmRequiredTools: string[] };
+    },
+    async updateSettings(payload: { key?: string; model?: string }): Promise<{ hasKey: boolean; model: string; confirmRequiredTools: string[] }> {
+      const res = await fetch('/api/agent/settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      await ensureOk(res);
+      return (await res.json()) as { hasKey: boolean; model: string; confirmRequiredTools: string[] };
+    },
+  },
   moods: {
     async list(): Promise<{ id: string; label: string; tags: string[] }[]> {
       return jsonOr(await fetch('/api/moods'), []);
