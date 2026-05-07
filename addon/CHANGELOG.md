@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Fix: Glitchy/slow scene transitions when switching between canvas scenes and non-canvas scenes. Two compounding leaks were forcing redundant scene re-pushes during transitions: (1) iframe-side `cosmos.subscribe(...)` extras kept growing across scene switches because they were only cleared on full display disconnect; (2) HA template subscriptions for canvas widgets that no longer existed in any scene kept firing entity-update callbacks forever. The extras store now prunes per-display on every scene push to keep only widget ids actually on the new scene, and the canvas resolver now garbage-collects subscriptions for removed widgets after every scene/widget mutation. Also added a 5-second hard cap on the canvas iframe's ready-emission loop so a torn-down iframe can't keep running its 200ms heartbeat in the detached context.
+
 ## 0.3.1
 
 - Change: Removed the nightly 04:00 self-reload. The reload was defensive insurance against Chromium media-pipeline memory creep on long-running displays, but the cost — Android Chrome dropping fullscreen every morning, requiring a tap to recover — exceeded the benefit. Other long-running mitigations (WebSocket heartbeat + clean reconnect, minute-anchored clock, MoodLayer reuse on shared mood URLs, FitContent timeout cleanup, transform-based gradient animation) all stay in place. If memory creep ever shows up in practice this can come back as an opt-in setting.

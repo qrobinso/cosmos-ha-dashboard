@@ -18,7 +18,10 @@ export type CanvasResolver = (widgetId: string, content: string) => Promise<{
 export function createCanvasResolver(
   templates: TemplatesClient | null,
   onUpdate: (widgetId: string) => void,
-): CanvasResolver & { dispose(widgetId?: string): void } {
+): CanvasResolver & {
+  dispose(widgetId?: string): void;
+  gc(liveWidgetIds: Iterable<string>): void;
+} {
   const cleanups = new Map<string, () => void>();
 
   const resolver: CanvasResolver = async (widgetId, content) => {
@@ -46,6 +49,19 @@ export function createCanvasResolver(
       }
       cleanups.get(widgetId)?.();
       cleanups.delete(widgetId);
+    },
+    /** Drop subscriptions for any widget id NOT in `liveWidgetIds`. Called
+     *  after scene mutations so canvases that were removed from every scene
+     *  release their HA template subscriptions instead of firing onUpdate
+     *  forever (which would force unnecessary scene re-pushes). */
+    gc(liveWidgetIds: Iterable<string>) {
+      const live = liveWidgetIds instanceof Set ? liveWidgetIds : new Set(liveWidgetIds);
+      for (const [id, cleanup] of cleanups) {
+        if (!live.has(id)) {
+          cleanup();
+          cleanups.delete(id);
+        }
+      }
     },
   });
 }

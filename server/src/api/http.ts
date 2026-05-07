@@ -66,6 +66,10 @@ export type HttpDeps = {
   onRotationChanged?: (displayId: string) => void;
   onDisplayConfigChanged?: (displayId: string) => void;
   onScenesListChanged?: () => void;
+  /** Fired after any successful scene OR widget mutation. The host wires
+   *  this to GC the canvas resolver — without it, removed canvas widgets
+   *  leave their HA template subscriptions registered forever. */
+  onScenesMutated?: () => void;
   onDisplayDeleted?: (displayId: string, name: string) => void;
   canvasExtras?: CanvasExtrasStore;
   onCanvasExtrasChanged?: (displayName: string) => void;
@@ -138,6 +142,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     onRotationChanged: deps.onRotationChanged,
     onDisplayConfigChanged: deps.onDisplayConfigChanged,
     onScenesListChanged: deps.onScenesListChanged,
+    onScenesMutated: deps.onScenesMutated,
     onDisplayDeleted: deps.onDisplayDeleted,
     alerts: deps.alerts,
   });

@@ -55,6 +55,11 @@ export type SceneRoutesDeps = {
   /** Fired when a scene is created, renamed, or deleted — used to
    *  refresh MQTT discovery's scene-select options list. */
   onScenesListChanged?: () => void;
+  /** Fired after any successful scene OR widget mutation (create, full
+   *  update, delete, widget patch, widget content update). The host uses
+   *  this to GC the canvas resolver — without it, subscriptions for
+   *  removed canvas widgets keep firing entity-update callbacks forever. */
+  onScenesMutated?: () => void;
   /** Fired when a display is deleted, with the display id + name. Used
    *  to drop in-memory state, MQTT discovery entries, and rotation timers. */
   onDisplayDeleted?: (displayId: string, name: string) => void;
@@ -69,6 +74,7 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     if (!v.ok) return reply.code(400).send({ error: v.error });
     const created = deps.scenes.create(v.value);
     deps.onScenesListChanged?.();
+    deps.onScenesMutated?.();
     return created;
   });
 
@@ -88,6 +94,7 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     const updated = deps.scenes.update(req.params.id, v.value);
     notifyAffectedDisplays(req.params.id, deps);
     if (existing.name !== updated.name) deps.onScenesListChanged?.();
+    deps.onScenesMutated?.();
     return updated;
   });
 
@@ -96,6 +103,7 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     if (!existing) return reply.code(404).send({ error: 'not found' });
     deps.scenes.delete(req.params.id);
     deps.onScenesListChanged?.();
+    deps.onScenesMutated?.();
     return reply.code(204).send();
   });
 
@@ -322,6 +330,7 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
         widgets: newWidgets.map((w) => ({ id: w.id, kind: w.kind, position: w.position, config: w.config })),
       });
       notifyAffectedDisplays(scene.id, deps);
+      deps.onScenesMutated?.();
       return updated;
     }
   );
@@ -368,6 +377,7 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
         widgets: newWidgets.map((w) => ({ id: w.id, kind: w.kind, position: w.position, config: w.config })),
       });
       notifyAffectedDisplays(scene.id, deps);
+      deps.onScenesMutated?.();
       return updated;
     }
   );

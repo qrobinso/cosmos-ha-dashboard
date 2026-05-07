@@ -206,6 +206,7 @@ async function main() {
     onRotationChanged,
     onDisplayConfigChanged: (displayId) => wssRef?.pushDisplayConfigTo(displayId),
     onScenesListChanged,
+    onScenesMutated: () => gcCanvasResolver(),
     onDisplayDeleted,
     canvasExtras,
     onCanvasExtrasChanged: (displayName) => {
@@ -347,8 +348,25 @@ async function main() {
       return all;
     },
     canvasExtrasOnDisconnect: (displayName) => canvasExtras.clearDisplay(displayName),
+    canvasExtrasPruneForDisplay: (displayName, keepWidgetIds) =>
+      canvasExtras.pruneDisplay(displayName, keepWidgetIds),
   });
   wssRef = wss;
+
+  /** Drop HA template subscriptions for canvas widgets that no longer exist
+   *  in any stored scene. Called after scene/widget mutations — without
+   *  this, removing a canvas widget leaves its subscription firing
+   *  onUpdate(widgetId) for every entity tick, queuing scene re-pushes
+   *  that the display will then have to discard. */
+  function gcCanvasResolver() {
+    const live = new Set<string>();
+    for (const s of scenes.list()) {
+      for (const w of s.widgets) {
+        if (w.kind === 'canvas') live.add(w.id);
+      }
+    }
+    canvasResolver.gc(live);
+  }
 
   let unsubHaStateChange: (() => void) | null = null;
   if (haClient) {

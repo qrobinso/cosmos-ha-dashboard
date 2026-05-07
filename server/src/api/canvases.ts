@@ -14,6 +14,11 @@ export type CanvasExtrasStore = {
   /** Drop all extras for the given display (called from the WS hub when
    *  a display disconnects). */
   clearDisplay(displayName: string): void;
+  /** Drop extras for any widget id NOT in `keepWidgetIds` for this display.
+   *  Called on every scene push so when a display switches to a scene
+   *  without a given canvas (or with a different one), the iframe-side
+   *  subscriptions for the gone canvas don't keep forcing re-pushes. */
+  pruneDisplay(displayName: string, keepWidgetIds: Iterable<string>): void;
 };
 
 export function createCanvasExtrasStore(): CanvasExtrasStore {
@@ -48,6 +53,15 @@ export function createCanvasExtrasStore(): CanvasExtrasStore {
     },
     clearDisplay(displayName) {
       byDisplay.delete(displayName);
+    },
+    pruneDisplay(displayName, keepWidgetIds) {
+      const perDisplay = byDisplay.get(displayName);
+      if (!perDisplay) return;
+      const keep = keepWidgetIds instanceof Set ? keepWidgetIds : new Set(keepWidgetIds);
+      for (const id of perDisplay.keys()) {
+        if (!keep.has(id)) perDisplay.delete(id);
+      }
+      if (perDisplay.size === 0) byDisplay.delete(displayName);
     },
   };
 }

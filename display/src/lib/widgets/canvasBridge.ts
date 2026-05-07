@@ -88,11 +88,18 @@ export const CANVAS_BRIDGE_SCRIPT = `
     try { window.parent.postMessage({ type: 'cosmos:ready' }, '*'); } catch (e) {}
   }
   emitReady();
+  // Hard-cap the ready-emission loop. If the parent never responds (e.g. the
+  // iframe is being torn down mid-handshake during a rapid scene swap), the
+  // interval would otherwise keep firing in the detached iframe context until
+  // GC catches it — adding a few stray ticks per leaked iframe over time.
+  // 25 attempts * 200ms = 5s; if init hasn't arrived by then, it's not coming.
+  var readyAttempts = 0;
   readyInterval = setInterval(function () {
-    if (initReceived) {
+    if (initReceived || readyAttempts >= 25) {
       if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
       return;
     }
+    readyAttempts++;
     emitReady();
   }, 200);
 })();

@@ -27,6 +27,11 @@ export type WsDeps = {
   canvasResolver?: import('../scenes/assembler.js').DataResolvers['canvasResolver'];
   canvasExtras?: import('../scenes/assembler.js').DataResolvers['canvasExtras'];
   canvasExtrasOnDisconnect?: (displayName: string) => void;
+  /** Called from buildPayload before sending so iframe-side subscriptions
+   *  for canvases NOT on the new scene get released. Without this, switching
+   *  away from a canvas scene leaves the old subscriptions queuing scene
+   *  re-pushes for entity changes nothing on the current scene cares about. */
+  canvasExtrasPruneForDisplay?: (displayName: string, keepWidgetIds: Iterable<string>) => void;
 };
 
 export type CosmosWss = WebSocketServer & {
@@ -104,6 +109,20 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       canvasExtras: deps.canvasExtras,
     });
     lastSceneByDisplay.set(displayId, scene.id);
+
+    // Prune iframe-side subscriptions for canvases not on this scene.
+    // Without this the extras union grows monotonically across scene
+    // switches, forcing redundant scene re-pushes on entity changes that
+    // nothing on the current scene actually renders.
+    if (deps.canvasExtrasPruneForDisplay) {
+      const display = deps.displays.getById(displayId);
+      if (display) {
+        const canvasIdsOnScene = new Set<string>();
+        for (const w of scene.widgets) if (w.kind === 'canvas') canvasIdsOnScene.add(w.id);
+        deps.canvasExtrasPruneForDisplay(display.name, canvasIdsOnScene);
+      }
+    }
+
     deps.onSceneActivated?.(displayId, scene.name);
     return JSON.stringify(payload);
   }
