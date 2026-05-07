@@ -31,6 +31,21 @@ export function readSafeArea(settings: SettingsRepo): SafeArea {
   }
 }
 
+/** Global multiplier applied to every transition's `out` and `in` durations
+ *  before the descriptor is sent to the display. 1.0 = baked-in builtin
+ *  durations; <1 = faster; >1 = slower. Clamped so a typo can't freeze the
+ *  display for minutes. */
+export const DEFAULT_TRANSITION_SPEED = 1.0;
+export const MIN_TRANSITION_SPEED = 0.25;
+export const MAX_TRANSITION_SPEED = 3.0;
+export function readTransitionSpeed(settings: SettingsRepo): number {
+  const raw = settings.get('transition_speed_multiplier');
+  if (!raw) return DEFAULT_TRANSITION_SPEED;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_TRANSITION_SPEED;
+  return Math.min(MAX_TRANSITION_SPEED, Math.max(MIN_TRANSITION_SPEED, n));
+}
+
 export type HttpDeps = {
   displays: DisplaysRepo;
   settings: SettingsRepo;
@@ -82,6 +97,24 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     deps.settings.set('safe_area_padding', JSON.stringify(merged));
     deps.onSettingsChanged?.();
     return merged;
+  });
+
+  app.get('/api/settings/transition-speed', async () => ({
+    multiplier: readTransitionSpeed(deps.settings),
+    min: MIN_TRANSITION_SPEED,
+    max: MAX_TRANSITION_SPEED,
+    default: DEFAULT_TRANSITION_SPEED,
+  }));
+  app.put<{ Body: { multiplier?: unknown } }>('/api/settings/transition-speed', async (req, reply) => {
+    const n = Number(req.body?.multiplier);
+    if (!Number.isFinite(n) || n < MIN_TRANSITION_SPEED || n > MAX_TRANSITION_SPEED) {
+      return reply.code(400).send({
+        error: `multiplier must be a number between ${MIN_TRANSITION_SPEED} and ${MAX_TRANSITION_SPEED}`,
+      });
+    }
+    deps.settings.set('transition_speed_multiplier', String(n));
+    deps.onSettingsChanged?.();
+    return { multiplier: n };
   });
 
   registerTransitionRoutes(app, deps.transitions);

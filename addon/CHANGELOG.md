@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.6
+
+- Feat: New **Transition speed** control under Settings. Global multiplier applied to every scene transition's `out` and `in` phases — pick a preset (Slow / Normal / Fast) or fine-tune with a slider (0.25× – 3×). 1.0× is the baked-in default; lower is snappier, higher is more cinematic. Persists across restarts and applies on the next scene change.
+
 ## 0.2.5
 
 - Fix: Smoother animations on real Home Assistant deployments. The server's reactive scene-push debounce was 50 ms, which let chatty entities (power meters, anything with `relative_time(...)` in a template) flood the WebSocket at 20 Hz and starve the display's main thread mid-transition. Bumped to 250 ms (caps push rate at 4 Hz — still imperceptible for ambient data). On top of that, dirty-flushes are now deferred for 1.2 s after every scene change so the in-flight CSS transition has the main thread to itself. Local instances with mock data were never affected; this only matters for live HA setups.

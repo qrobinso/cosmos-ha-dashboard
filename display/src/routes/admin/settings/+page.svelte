@@ -4,12 +4,29 @@
   import Field from '$lib/admin/Field.svelte';
 
   let safeArea = { top: 16, right: 16, bottom: 16, left: 16 };
+  let transitionSpeed = 1.0;
+  let transitionSpeedRange = { min: 0.25, max: 3.0, default: 1.0 };
   let loaded = false;
   let saving = false;
   let saved = false;
+  let savingSpeed = false;
+  let savedSpeed = false;
+
+  /** Three named presets map to multipliers; the slider stores the raw number. */
+  const SPEED_PRESETS: { label: string; value: number }[] = [
+    { label: 'Slow', value: 1.5 },
+    { label: 'Normal', value: 1.0 },
+    { label: 'Fast', value: 0.6 },
+  ];
 
   onMount(async () => {
-    safeArea = await api.settings.getSafeArea();
+    const [sa, ts] = await Promise.all([
+      api.settings.getSafeArea(),
+      api.settings.getTransitionSpeed(),
+    ]);
+    safeArea = sa;
+    transitionSpeed = ts.multiplier;
+    transitionSpeedRange = { min: ts.min, max: ts.max, default: ts.default };
     loaded = true;
   });
 
@@ -25,6 +42,25 @@
     } finally {
       saving = false;
     }
+  }
+
+  async function saveSpeed() {
+    savingSpeed = true;
+    savedSpeed = false;
+    try {
+      const res = await api.settings.updateTransitionSpeed(transitionSpeed);
+      transitionSpeed = res.multiplier;
+      savedSpeed = true;
+      setTimeout(() => (savedSpeed = false), 2000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'save failed');
+    } finally {
+      savingSpeed = false;
+    }
+  }
+
+  function pickPreset(value: number) {
+    transitionSpeed = value;
   }
 </script>
 
@@ -57,6 +93,45 @@
     <div class="actions">
       <button class="primary" on:click={save} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
       {#if saved}<span class="status"><span class="check">✓</span> Saved</span>{/if}
+    </div>
+  </section>
+
+  <section class="card reveal reveal-3">
+    <h2>Transition speed</h2>
+    <p class="hint">
+      Global multiplier applied to every scene transition's <code>out</code> and <code>in</code> phases.
+      1.0× is the baked-in default; lower values are faster, higher values are slower.
+    </p>
+
+    <div class="speed-presets">
+      {#each SPEED_PRESETS as preset (preset.value)}
+        <button
+          type="button"
+          class="preset"
+          class:active={Math.abs(transitionSpeed - preset.value) < 0.01}
+          on:click={() => pickPreset(preset.value)}
+        >
+          <span class="preset-label">{preset.label}</span>
+          <span class="preset-value">{preset.value.toFixed(2)}×</span>
+        </button>
+      {/each}
+    </div>
+
+    <Field label={`Custom multiplier — ${transitionSpeed.toFixed(2)}×`}>
+      <input
+        type="range"
+        min={transitionSpeedRange.min}
+        max={transitionSpeedRange.max}
+        step="0.05"
+        bind:value={transitionSpeed}
+      />
+    </Field>
+
+    <div class="actions">
+      <button class="primary" on:click={saveSpeed} disabled={savingSpeed}>
+        {savingSpeed ? 'Saving…' : 'Save changes'}
+      </button>
+      {#if savedSpeed}<span class="status"><span class="check">✓</span> Saved</span>{/if}
     </div>
   </section>
 {/if}
@@ -132,5 +207,37 @@
 
   @media (min-width: 600px) {
     .grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .speed-presets {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin: 0.5rem 0 1.25rem;
+  }
+  .preset {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.85rem 0.5rem;
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius-sm);
+    background: var(--c-surface);
+    color: var(--c-fg-2);
+    cursor: pointer;
+    transition: border-color 150ms var(--ease), color 150ms var(--ease), background 150ms var(--ease);
+  }
+  .preset:hover { border-color: var(--c-line-strong); color: var(--c-fg); }
+  .preset.active {
+    border-color: var(--c-accent);
+    color: var(--c-fg);
+    background: var(--c-accent-tint);
+  }
+  .preset-label { font-size: 0.95rem; font-weight: 500; }
+  .preset-value {
+    font-family: ui-monospace, 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    opacity: 0.75;
   }
 </style>

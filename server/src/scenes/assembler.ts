@@ -462,6 +462,10 @@ export type AssemblePushArgs = {
   mediaUrlBase?: string;
   canvasResolver?: DataResolvers['canvasResolver'];
   canvasExtras?: DataResolvers['canvasExtras'];
+  /** Global multiplier applied to the resolved transition's `out` and `in`
+   *  durations. 1.0 = baked-in builtin durations; <1 faster; >1 slower.
+   *  Out-of-range values are caller's responsibility to clamp. */
+  transitionSpeedMultiplier?: number;
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -488,5 +492,16 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
     canvasExtras: args.canvasExtras,
   });
   const transition = resolveTransition(args);
-  return transition ? { type: 'scene', state, transition } : { type: 'scene', state };
+  const scaled = transition && args.transitionSpeedMultiplier !== undefined && args.transitionSpeedMultiplier !== 1
+    ? scaleTransition(transition, args.transitionSpeedMultiplier)
+    : transition;
+  return scaled ? { type: 'scene', state, transition: scaled } : { type: 'scene', state };
+}
+
+function scaleTransition(t: TransitionDescriptor, mult: number): TransitionDescriptor {
+  return {
+    ...t,
+    out: { ...t.out, duration_ms: Math.round(t.out.duration_ms * mult) },
+    in: { ...t.in, duration_ms: Math.round(t.in.duration_ms * mult) },
+  };
 }

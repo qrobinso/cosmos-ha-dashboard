@@ -111,6 +111,19 @@ export const api = {
       await ensureOk(res);
       return (await res.json()) as { top: number; right: number; bottom: number; left: number };
     },
+    async getTransitionSpeed(): Promise<{ multiplier: number; min: number; max: number; default: number }> {
+      const res = await fetch('/api/settings/transition-speed');
+      return (await res.json()) as { multiplier: number; min: number; max: number; default: number };
+    },
+    async updateTransitionSpeed(multiplier: number): Promise<{ multiplier: number }> {
+      const res = await fetch('/api/settings/transition-speed', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ multiplier }),
+      });
+      await ensureOk(res);
+      return (await res.json()) as { multiplier: number };
+    },
   },
   ha: {
     async listEntities(domain?: string): Promise<{ entity_id: string; state: string; attributes: Record<string, unknown> }[]> {
