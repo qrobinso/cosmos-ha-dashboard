@@ -12,6 +12,75 @@
   $: hasResult = invocation.state === 'result';
   $: resultValue = invocation.state === 'result' ? (invocation as { result?: unknown }).result : undefined;
 
+  // Tools that mutate a scene and return the (created or updated) scene as
+  // their result. After they finish we surface action chips so the user can
+  // jump straight to activating, opening the editor, or previewing.
+  const SCENE_MUTATING_TOOLS = new Set([
+    'create_scene',
+    'update_scene',
+    'patch_widget',
+    'update_widget_content',
+  ]);
+
+  /** Pull a {id, name} pair from a tool result if it looks like a Scene. */
+  function extractSceneInfo(name: string, result: unknown): { id: string; name: string } | null {
+    if (!SCENE_MUTATING_TOOLS.has(name)) return null;
+    if (!result || typeof result !== 'object') return null;
+    const r = result as Record<string, unknown>;
+    if (typeof r.error === 'string') return null;
+    if (typeof r.id !== 'string' || typeof r.name !== 'string') return null;
+    return { id: r.id, name: r.name };
+  }
+
+  $: sceneInfo = hasResult ? extractSceneInfo(invocation.toolName, resultValue) : null;
+
+  // Display picker state — fetched lazily on first activate-chip click.
+  let displays: { id: string; name: string }[] | null = null;
+  let displaysError: string | null = null;
+  let activating: string | null = null;
+  let activated: string | null = null;
+  let displayPickerOpen = false;
+
+  async function ensureDisplays() {
+    if (displays !== null) return;
+    try {
+      const res = await fetch('/api/displays');
+      if (!res.ok) throw new Error(`failed: ${res.status}`);
+      displays = (await res.json()) as { id: string; name: string }[];
+    } catch (e) {
+      displaysError = e instanceof Error ? e.message : 'failed to load displays';
+      displays = [];
+    }
+  }
+
+  async function activateOn(displayName: string, sceneId: string) {
+    activating = displayName;
+    try {
+      const res = await fetch(`/api/displays/${encodeURIComponent(displayName)}/scene/activate`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sceneId }),
+      });
+      if (!res.ok) throw new Error(`activate failed: ${res.status}`);
+      activated = displayName;
+      displayPickerOpen = false;
+    } catch (e) {
+      displaysError = e instanceof Error ? e.message : 'activate failed';
+    } finally {
+      activating = null;
+    }
+  }
+
+  async function onActivateClick(sceneId: string) {
+    await ensureDisplays();
+    if (!displays || displays.length === 0) return;
+    if (displays.length === 1) {
+      void activateOn(displays[0].name, sceneId);
+    } else {
+      displayPickerOpen = !displayPickerOpen;
+    }
+  }
+
   let busy = false;
   let error: string | null = null;
 
@@ -134,6 +203,34 @@
     <div class="tool-result">
       → {summarizeResult(resultValue)}
     </div>
+    {#if sceneInfo}
+      <div class="scene-chips">
+        <a class="chip" href={`/admin/scenes/${encodeURIComponent(sceneInfo.id)}`}>
+          <span aria-hidden="true">✎</span> Open in editor
+        </a>
+        <button class="chip" type="button" on:click={() => sceneInfo && onActivateClick(sceneInfo.id)}>
+          {#if activated}
+            <span aria-hidden="true">✓</span> Showing on {activated}
+          {:else if activating}
+            <span aria-hidden="true">…</span> Sending to {activating}
+          {:else if displays && displays.length === 1}
+            <span aria-hidden="true">→</span> Send to {displays[0].name}
+          {:else}
+            <span aria-hidden="true">→</span> Send to display
+          {/if}
+        </button>
+        {#if displayPickerOpen && displays && displays.length > 1}
+          <div class="picker">
+            {#each displays as d (d.id)}
+              <button class="picker-item" type="button" on:click={() => sceneInfo && activateOn(d.name, sceneInfo.id)}>
+                {d.name}
+              </button>
+            {/each}
+          </div>
+        {/if}
+        {#if displaysError}<span class="chip-error">{displaysError}</span>{/if}
+      </div>
+    {/if}
   {:else}
     <div class="tool-result tool-result-pending">
       <span class="dot-anim">·</span><span class="dot-anim">·</span><span class="dot-anim">·</span>
@@ -212,5 +309,68 @@
     margin: 0.4rem 0 0;
     color: var(--c-danger);
     font-size: 0.8rem;
+  }
+
+  /* Action chips that appear after a scene-mutating tool result. The user
+     can jump to the editor or push the scene to a display without going
+     back through the chat. Wraps gracefully on narrow widths. */
+  .scene-chips {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+    position: relative;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    color: var(--c-fg-2);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease);
+    min-height: 0;
+  }
+  .chip:hover { background: var(--c-surface-hover); color: var(--c-fg); border-color: var(--c-line-strong); }
+
+  .picker {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 0.3rem;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius-sm);
+    padding: 0.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    z-index: 5;
+    min-width: 10rem;
+  }
+  .picker-item {
+    text-align: left;
+    background: transparent;
+    border: 0;
+    color: var(--c-fg);
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.3rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-height: 0;
+  }
+  .picker-item:hover { background: var(--c-surface-hover); }
+
+  .chip-error {
+    color: var(--c-danger);
+    font-size: 0.75rem;
   }
 </style>

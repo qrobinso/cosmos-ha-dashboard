@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+
+- Feat: Action chips appear in the agent chat after any scene-mutating tool finishes (`create_scene`, `update_scene`, `patch_widget`, `update_widget_content`). One chip opens the scene in the editor; another sends it to a display — single display = one-click; multiple displays = pop-up picker. Saves the user from chasing through the chat to find the next step.
+
 ## 0.4.1
 
 - Fix: Agent chat layout. The empty-state hint now floats centered without affecting flex sizing, and the composer stays anchored at the bottom (was sometimes growing oddly with no history). Switched from CSS Grid to flex with `min-height: 0` on the scroll area — the standard pattern for "fill remaining height; scroll the middle".
