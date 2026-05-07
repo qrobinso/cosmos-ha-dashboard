@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.9
+
+- Feat: New live **Home Assistant entities** doc in the admin Docs tab. Lists every entity Cosmos has cached from your HA install — grouped by domain, with `entity_id`, friendly name, current state, and unit/device-class. Tap "Copy markdown" to drop the whole snapshot into your agent's system prompt so it knows which entity_ids exist on your install. Snapshot regenerates each time you load the page.
+
 ## 0.2.8
 
 - Fix: The transition-quiet window (which suppresses HA-driven re-pushes during an in-flight animation) now scales with the global transition-speed multiplier. At 5× speed a transition takes ~5.5 s; the quiet window expands to match so reactive entity churn doesn't restart juddering the animation halfway through.

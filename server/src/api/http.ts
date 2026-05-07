@@ -150,7 +150,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   }
 
   if (deps.docsDir) {
-    registerDocsRoutes(app, { docsDir: deps.docsDir });
+    registerDocsRoutes(app, { docsDir: deps.docsDir, haClient: deps.haClient ?? null });
   }
 
   return app;
