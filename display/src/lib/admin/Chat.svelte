@@ -106,7 +106,16 @@
         <p class="model-line"><span class="muted">Model:</span> <code>{model}</code></p>
       {/if}
     </div>
-    <button class="ghost" on:click={clearHistory} disabled={$messages.length === 0}>Clear</button>
+    <button
+      class="ghost clear-btn"
+      type="button"
+      on:click={clearHistory}
+      disabled={$messages.length === 0}
+      aria-label="Clear conversation history"
+    >
+      <span aria-hidden="true">⌫</span>
+      <span>Clear history</span>
+    </button>
   </header>
 
   {#if loaded && !hasKey}
@@ -157,6 +166,20 @@
         </div>
       </div>
     {/if}
+
+    {#if $isLoading}
+      <!-- Inline indicator so the chat shows progress between text chunks
+           and during tool calls — without it the UI looks frozen while the
+           agent thinks. The dots loop until streamed text or a tool result
+           appears below. -->
+      <div class="msg msg-assistant" aria-live="polite">
+        <div class="msg-bubble typing-bubble" aria-label="Agent is working">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>
+      </div>
+    {/if}
   </div>
 
   <form class="composer" on:submit|preventDefault={handleSubmit}>
@@ -181,18 +204,29 @@
 
 <style>
   .chat {
-    display: grid;
-    grid-template-rows: auto auto 1fr auto;
+    /* Flex column with min-height:0 on the scroll child is the standard
+       robust pattern for "fill remaining height; scroll the middle". The
+       100dvh handles mobile address-bar shrink correctly. The fixed minus
+       accounts for the topbar (~60px) + admin-main vertical padding. */
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
-    min-height: calc(100vh - 6rem);
-    max-height: calc(100vh - 6rem);
+    height: calc(100dvh - 7rem);
+    min-height: 30rem;
   }
 
   .chat-header {
+    flex: 0 0 auto;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
+  }
+  .clear-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
   }
   .chat-header h1 { font-size: clamp(1.5rem, 3vw, 2rem); margin-top: 0.2rem; }
   .model-line { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--c-fg-3); }
@@ -200,6 +234,7 @@
   .muted { color: var(--c-fg-3); }
 
   .warning {
+    flex: 0 0 auto;
     background: var(--c-surface-2);
     border-left: 3px solid var(--c-accent);
     padding: 0.85rem 1rem;
@@ -208,6 +243,11 @@
   .warning a { color: var(--c-accent); }
 
   .scroll {
+    /* min-height:0 lets the flex child shrink to fit and handle overflow,
+       instead of inheriting min-content (the default flex min-height) which
+       would force the parent to grow with the content. */
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     background: var(--c-surface);
@@ -217,14 +257,28 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    /* When .empty is the only child, anchor it to the visual center via the
+       container's own justify-content. .msg children override with default
+       flex-start naturally — they layer at the top once any history exists. */
+    position: relative;
   }
 
   .empty {
-    margin: auto;
+    /* Centered absolutely so the empty hint floats in the middle of the
+       scroll area without affecting flex sizing or the composer below. */
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     color: var(--c-fg-3);
-    max-width: 36rem;
+    padding: 2rem;
+    pointer-events: none;
   }
+  .empty > * { pointer-events: auto; }
+  .empty ul, .empty li { pointer-events: auto; }
   .empty h2 { color: var(--c-fg-2); margin-bottom: 0.85rem; font-weight: 300; }
   .empty ul {
     list-style: none;
@@ -297,7 +351,34 @@
     margin-top: 0.5rem;
   }
 
+  /* Typing indicator — three pulsing dots in an assistant bubble. Sized to
+     match a single line of text so it sits naturally where the next message
+     will arrive. */
+  .typing-bubble {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+  }
+  .typing-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--c-fg-3);
+    animation: typing-pulse 1.4s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing-pulse {
+    0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .typing-dot { animation: none; opacity: 0.6; }
+  }
+
   .composer {
+    flex: 0 0 auto;
     display: flex;
     align-items: flex-end;
     gap: 0.5rem;

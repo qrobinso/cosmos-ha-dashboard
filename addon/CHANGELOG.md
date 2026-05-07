@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1
+
+- Fix: Agent chat layout. The empty-state hint now floats centered without affecting flex sizing, and the composer stays anchored at the bottom (was sometimes growing oddly with no history). Switched from CSS Grid to flex with `min-height: 0` on the scroll area — the standard pattern for "fill remaining height; scroll the middle".
+- Tweak: Renamed the agent-chat **Clear** button to **Clear history** (with a back-arrow icon) so it's findable.
+- Feat: Inline "agent is working" indicator (three pulsing dots) appears in the chat while the agent is thinking or streaming a response — previously the UI looked frozen between chunks.
+- Tweak: Updated the agent's system prompt to explicitly avoid technical jargon when talking to users. The agent now says "this canvas can't load images from that website" instead of "the iframe sandbox blocks cross-origin fetches", and won't echo widget IDs, JSON payloads, or contract-document references back to the user.
+
 ## 0.4.0
 
 - Feat: **In-product agent** at `/admin/agent`. Type natural-language asks — "make me a kitchen morning tile", "change the canvas to use blue accents", "activate the Morning scene on Living Room" — and Cosmos uses an LLM via OpenRouter to inspect and modify your scenes and canvas widgets directly. Set your OpenRouter API key + model under Settings → **AI agent**. Activate / delete actions surface a confirm card in the chat before anything lands; everything else (create, patch, content updates) auto-executes. Conversation persists per-browser. The system prompt bundles the existing scene + canvas-widget agent contracts plus a live snapshot of your HA entity catalog, so the model has correct entity_ids for your specific install.
