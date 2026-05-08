@@ -60,7 +60,7 @@
          --cosmos-font-scale: {scene.typography.font_scale};"
 >
   <div class="background-layer" data-bg-type={scene.background.type}>
-    <Background background={scene.background} />
+    <Background background={scene.background} fadeMs={scene.gradientFadeMs ?? 800} />
   </div>
   {#if scene.resolvedMood}
     <!-- Key on the resolved URL, not scene.id, so navigating between scenes

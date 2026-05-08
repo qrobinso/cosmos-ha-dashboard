@@ -538,6 +538,12 @@ export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor 
   return null;
 }
 
+/** Baseline crossfade duration for gradient color changes. Scaled by the
+ *  global transition-speed multiplier so all kiosk timing tracks the same
+ *  knob. 800 ms is long enough to feel continuous from across the room and
+ *  short enough that adaptive palette swaps don't lag behind a song change. */
+const BASE_GRADIENT_FADE_MS = 800;
+
 export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPayload> {
   const state = await buildSceneState(
     args.scene,
@@ -555,6 +561,8 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
     args.canvasFetchPolicy,
     args.adaptiveContributions
   );
+  const speedMult = args.transitionSpeedMultiplier ?? 1;
+  state.gradientFadeMs = Math.round(BASE_GRADIENT_FADE_MS * speedMult);
   const transition = resolveTransition(args);
   const scaled = transition && args.transitionSpeedMultiplier !== undefined && args.transitionSpeedMultiplier !== 1
     ? scaleTransition(transition, args.transitionSpeedMultiplier)

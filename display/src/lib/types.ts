@@ -171,6 +171,10 @@ export type SceneState = {
   /** Per-server allowlist policy for canvas-iframe `cosmos.fetch`. Absent
    *  means default (deny everything). */
   canvasFetchPolicy?: CanvasFetchPolicy;
+  /** Crossfade duration (ms) for gradient color changes. Server-side
+   *  the global transition-speed multiplier scales this; absent → fall
+   *  back to a sensible default. */
+  gradientFadeMs?: number;
 };
 
 export type OverlayMessage = {

@@ -191,6 +191,11 @@ export type SceneState = Omit<Scene, 'widgets'> & {
    *  default (allowlist + empty list) is in effect — display treats absent
    *  as "deny everything". */
   canvasFetchPolicy?: CanvasFetchPolicy;
+  /** Crossfade duration in ms for gradient color changes (e.g. adaptive
+   *  palette swaps, edits to gradient.colors). Computed server-side from
+   *  the global `transition_speed_multiplier` so all timing knobs share a
+   *  single source of truth. */
+  gradientFadeMs?: number;
 };
 
 export type ScenePushPayload = {
