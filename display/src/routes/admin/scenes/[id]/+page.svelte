@@ -521,9 +521,13 @@
           Sunrise: warm peach · Day: peach glow · Evening: lavender · Night: midnight blue.
           The colors below are ignored while this is on.
         </p>
+      {:else if background.adaptive_colors}
+        <p class="hint">
+          Disabled while <strong>Adapt to widget colors</strong> is on. These are used as fallback colors when nothing is reporting.
+        </p>
       {/if}
       <Field label="Preset" hint="Apply a curated palette">
-        <select on:change={applyPreset} disabled={background.sun_adaptive === true}>
+        <select on:change={applyPreset} disabled={background.sun_adaptive === true || background.adaptive_colors === true}>
           <option value="">Choose preset…</option>
           {#each GRADIENT_PRESETS as p, i (p.name)}<option value={i}>{p.name}</option>{/each}
         </select>
@@ -531,11 +535,11 @@
       <Field label="Colors" hint="2–6 colors blend continuously">
         {#each background.colors as _, i}
           <div class="color-row">
-            <input type="color" bind:value={background.colors[i]} disabled={background.sun_adaptive === true} />
-            <button class="danger" type="button" on:click={() => removeColor(i)} disabled={background.sun_adaptive === true}>Remove</button>
+            <input type="color" bind:value={background.colors[i]} disabled={background.sun_adaptive === true || background.adaptive_colors === true} />
+            <button class="danger" type="button" on:click={() => removeColor(i)} disabled={background.sun_adaptive === true || background.adaptive_colors === true}>Remove</button>
           </div>
         {/each}
-        <button type="button" on:click={addColor} disabled={background.sun_adaptive === true}>+ Color</button>
+        <button type="button" on:click={addColor} disabled={background.sun_adaptive === true || background.adaptive_colors === true}>+ Color</button>
       </Field>
       <Field label="Speed">
         <select bind:value={background.speed}>
