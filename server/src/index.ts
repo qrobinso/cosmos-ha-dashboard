@@ -216,7 +216,7 @@ async function main() {
       if (d) markDisplayDirty(d.id);
     },
     displayPalette,
-    onPaletteChanged: (displayId) => wssRef?.pushSceneTo(displayId).catch((err) => console.error('pushSceneTo (palette) failed', err)),
+    onPaletteChanged: (displayId) => markDisplayDirty(displayId),
     alerts: alertManager,
     docsDir: resolvePath(__cosmos_repo_root, 'docs'),
   });
