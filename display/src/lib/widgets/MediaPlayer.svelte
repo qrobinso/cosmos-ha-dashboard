@@ -3,7 +3,7 @@
   import type { WidgetState, MediaPlayerData } from '$lib/types';
   import { marquee } from '$lib/actions/marquee';
   import { extractFromUrl } from '$lib/scene/extractPalette';
-  import { reportWidgetPalette } from '$lib/scene/reportPalette';
+  import { reportWidgetPalette, paletteEnabled } from '$lib/scene/reportPalette';
 
   export let widget: WidgetState;
 
@@ -63,12 +63,19 @@
 
   let lastExtractedUrl: string | null = null;
 
-  // Reactive: when album_art_url changes, extract and report. When it
-  // disappears, clear our contribution.
-  $: handleArtChange(data?.album_art_url ?? null);
+  // Reactive: when album_art_url changes (or the scene's adaptive_colors
+  // flag flips on), extract and report. When it disappears, or the flag
+  // flips off, clear our contribution. Depending on `$paletteEnabled`
+  // ensures we re-fire when the user navigates from a non-adaptive
+  // scene to an adaptive one and the album art is the same — without
+  // it the URL-cache short-circuit would suppress the catch-up extract.
+  $: handleArtChange(data?.album_art_url ?? null, $paletteEnabled);
 
-  function handleArtChange(url: string | null) {
-    if (!url) {
+  function handleArtChange(url: string | null, enabled: boolean) {
+    // Gate the expensive extraction (image load + decode + raster) on the
+    // active scene's flag. The helper also gates the POST, but bailing
+    // here saves the per-song image work on non-adaptive scenes.
+    if (!enabled || !url) {
       if (lastExtractedUrl !== null) {
         lastExtractedUrl = null;
         reportWidgetPalette(widget.id, []);

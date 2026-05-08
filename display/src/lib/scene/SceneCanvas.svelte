@@ -12,9 +12,16 @@
   import Canvas from '$lib/widgets/Canvas.svelte';
   import Background from '$lib/backgrounds/Background.svelte';
   import MoodLayer from './MoodLayer.svelte';
+  import { paletteEnabled } from '$lib/scene/reportPalette';
 
   export let scene: SceneState;
   export let displayName: string | null = null;
+
+  // Gate the adaptive-gradient palette pipeline on the active scene's flag.
+  // When false, MediaPlayer skips album-art extraction and reportWidgetPalette
+  // is a no-op — no per-song POSTs or scene re-pushes for scenes that don't
+  // use the visual effect.
+  $: $paletteEnabled = scene.background.type === 'gradient' && scene.background.adaptive_colors === true;
 
   const fontVar = (family: string) => `var(--cosmos-font-${family.replace(/\s+/g, '')}, system-ui, sans-serif)`;
 
