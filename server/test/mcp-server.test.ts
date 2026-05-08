@@ -89,18 +89,20 @@ describe('MCP /mcp transport', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('tools/list with the right bearer returns the 11 tools', async () => {
+  it('tools/list with the right bearer returns the full tool surface', async () => {
     setEnabled(ctx.settings, true);
     const token = regenerateToken(ctx.settings);
     const res = await rpc(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, `Bearer ${token}`);
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.result.tools).toHaveLength(13);
     const names = body.result.tools.map((t: { name: string }) => t.name).sort();
     expect(names).toEqual([
       'activate_scene',
       'assign_scene_to_display',
       'create_scene',
+      'delete_scene',
+      'delete_widget',
+      'get_display_palette',
       'get_scene',
       'list_displays',
       'list_ha_entities',
@@ -109,14 +111,20 @@ describe('MCP /mcp transport', () => {
       'list_widgets',
       'patch_scene',
       'patch_widget',
+      'summarize_ha_entities',
       'update_scene',
       'update_widget_content',
     ]);
-    // Hard-destructive tools (data loss) stay out — agents shouldn't be
-    // able to wipe scenes via MCP. activate_scene is exposed as it's
-    // reversible (just changes which scene is showing).
-    expect(names).not.toContain('delete_scene');
-    expect(names).not.toContain('delete_widget');
+    // delete_scene / delete_widget are exposed but described as DESTRUCTIVE
+    // and should be gated behind the client's confirm UI. Their tool
+    // descriptions tell the model to require explicit user intent.
+    const destructive = body.result.tools.filter(
+      (t: { name: string; description: string }) =>
+        t.name === 'delete_scene' || t.name === 'delete_widget'
+    );
+    for (const t of destructive) {
+      expect(t.description.toUpperCase()).toContain('DESTRUCTIVE');
+    }
   });
 
   it('tools/call create_scene round-trips through app.inject', async () => {
@@ -150,7 +158,9 @@ describe('MCP /mcp transport', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.result.isError).toBe(true);
-    expect(body.result.content[0].text).toMatch(/invalid scene payload/i);
+    // The bad payload is missing layout — the sharpened message now
+    // names the offending field instead of the generic "invalid scene".
+    expect(body.result.content[0].text).toMatch(/layout/i);
   });
 
   it('resources/list returns the three known URIs', async () => {
@@ -207,6 +217,24 @@ describe('MCP /mcp transport', () => {
     expect(body.result.isError).toBeUndefined();
     const updated = JSON.parse(body.result.content[0].text);
     expect(updated.name).toBe('Renamed');
+  });
+
+  it('patch_scene JSON Schema declares background + mood as objects (no string-coercion in clients)', async () => {
+    // Regression for the silent-corruption bug: when these fields used
+    // z.any(), the emitted JSON Schema had no "type" annotation and
+    // some MCP clients string-coerced the values before sending. Now
+    // they're z.object({...}).passthrough() — assert that the schema
+    // surface clients see actually has type:object.
+    setEnabled(ctx.settings, true);
+    const token = regenerateToken(ctx.settings);
+    const res = await rpc(app, { jsonrpc: '2.0', id: 50, method: 'tools/list' }, `Bearer ${token}`);
+    const tools = res.json().result.tools as Array<{ name: string; inputSchema: { properties?: Record<string, unknown> } }>;
+    const patchScene = tools.find((t) => t.name === 'patch_scene')!;
+    expect(patchScene).toBeDefined();
+    const bgSchema = patchScene.inputSchema.properties?.background as { type?: string } | undefined;
+    const moodSchema = patchScene.inputSchema.properties?.mood as { type?: string } | undefined;
+    expect(bgSchema?.type).toBe('object');
+    expect(moodSchema?.type).toBe('object');
   });
 
   it('tools/call patch_scene preserves widgets and only patches metadata', async () => {

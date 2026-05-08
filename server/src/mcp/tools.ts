@@ -79,7 +79,21 @@ export type McpToolDeps = {
 
 /** A single MCP tool definition: zod schema for input validation + an
  *  execute that returns an MCP tool result. Used by mcp/server.ts to
- *  register on the SDK's McpServer. */
+ *  register on the SDK's McpServer.
+ *
+ *  Two optional fields support the in-product agent adapter (agent/tools.ts)
+ *  without changing MCP behavior:
+ *
+ *  `confirmRequired` — marks destructive/visible-side-effect tools that the
+ *  in-product agent should defer to the user before running. MCP servers
+ *  register full execute; the in-product agent's adapter strips execute so
+ *  the chat UI can show a confirm card. Today: activate_scene, delete_scene,
+ *  delete_widget.
+ *
+ *  `summarizeForAgent` — optional projection applied by the in-product agent
+ *  ONLY (not MCP) to compact a tool result before returning it to the model.
+ *  Used by list_widgets to truncate canvas content. MCP clients see the raw
+ *  result so external integrations aren't surprised by hidden trimming. */
 export type McpToolDef = {
   name: string;
   description: string;
@@ -88,6 +102,17 @@ export type McpToolDef = {
     content: Array<{ type: 'text'; text: string }>;
     isError?: boolean;
   }>;
+  /** Marks destructive/visible-side-effect tools that the in-product agent
+   *  should defer to the user before running. MCP servers register full
+   *  execute; the in-product agent's adapter strips execute so the chat
+   *  UI can show a confirm card. Today: activate_scene, delete_scene,
+   *  delete_widget. */
+  confirmRequired?: boolean;
+  /** Optional projection applied by the in-product agent ONLY (not MCP)
+   *  to compact a tool result before returning it to the model. Used by
+   *  list_widgets to truncate canvas content. MCP clients see the raw
+   *  result so external integrations aren't surprised by hidden trimming. */
+  summarizeForAgent?: (raw: unknown) => unknown;
 };
 
 export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
@@ -155,7 +180,7 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     {
       name: 'patch_scene',
       description:
-        'Partial-update a scene’s metadata (background, typography, mood, name, default transition, layout, floatWidgets). Widgets are NEVER touched by this — use `patch_widget` / `update_widget_content` for those. Pass only the keys you want to change; everything you omit is preserved. Use this for "change the background to a sunrise gradient", "turn off the mood video", "rename the scene", etc. — much lighter than `update_scene`.',
+        "Partial-update a scene's metadata (background, typography, mood, name, default transition, layout, floatWidgets). Widgets are NEVER touched by this — use `patch_widget` / `update_widget_content` for those. Pass only the keys you want to change; everything you omit is preserved. Use this for \"change the background to a sunrise gradient\", \"turn off the mood video\", \"rename the scene\", etc. — much lighter than `update_scene`.",
       inputSchema: z.object({
         id: z.string(),
         name: z.string().optional(),
@@ -190,35 +215,48 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     {
       name: 'list_widgets',
       description:
-        'Flat list of every widget across every scene, with parent scene id+name. Filter with `scene` (id or name) and/or `kind`. Returns widget id, kind, position, and config (canvas content is truncated for context — use get_scene for the full content).',
+        'Flat list of every widget across every scene, with parent scene id+name. Filter with `scene` (id or name), `kind`, and/or `name` (matches config.name exactly, case-insensitively — useful when the user calls a canvas by name). Returns widget id, kind, name, position, and config (canvas content is truncated for the in-product agent — use get_scene for the full content).',
       inputSchema: z.object({
         scene: z.string().optional(),
         kind: z.enum(['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text', 'camera', 'canvas']).optional(),
+        name: z.string().optional().describe('Filter by config.name (case-insensitive exact match). Best paired with kind=canvas.'),
       }),
       execute: async (raw) => {
-        const args = raw as { scene?: string; kind?: string };
+        const args = raw as { scene?: string; kind?: string; name?: string };
         const qs = new URLSearchParams();
         if (args.scene) qs.set('scene', args.scene);
         if (args.kind) qs.set('kind', args.kind);
+        if (args.name) qs.set('name', args.name);
         const url = qs.toString() ? `/api/widgets?${qs}` : '/api/widgets';
         const list = await inject<Array<{ id: string; sceneId: string; sceneName: string; kind: string; position: unknown; config: unknown }>>(
           app, { method: 'GET', url }
         );
         if ('error' in list) return errorResult(list.error);
-        return jsonResult(list.map((w) => {
+        return jsonResult(list);
+      },
+      /** Compact projection for the in-product agent: truncates canvas HTML
+       *  content to 500 chars so list_widgets doesn't blow the context window
+       *  with 50KB of HTML when the agent just needs to know what's there.
+       *  MCP clients receive the raw list from execute (no truncation). */
+      summarizeForAgent: (raw) => {
+        const list = raw as Array<{ id: string; sceneId: string; sceneName: string; kind: string; position: unknown; config: unknown }>;
+        if (!Array.isArray(list)) return list;
+        return list.map((w) => {
           const cfg = (w.config ?? {}) as Record<string, unknown>;
           const content = typeof cfg.content === 'string' ? cfg.content : null;
+          const cfgName = typeof cfg.name === 'string' ? cfg.name : null;
           return {
             id: w.id,
             sceneId: w.sceneId,
             sceneName: w.sceneName,
             kind: w.kind,
+            name: cfgName,
             position: w.position,
             config: content !== null && content.length > 500
               ? { ...cfg, content: content.slice(0, 500) + `… (${content.length} chars)` }
               : cfg,
           };
-        }));
+        });
       },
     },
 
@@ -278,7 +316,7 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     {
       name: 'assign_scene_to_display',
       description:
-        'Link a scene to a display so the display can show it. Optionally set as the default (loaded on display reconnect). Does NOT push the scene live — the in-product agent has a separate confirm-required activate_scene tool that this MCP surface does not expose.',
+        'Link a scene to a display so the display can show it. Optionally set as the default (loaded on display reconnect). Does NOT push the scene live — use activate_scene for that.',
       inputSchema: z.object({
         displayName: z.string(),
         sceneId: z.string(),
@@ -297,25 +335,97 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     },
 
     {
+      name: 'get_display_palette',
+      description:
+        'Read the live color palette extracted from a display\'s widgets. Returns the colors currently driving the adaptive gradient (if enabled) plus when they were last updated. Empty colors means nothing is being reported. Useful for "what colors are showing on the kitchen wall right now?" questions.',
+      inputSchema: z.object({
+        displayName: z.string().describe('The display name (e.g. "kitchen-wall"), as used by /api/displays/<name>/...'),
+      }),
+      execute: async (raw) => {
+        const args = raw as { displayName: string };
+        const r = await inject(app, {
+          method: 'GET',
+          url: `/api/displays/${encodeURIComponent(args.displayName)}/palette`,
+        });
+        if (typeof r === 'object' && r !== null && 'error' in r && 'status' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
+
+    {
       name: 'list_ha_entities',
       description:
-        'List Home Assistant entities currently cached on this Cosmos. Optionally filter by domain (light, sensor, weather, media_player, etc.). The cosmos://entities resource holds a snapshot too; call this for fresh state.',
-      inputSchema: z.object({ domain: z.string().optional() }),
+        'List Home Assistant entities cached on this Cosmos. Filters AND-combine. With thousands of entities you should ALWAYS narrow with at least one of `domain` / `device_class` / `search` before reading — start with `summarize_ha_entities` if you have no idea where to look. `search` is a case-insensitive substring matched against entity_id + friendly_name. `limit` caps the response (default 200) to keep context lean.',
+      inputSchema: z.object({
+        domain: z.string().optional().describe('Exact domain prefix, e.g. "sensor" matches sensor.*.'),
+        device_class: z.string().optional().describe('Match attributes.device_class (e.g. "temperature", "motion").'),
+        search: z.string().optional().describe('Substring matched against entity_id + friendly_name (case-insensitive).'),
+        limit: z.number().int().positive().optional().describe('Cap the number of results returned. Default 200.'),
+      }),
       execute: async (raw) => {
-        const args = raw as { domain?: string };
+        const args = raw as { domain?: string; device_class?: string; search?: string; limit?: number };
         if (!haClient) return errorResult('Home Assistant is not connected on this Cosmos instance.');
-        const list = haClient.listEntities();
-        const filtered = args.domain ? list.filter((e) => e.entity_id.startsWith(args.domain + '.')) : list;
-        return jsonResult(filtered.map((e) => {
+        let list = haClient.listEntities();
+        if (args.domain) list = list.filter((e) => e.entity_id.startsWith(args.domain + '.'));
+        if (args.device_class) {
+          list = list.filter((e) => {
+            const a = (e.attributes ?? {}) as Record<string, unknown>;
+            return a.device_class === args.device_class;
+          });
+        }
+        if (args.search) {
+          const q = args.search.toLowerCase();
+          list = list.filter((e) => {
+            if (e.entity_id.toLowerCase().includes(q)) return true;
+            const a = (e.attributes ?? {}) as Record<string, unknown>;
+            const fn = typeof a.friendly_name === 'string' ? a.friendly_name.toLowerCase() : '';
+            return fn.includes(q);
+          });
+        }
+        const fullCount = list.length;
+        const limit = args.limit && args.limit > 0 ? args.limit : 200;
+        const truncated = list.length > limit;
+        if (truncated) list = list.slice(0, limit);
+        return jsonResult({
+          count: list.length,
+          totalMatches: fullCount,
+          truncated,
+          entities: list.map((e) => {
+            const a = (e.attributes ?? {}) as Record<string, unknown>;
+            return {
+              entity_id: e.entity_id,
+              state: e.state,
+              friendly_name: typeof a.friendly_name === 'string' ? a.friendly_name : null,
+              unit: typeof a.unit_of_measurement === 'string' ? a.unit_of_measurement : null,
+              device_class: typeof a.device_class === 'string' ? a.device_class : null,
+            };
+          }),
+        });
+      },
+    },
+
+    {
+      name: 'summarize_ha_entities',
+      description:
+        'Orientation snapshot of the HA install — `{total, domains: {sensor: 412, light: 38, ...}, deviceClasses: {temperature: 14, motion: 8, ...}}`. Tiny payload. Call this FIRST when you have no idea what entities exist, then narrow with `list_ha_entities`. Far cheaper than dumping thousands of entities into your context up-front.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        if (!haClient) return errorResult('Home Assistant is not connected on this Cosmos instance.');
+        const all = haClient.listEntities();
+        const domains: Record<string, number> = {};
+        const deviceClasses: Record<string, number> = {};
+        for (const e of all) {
+          const dot = e.entity_id.indexOf('.');
+          if (dot > 0) {
+            const d = e.entity_id.slice(0, dot);
+            domains[d] = (domains[d] ?? 0) + 1;
+          }
           const a = (e.attributes ?? {}) as Record<string, unknown>;
-          return {
-            entity_id: e.entity_id,
-            state: e.state,
-            friendly_name: typeof a.friendly_name === 'string' ? a.friendly_name : null,
-            unit: typeof a.unit_of_measurement === 'string' ? a.unit_of_measurement : null,
-            device_class: typeof a.device_class === 'string' ? a.device_class : null,
-          };
-        }));
+          if (typeof a.device_class === 'string') {
+            deviceClasses[a.device_class] = (deviceClasses[a.device_class] ?? 0) + 1;
+          }
+        }
+        return jsonResult({ total: all.length, domains, deviceClasses });
       },
     },
 
@@ -332,6 +442,34 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     },
 
     {
+      name: 'delete_scene',
+      description:
+        '⚠️ DESTRUCTIVE — permanently removes a scene and all its widgets. Cannot be undone. Any display rotation referencing this scene is cleaned up automatically; if a display has it set as default or current, that pointer is cleared. ONLY call after the user has explicitly asked to delete the scene by name. Well-behaved MCP clients should surface a confirm prompt — treat as if they will not.',
+      inputSchema: z.object({ id: z.string().describe('Scene id from list_scenes.') }),
+      confirmRequired: true,
+      execute: async (raw) => {
+        const args = raw as { id: string };
+        const r = await inject(app, { method: 'DELETE', url: `/api/scenes/${encodeURIComponent(args.id)}` });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult({ ok: true, deletedId: args.id });
+      },
+    },
+
+    {
+      name: 'delete_widget',
+      description:
+        '⚠️ DESTRUCTIVE — removes a single widget from its parent scene. Cannot be undone. The scene itself is preserved. ONLY call after the user has explicitly asked to delete the widget. Well-behaved MCP clients should surface a confirm prompt — treat as if they will not.',
+      inputSchema: z.object({ id: z.string().describe('Widget id from list_widgets.') }),
+      confirmRequired: true,
+      execute: async (raw) => {
+        const args = raw as { id: string };
+        const r = await inject(app, { method: 'DELETE', url: `/api/widgets/${encodeURIComponent(args.id)}` });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
+
+    {
       name: 'activate_scene',
       description:
         '⚠️ STATE-CHANGING — pushes a scene LIVE to a wall display. Whatever is currently on screen transitions out. Reversible (call again with a different sceneId), but visible to anyone in the room. ONLY call after the user has explicitly asked to "show", "activate", or "switch to" a scene on a specific display — well-behaved MCP clients will surface a confirm prompt for you, but treat it as if they will not. Optional `transitionId`: pass null to use the scene\'s default; pass a transition id from `list_transitions` to override for this one activation.',
@@ -340,6 +478,7 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
         sceneId: z.string().describe('The scene id from list_scenes.'),
         transitionId: z.string().nullable().optional(),
       }),
+      confirmRequired: true,
       execute: async (raw) => {
         const args = raw as { displayName: string; sceneId: string; transitionId?: string | null };
         const r = await inject(app, {
