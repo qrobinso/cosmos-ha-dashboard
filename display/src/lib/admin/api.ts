@@ -165,23 +165,23 @@ export const api = {
       const res = await fetch('/api/agent/time');
       return (await res.json()) as { now: number; iso: string };
     },
-    async getMcpConfig(): Promise<{ enabled: boolean; hasToken: boolean; token: string | null }> {
+    async getMcpConfig(): Promise<{ enabled: boolean; hasToken: boolean; token: string | null; endpointHosts: string[] }> {
       const res = await fetch('/api/agent/mcp');
-      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null };
+      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null; endpointHosts: string[] };
     },
-    async enableMcp(enabled: boolean): Promise<{ enabled: boolean; hasToken: boolean; token: string | null }> {
+    async enableMcp(enabled: boolean): Promise<{ enabled: boolean; hasToken: boolean; token: string | null; endpointHosts: string[] }> {
       const res = await fetch('/api/agent/mcp/enable', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ enabled }),
       });
       await ensureOk(res);
-      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null };
+      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null; endpointHosts: string[] };
     },
-    async regenerateMcpToken(): Promise<{ enabled: boolean; hasToken: boolean; token: string | null }> {
+    async regenerateMcpToken(): Promise<{ enabled: boolean; hasToken: boolean; token: string | null; endpointHosts: string[] }> {
       const res = await fetch('/api/agent/mcp/regenerate', { method: 'POST' });
       await ensureOk(res);
-      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null };
+      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null; endpointHosts: string[] };
     },
   },
   moods: {
