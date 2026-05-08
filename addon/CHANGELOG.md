@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4
+
+- Fix: Silent-data-corruption bug in MCP `patch_scene`. The `background` and `mood` fields used `z.any()` in the tool schema, which produced JSON Schema with no `"type"` annotation. Some MCP clients string-coerced those values before sending — the REST `PATCH` handler then shallow-merged the JSON-stringified literal onto disk, where the kiosk couldn't render it (mood was caught by an existing object check; background was the silent path). Two-layer fix: the schema now uses permissive `z.object().passthrough()` so MCP clients see `"type":"object"` and pass values through untouched; the REST `PATCH` handler now validates every provided field before merge (`background` shape, `mood` shape, `name`, `layout`, `typography`, `defaultTransitionId`, `floatWidgets`). Two regression tests assert a string-typed background and a malformed gradient both return `400` instead of corrupting the scene.
+
 ## 0.5.3
 
 - Fix: Scene API now accepts `mood: { enabled: false }` without requiring `strategy` / `moodId` / `weatherEntity`. Previously a disabled mood still had to declare a (dormant) strategy, which agents tripped over when trying to disable an existing mood. The other fields are still validated when `enabled: true`.

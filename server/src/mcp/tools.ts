@@ -160,11 +160,19 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
         id: z.string(),
         name: z.string().optional(),
         layout: z.object({ cols: z.number(), rows: z.number(), items: z.array(z.any()).optional() }).optional(),
-        background: z.any().optional().describe('Background union — {type:"solid",color} or {type:"gradient",colors,speed,style,sun_adaptive?}.'),
+        // Use a permissive object shape rather than z.any() so MCP clients
+        // see "type": "object" in the JSON Schema and pass the value through
+        // as an object (not string-coerced). The REST layer enforces the
+        // solid|gradient union — declaring it as a discriminated union here
+        // would lock out forward-compatible additions.
+        background: z.object({ type: z.string() }).passthrough().optional()
+          .describe('Background union — {type:"solid",color} or {type:"gradient",colors,speed,style,sun_adaptive?}.'),
         typography: z.object({ font_family: z.string().optional(), font_scale: z.number().optional() }).partial().optional(),
         defaultTransitionId: z.string().nullable().optional(),
         floatWidgets: z.boolean().optional(),
-        mood: z.any().optional().describe('Mood config — {enabled, strategy: manual|time|weather, moodId?, weatherEntity?, opacity?}.'),
+        // Same reason as background — give MCP clients an object hint.
+        mood: z.object({ enabled: z.boolean() }).passthrough().optional()
+          .describe('Mood config — {enabled, strategy: manual|time|weather, moodId?, weatherEntity?, opacity?}.'),
       }),
       execute: async (raw) => {
         const args = raw as { id: string } & Record<string, unknown>;

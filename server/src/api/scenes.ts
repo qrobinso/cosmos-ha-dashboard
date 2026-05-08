@@ -40,6 +40,35 @@ function validateMood(mood: unknown): string | null {
   return null;
 }
 
+/** Validate the `background` field. Catches the silent-corruption bug
+ *  where a client coerces the JS object to a JSON string before send;
+ *  without this guard, the string would persist to disk and the wall
+ *  display couldn't render it. Solid + gradient unions both checked. */
+function validateBackground(bg: unknown): string | null {
+  if (typeof bg !== 'object' || bg === null || Array.isArray(bg)) {
+    return 'background must be an object (got ' + (typeof bg) + (Array.isArray(bg) ? ' array' : '') + ')';
+  }
+  const b = bg as Record<string, unknown>;
+  if (b.type === 'solid') {
+    if (typeof b.color !== 'string' || b.color.trim() === '') {
+      return 'background.color must be a non-empty string for solid backgrounds';
+    }
+    return null;
+  }
+  if (b.type === 'gradient') {
+    if (!Array.isArray(b.colors)) return 'background.colors must be an array of CSS colors';
+    if (b.colors.some((c) => typeof c !== 'string')) return 'background.colors entries must be strings';
+    if (b.speed !== undefined && b.speed !== 'slow' && b.speed !== 'medium' && b.speed !== 'fast') {
+      return 'background.speed must be slow | medium | fast';
+    }
+    if (b.style !== undefined && b.style !== 'mesh' && b.style !== 'linear' && b.style !== 'radial') {
+      return 'background.style must be mesh | linear | radial';
+    }
+    return null;
+  }
+  return 'background.type must be "solid" or "gradient"';
+}
+
 /** Validate one widget in the SceneInput.widgets array. Returns null on
  *  success or a user-readable error string on failure. Catches missing
  *  config / non-object position / unknown kind early so the API returns
@@ -71,7 +100,8 @@ function validateSceneInput(body: unknown): { ok: true; value: SceneInput } | { 
   const b = body as Record<string, unknown>;
   if (typeof b.name !== 'string' || b.name.trim() === '') return { ok: false, error: 'invalid scene payload' };
   if (typeof b.layout !== 'object' || b.layout === null) return { ok: false, error: 'invalid scene payload' };
-  if (typeof b.background !== 'object' || b.background === null) return { ok: false, error: 'invalid scene payload' };
+  const bgErr = validateBackground(b.background);
+  if (bgErr) return { ok: false, error: bgErr };
   if (typeof b.typography !== 'object' || b.typography === null) return { ok: false, error: 'invalid scene payload' };
   if (!Array.isArray(b.widgets)) return { ok: false, error: 'invalid scene payload' };
   for (let i = 0; i < b.widgets.length; i++) {
@@ -154,6 +184,35 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       if (typeof body !== 'object' || Array.isArray(body)) {
         return reply.code(400).send({ error: 'body must be a JSON object' });
       }
+
+      // Validate every provided field BEFORE merging — a string-coerced
+      // background or a malformed mood would otherwise silently persist.
+      // This is the layer that caught a silent-data-corruption bug where
+      // some MCP clients string-coerce typeless schema fields.
+      if (body.name !== undefined && (typeof body.name !== 'string' || body.name.trim() === '')) {
+        return reply.code(400).send({ error: 'name must be a non-empty string' });
+      }
+      if (body.layout !== undefined && (typeof body.layout !== 'object' || body.layout === null || Array.isArray(body.layout))) {
+        return reply.code(400).send({ error: 'layout must be an object' });
+      }
+      if (body.background !== undefined) {
+        const err = validateBackground(body.background);
+        if (err) return reply.code(400).send({ error: err });
+      }
+      if (body.typography !== undefined && (typeof body.typography !== 'object' || body.typography === null || Array.isArray(body.typography))) {
+        return reply.code(400).send({ error: 'typography must be an object' });
+      }
+      if (body.defaultTransitionId !== undefined && body.defaultTransitionId !== null && typeof body.defaultTransitionId !== 'string') {
+        return reply.code(400).send({ error: 'defaultTransitionId must be a string or null' });
+      }
+      if (body.floatWidgets !== undefined && typeof body.floatWidgets !== 'boolean') {
+        return reply.code(400).send({ error: 'floatWidgets must be a boolean' });
+      }
+      if (body.mood !== undefined) {
+        const err = validateMood(body.mood);
+        if (err) return reply.code(400).send({ error: err });
+      }
+
       // Build the merged SceneInput. Widgets are preserved verbatim from
       // the existing scene; only top-level metadata is patched.
       const merged = {
@@ -175,8 +234,6 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
           config: w.config,
         })),
       };
-      const moodErr = validateMood(merged.mood);
-      if (moodErr) return reply.code(400).send({ error: moodErr });
       const updated = deps.scenes.update(req.params.id, merged);
       notifyAffectedDisplays(req.params.id, deps);
       if (existing.name !== updated.name) deps.onScenesListChanged?.();

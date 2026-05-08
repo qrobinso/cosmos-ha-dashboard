@@ -305,6 +305,15 @@ The `mood` field is `{ enabled: boolean, strategy?, moodId?, weatherEntity?, opa
 
 Every widget in `widgets[]` must have `kind` (string), `position` (object), and `config` (object — at minimum `{}`). A missing `config` returns a `400` with a clear message. Don't omit the field; pass `{}` when there's no per-widget configuration.
 
+### Background shape requirements
+
+`background` must be an object — never a JSON-stringified version of one. The PATCH/PUT validators check shape:
+
+- `{type:"solid", color:"<css-color>"}` — `color` is required and must be a non-empty string.
+- `{type:"gradient", colors:[<css-colors>], speed:"slow|medium|fast", style:"mesh|linear|radial", sun_adaptive?: boolean}` — `colors` must be an array of strings.
+
+A string-typed background (e.g. `"{\"type\":\"solid\",\"color\":\"#fff\"}"`) returns a `400 background must be an object` rather than persisting silently.
+
 ### Show a scene briefly, then revert (alerts)
 
 If the user asks "flash the doorbell scene for 15 seconds when someone rings," that's a **scene alert**, not a permanent activation:

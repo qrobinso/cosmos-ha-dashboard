@@ -231,6 +231,40 @@ describe('scenes REST API', () => {
     expect(res.json().error).toMatch(/config is required/i);
   });
 
+  it('PATCH /api/scenes/:id rejects a string-typed background (silent-corruption guard)', async () => {
+    // Regression: some MCP clients string-coerce schema fields without an
+    // explicit "type":"object" annotation. The PATCH handler used to
+    // shallow-merge whatever it got, persisting a JSON string to disk
+    // where the kiosk couldn't render it. Now the shape is validated
+    // with a clear 400 before merge.
+    const created = await app.inject({ method: 'POST', url: '/api/scenes', payload: sample });
+    const sceneId = created.json().id;
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/scenes/${sceneId}`,
+      payload: { background: '{"type":"gradient","colors":["#000","#fff"]}' as unknown },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/background must be an object/i);
+
+    // And the on-disk background is unchanged.
+    expect(ctx.scenes.get(sceneId)!.background).toEqual(sample.background);
+  });
+
+  it('PATCH /api/scenes/:id rejects a malformed gradient background', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/scenes', payload: sample });
+    const sceneId = created.json().id;
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/scenes/${sceneId}`,
+      payload: { background: { type: 'gradient', colors: 'not-an-array' } },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/colors must be an array/i);
+  });
+
   it('PATCH /api/scenes/:id partial-updates background without touching widgets', async () => {
     // Regression: there used to be no PATCH endpoint, only PUT. Agents
     // wanting "just change the background" had to round-trip the entire
