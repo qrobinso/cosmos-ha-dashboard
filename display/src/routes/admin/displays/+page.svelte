@@ -147,8 +147,7 @@
 </script>
 
 <header class="page-header reveal reveal-1">
-  <span class="eyebrow">Displays</span>
-  <h1>Connected devices.</h1>
+  <h1>Displays</h1>
 </header>
 
 {#if loading}

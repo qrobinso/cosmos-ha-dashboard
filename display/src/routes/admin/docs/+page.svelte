@@ -175,9 +175,7 @@
 </script>
 
 <header class="hero reveal reveal-1">
-  <span class="eyebrow">Docs</span>
-  <h1>Reference for users — and for agents.</h1>
-  <p>Everything bundled with Cosmos: scene authoring contracts, the canvas widget API, and the agent-facing system-prompt material. Tap "Copy markdown" to paste a doc straight into an LLM tool.</p>
+  <h1>Docs</h1>
 </header>
 
 {#if loading}

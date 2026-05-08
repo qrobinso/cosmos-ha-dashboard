@@ -51,10 +51,7 @@
 </script>
 
 <header class="page-header reveal reveal-1">
-  <div>
-    <span class="eyebrow">Scenes</span>
-    <h1>Layouts and widgets.</h1>
-  </div>
+  <h1>Scenes</h1>
   <button class="primary" on:click={createNew} disabled={creating}>
     {creating ? 'Creating…' : '+ New scene'}
   </button>

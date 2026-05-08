@@ -90,9 +90,7 @@
 </script>
 
 <header class="hero reveal reveal-1">
-  <span class="eyebrow">Overview</span>
-  <h1>Your displays, at a glance.</h1>
-  <p>Live previews of every connected wall display. Tap a chip to switch a display's scene — every change broadcasts instantly.</p>
+  <h1>Overview</h1>
   <a class="agent-cta" href="/admin/agent">
     <span class="agent-cta-icon" aria-hidden="true">✨</span>
     <span class="agent-cta-label">Ask the agent</span>
