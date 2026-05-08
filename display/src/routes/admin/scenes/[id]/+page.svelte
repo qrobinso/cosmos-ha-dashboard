@@ -506,6 +506,16 @@
           <span>Auto-pick the palette from <code>sun.sun</code> — sunrise / day / evening / night each get their own.</span>
         </label>
       </Field>
+      <Field label="Adapt to widget colors">
+        <label class="inline-check">
+          <input
+            type="checkbox"
+            checked={background.adaptive_colors === true}
+            on:change={(e) => { if (background.type === 'gradient') { background = { ...background, adaptive_colors: e.currentTarget.checked }; } }}
+          />
+          <span>Pull live colors from album art and canvas widgets. Falls back to the colors above when nothing is reporting. Stacks with sun-adaptive.</span>
+        </label>
+      </Field>
       {#if background.sun_adaptive}
         <p class="hint">
           Sunrise: warm peach · Day: peach glow · Evening: lavender · Night: midnight blue.
