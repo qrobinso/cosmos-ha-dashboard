@@ -33,6 +33,10 @@ export type WsDeps = {
    *  away from a canvas scene leaves the old subscriptions queuing scene
    *  re-pushes for entity changes nothing on the current scene cares about. */
   canvasExtrasPruneForDisplay?: (displayName: string, keepWidgetIds: Iterable<string>) => void;
+  /** When set, `buildPayload` reads the resolved palette here and passes
+   *  it into the assembler so adaptive_colors can override gradient.colors.
+   *  Also pruned on scene change and cleared on display disconnect. */
+  displayPalette?: import('../store/displayPalette.js').DisplayPaletteStore;
 };
 
 export type CosmosWss = WebSocketServer & {
@@ -93,6 +97,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     const safeArea = readSafeArea(deps.settings);
     const transitionSpeedMultiplier = readTransitionSpeed(deps.settings);
     const canvasFetchPolicy = readCanvasFetchPolicy(deps.settings);
+    const adaptivePalette = deps.displayPalette?.getResolved(displayId).colors ?? [];
     const payload = await assemblePush({
       scene,
       safeArea,
@@ -102,6 +107,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       explicitTransitionId,
       transitionSpeedMultiplier,
       canvasFetchPolicy,
+      adaptivePalette,
       resolver: deps.resolveEntity,
       resolveCalendarEvents: deps.resolveCalendarEvents,
       resolveHistory: deps.resolveHistory,
@@ -112,6 +118,13 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       canvasExtras: deps.canvasExtras,
     });
     lastSceneByDisplay.set(displayId, scene.id);
+
+    // Drop palette contributions for widgets that are no longer on the
+    // active scene. Without this, a removed widget's colors would linger.
+    if (deps.displayPalette) {
+      const keep = new Set(scene.widgets.map((w) => w.id));
+      deps.displayPalette.pruneWidgets(displayId, keep);
+    }
 
     // Prune iframe-side subscriptions for canvases not on this scene.
     // Without this the extras union grows monotonically across scene
@@ -143,6 +156,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
         if (d) {
           deps.onDisplayOffline?.(ownDisplayId, d.name);
           deps.canvasExtrasOnDisconnect?.(d.name);
+          deps.displayPalette?.clearDisplay(ownDisplayId);
         }
       }
     });
