@@ -151,6 +151,7 @@
       mcpEnabled = res.enabled;
       mcpHasToken = res.hasToken;
       mcpToken = res.token;
+      mcpEndpointHosts = res.endpointHosts ?? [];
     } catch (err) {
       alert(err instanceof Error ? err.message : 'failed to toggle MCP');
     } finally {
@@ -166,6 +167,7 @@
       mcpEnabled = res.enabled;
       mcpHasToken = res.hasToken;
       mcpToken = res.token;
+      mcpEndpointHosts = res.endpointHosts ?? [];
     } finally {
       savingMcp = false;
     }
@@ -180,7 +182,21 @@
 
   function mcpEndpoint(): string {
     if (typeof window === 'undefined') return '/mcp';
-    return `${window.location.origin}/mcp`;
+    const url = new URL(window.location.origin);
+    // If admin was opened from localhost / 127.0.0.1, that URL won't work
+    // for an external Claude Desktop on a different machine. Prefer a
+    // server-reported LAN host (the first non-loopback NIC). If the server
+    // returns no candidates, fall back to whatever the browser sees.
+    const isLoopback =
+      url.hostname === 'localhost' ||
+      url.hostname === '127.0.0.1' ||
+      url.hostname === '0.0.0.0' ||
+      url.hostname === '::1';
+    if (isLoopback && mcpEndpointHosts.length > 0) {
+      url.hostname = mcpEndpointHosts[0];
+    }
+    url.pathname = '/mcp';
+    return url.toString();
   }
 
   function mcpClaudeSnippet(): string {
