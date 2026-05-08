@@ -194,6 +194,8 @@ describe('MCP /mcp transport', () => {
     let res = await app.inject({ method: 'GET', url: '/api/agent/mcp' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ enabled: false, hasToken: false, token: null });
+    // endpointHosts is platform-dependent (depends on local NICs) — shape-check only.
+    expect(Array.isArray(res.json().endpointHosts)).toBe(true);
 
     res = await app.inject({
       method: 'POST',
