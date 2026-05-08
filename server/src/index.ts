@@ -16,6 +16,7 @@ import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
+import { createDisplayPaletteStore } from './store/displayPalette.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve as resolvePath } from 'node:path';
 
@@ -190,6 +191,7 @@ async function main() {
   }
 
   const canvasExtras = createCanvasExtrasStore();
+  const displayPalette = createDisplayPaletteStore();
 
   const app = await buildHttpApp({
     displays,
@@ -213,6 +215,8 @@ async function main() {
       const d = displays.getByName(displayName);
       if (d) markDisplayDirty(d.id);
     },
+    displayPalette,
+    onPaletteChanged: (displayId) => wssRef?.pushSceneTo(displayId).catch((err) => console.error('pushSceneTo (palette) failed', err)),
     alerts: alertManager,
     docsDir: resolvePath(__cosmos_repo_root, 'docs'),
   });
@@ -331,7 +335,7 @@ async function main() {
   });
 
   const wss = attachWsHub(app.server, {
-    displays, scenes, settings, transitions, overrides,
+    displays, scenes, settings, transitions, overrides, displayPalette,
     resolveEntity,
     resolveCalendarEvents,
     resolveHistory,
