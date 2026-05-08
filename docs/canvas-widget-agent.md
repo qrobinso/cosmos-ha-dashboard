@@ -48,6 +48,7 @@ cosmos.entity(id: string): EntityState | null
 cosmos.subscribe(id: string, cb: (e: EntityState) => void): () => void
 
 cosmos.fetch(url: string, init?: { method?: string; headers?: Record<string,string>; body?: string }): Promise<CosmosResponse>
+cosmos.reportColors(colors: string[]): void
 
 type EntityState = { entity_id: string; state: string; attributes: Record<string, unknown> }
 type CosmosResponse = {
@@ -91,6 +92,18 @@ setInterval(loadFeed, 5 * 60 * 1000);
 ```
 
 If the user hasn't added the host to the allowlist, the promise rejects with a message that names the missing host. Surface that error in the UI rather than silently retrying — the user needs to act.
+
+### Reporting palette colors (`cosmos.reportColors`)
+
+If your canvas has dominant colors worth contributing to the scene's gradient — say, a glowing accent or a hero image — report them with `cosmos.reportColors([...])`. The user opts the scene into using these via the **Adapt to widget colors** toggle in the gradient block; if they haven't, the call is a harmless no-op as far as visuals go (but the server still records the palette and exposes it via `GET /api/displays/<name>/palette`, so an agent can ask "what colors is the kitchen-wall canvas reporting?").
+
+- Pass 1–5 `#rrggbb` strings. Anything else is dropped at the parent.
+- Pass `[]` to clear your contribution.
+- Call as often as you like; the server's change detector dedupes.
+
+```js
+cosmos.reportColors(['#ff8c4d', '#3d2a1f', '#ffd6a8']);
+```
 
 ### Resize event
 

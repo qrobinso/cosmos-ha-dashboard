@@ -56,6 +56,7 @@ Inside the iframe, `window.cosmos` exposes a small read-only API.
 | `cosmos.entity(id)` | `(id: string) => EntityState \| null` | One-shot read of a cached entity. Returns null if the entity isn't being tracked yet. |
 | `cosmos.subscribe(id, cb)` | `(id: string, cb: (e: EntityState) => void) => () => void` | Calls `cb(entity)` on every state change. The first call also seeds `cb` with the current value if known. Returns an unsubscribe. Subscribing to an entity not already in your templates triggers a server-side subscription request automatically. |
 | `cosmos.fetch(url, init?)` | `(url, init?) => Promise<CosmosResponse>` | Outbound HTTP(S) on the iframe's behalf, gated by an admin-managed allowlist. Default policy is deny. See **Outbound fetches** below. |
+| `cosmos.reportColors(colors)` | `(colors: string[]) => void` | Contribute up to 5 dominant `#rrggbb` colors to the scene's adaptive gradient. Pass `[]` to clear. Visual effect requires the scene's gradient to have **Adapt to widget colors** enabled; the colors are always recorded server-side regardless. |
 
 The API is intentionally read-only in v1 (no HA service calls). Outbound HTTP via `cosmos.fetch` is the one network primitive available, and only against hosts the user has explicitly allowed.
 
