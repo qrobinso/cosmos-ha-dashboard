@@ -276,20 +276,34 @@ Content-Type: application/json
 
 Both endpoints push the updated scene to every display showing it; the wall display refreshes within a second.
 
-### Update scene-level fields (background, typography, transition)
+### Update scene-level fields (background, typography, mood, transition)
 
-For changes that affect the whole scene rather than one widget — a different background, font family, default transition — you still need the scene-level PUT:
+For changes that affect the whole scene rather than one widget — a different background, font family, mood video, default transition — use the partial **PATCH**:
 
 ```bash
-PUT /api/scenes/<scene-id>
+PATCH /api/scenes/<scene-id>
 Content-Type: application/json
 
-# Body is the full SceneInput. Fetch first with GET /api/scenes/<id>,
-# mutate, send back. Widget ids you preserve will be honored — only
-# omit `id` to mint a fresh widget.
+{ "background": { "type": "solid", "color": "#0a0f1c" } }
 ```
 
-Prefer per-widget PATCH whenever the change is local to one widget — it's faster and doesn't disturb the rest of the scene's identity.
+`PATCH` accepts any subset of the scene's top-level keys (`name`, `layout`, `background`, `typography`, `defaultTransitionId`, `floatWidgets`, `mood`). **Widgets are never touched** — they're preserved verbatim across the patch. Use this for "change the mood", "rename the scene", "swap the gradient", etc. Much safer than the full `PUT` (see warning below).
+
+> **Warning — `PUT /api/scenes/<id>` replaces every widget.** The full SceneInput PUT was the original update path; it is **destructive on widget config**. Each widget object you include is stored exactly as you sent it. If a widget's `config` is `{}` in your payload, that widget's previous config (e.g. canvas HTML) is **wiped**. There's no merge, no preserve-on-omit. Only use `PUT` for a wholesale rewrite — and even then, fetch first via `GET /api/scenes/<id>` and pass widgets through unchanged. For everything else use `PATCH /api/scenes/<id>` (above) or per-widget `PATCH /api/widgets/<id>` / `PUT /api/widgets/<id>/content`.
+
+### Mood: enabling and disabling
+
+The `mood` field is `{ enabled: boolean, strategy?, moodId?, weatherEntity?, opacity? }`. When `enabled: false`, the other fields are **not required** — `{enabled: false}` alone is a valid disabled-mood. When `enabled: true`, you must provide a strategy:
+
+- `{ enabled: true, strategy: "manual", moodId: "<id-from-/api/moods>" }`
+- `{ enabled: true, strategy: "time" }` — server picks by time of day
+- `{ enabled: true, strategy: "weather", weatherEntity: "weather.<id>" }`
+
+`opacity` (0–1) is optional in any mode.
+
+### Widget shape requirements
+
+Every widget in `widgets[]` must have `kind` (string), `position` (object), and `config` (object — at minimum `{}`). A missing `config` returns a `400` with a clear message. Don't omit the field; pass `{}` when there's no per-widget configuration.
 
 ### Show a scene briefly, then revert (alerts)
 
@@ -317,8 +331,14 @@ This is the right tool for transient notifications (doorbell, oven timer, motion
 **"Change the morning scene to Fraunces font":**
 
 1. `GET /api/scenes` → find the scene's `id`
-2. `GET /api/scenes/<id>` → get the full body
-3. `PUT /api/scenes/<id>` with `typography.font_family` updated
+2. `PATCH /api/scenes/<id>` with `{ "typography": { "font_family": "Fraunces", "font_scale": 1.0 } }`
+
+(No need to fetch the whole scene — PATCH preserves everything you don't include.)
+
+**"Turn off the mood video on the Living Room scene":**
+
+1. `GET /api/scenes` → find the scene's `id`
+2. `PATCH /api/scenes/<id>` with `{ "mood": { "enabled": false } }`
 
 **"Show the doorbell scene for 15s when X happens":**
 

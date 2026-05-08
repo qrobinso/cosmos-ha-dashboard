@@ -201,4 +201,55 @@ describe('scenes REST API', () => {
     });
     expect(res.statusCode).toBe(400);
   });
+
+  it('accepts mood: {enabled: false} without requiring strategy', async () => {
+    // Regression: validateMood used to require `strategy` even when
+    // `enabled: false`, which is nonsensical (the dormant mood is
+    // configured by other fields). Now {enabled:false} alone passes.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: { ...sample, mood: { enabled: false } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().mood).toMatchObject({ enabled: false });
+  });
+
+  it('returns 400 (not 500) when a widget is missing config', async () => {
+    // Regression: missing widget.config used to crash JSON.stringify in
+    // the repo with a 500 — agent had no signal to fix the payload. Now
+    // the API rejects with a clear message.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{ kind: 'clock', position: { col: 1, row: 1, w: 6, h: 2 } }],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/config is required/i);
+  });
+
+  it('PATCH /api/scenes/:id partial-updates background without touching widgets', async () => {
+    // Regression: there used to be no PATCH endpoint, only PUT. Agents
+    // wanting "just change the background" had to round-trip the entire
+    // scene — risky because update_scene's widget array is replace-not-
+    // merge. PATCH preserves widgets verbatim.
+    const created = await app.inject({ method: 'POST', url: '/api/scenes', payload: sample });
+    const sceneId = created.json().id;
+    const originalWidgetCount = created.json().widgets.length;
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/scenes/${sceneId}`,
+      payload: { background: { type: 'solid', color: '#1a1a2e' } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().background).toEqual({ type: 'solid', color: '#1a1a2e' });
+    expect(res.json().widgets.length).toBe(originalWidgetCount);
+    // Other fields preserved.
+    expect(res.json().name).toBe(sample.name);
+    expect(res.json().typography).toEqual(sample.typography);
+  });
 });

@@ -8,15 +8,26 @@ function validateMood(mood: unknown): string | null {
   if (typeof mood !== 'object' || mood === null) return 'mood must be an object';
   const m = mood as Record<string, unknown>;
   if (typeof m.enabled !== 'boolean') return 'mood.enabled must be boolean';
+  // When the mood is disabled, the rest of the fields are dormant — strategy
+  // / moodId / weatherEntity don't need to be valid (or even present). Only
+  // opacity is still validated since it applies on the off→on transition.
+  if (!m.enabled) {
+    if (m.opacity !== undefined) {
+      if (typeof m.opacity !== 'number' || !Number.isFinite(m.opacity) || m.opacity < 0 || m.opacity > 1) {
+        return 'mood.opacity must be a number between 0 and 1';
+      }
+    }
+    return null;
+  }
   if (m.strategy !== 'manual' && m.strategy !== 'time' && m.strategy !== 'weather') {
     return 'mood.strategy must be manual, time, or weather';
   }
-  if (m.strategy === 'manual' && m.enabled) {
+  if (m.strategy === 'manual') {
     if (typeof m.moodId !== 'string' || m.moodId.trim() === '' || /[\\/]/.test(m.moodId)) {
       return 'mood.moodId must be a non-empty string without slashes';
     }
   }
-  if (m.strategy === 'weather' && m.enabled) {
+  if (m.strategy === 'weather') {
     if (typeof m.weatherEntity !== 'string' || !m.weatherEntity.startsWith('weather.')) {
       return 'mood.weatherEntity must be a weather.* entity id';
     }
@@ -29,6 +40,32 @@ function validateMood(mood: unknown): string | null {
   return null;
 }
 
+/** Validate one widget in the SceneInput.widgets array. Returns null on
+ *  success or a user-readable error string on failure. Catches missing
+ *  config / non-object position / unknown kind early so the API returns
+ *  4xx with a clear message instead of crashing the repo with a 500. */
+function validateWidget(widget: unknown, index: number): string | null {
+  if (typeof widget !== 'object' || widget === null || Array.isArray(widget)) {
+    return `widgets[${index}] must be an object`;
+  }
+  const w = widget as Record<string, unknown>;
+  if (typeof w.kind !== 'string' || w.kind.trim() === '') {
+    return `widgets[${index}].kind must be a non-empty string`;
+  }
+  if (typeof w.position !== 'object' || w.position === null) {
+    return `widgets[${index}].position must be an object`;
+  }
+  // config is required and must be an object (even if empty {} for "no
+  // config"). undefined / null would crash JSON.stringify in the repo.
+  if (w.config === undefined || w.config === null) {
+    return `widgets[${index}].config is required (use {} for no config)`;
+  }
+  if (typeof w.config !== 'object' || Array.isArray(w.config)) {
+    return `widgets[${index}].config must be an object`;
+  }
+  return null;
+}
+
 function validateSceneInput(body: unknown): { ok: true; value: SceneInput } | { ok: false; error: string } {
   if (typeof body !== 'object' || body === null) return { ok: false, error: 'invalid scene payload' };
   const b = body as Record<string, unknown>;
@@ -37,6 +74,10 @@ function validateSceneInput(body: unknown): { ok: true; value: SceneInput } | { 
   if (typeof b.background !== 'object' || b.background === null) return { ok: false, error: 'invalid scene payload' };
   if (typeof b.typography !== 'object' || b.typography === null) return { ok: false, error: 'invalid scene payload' };
   if (!Array.isArray(b.widgets)) return { ok: false, error: 'invalid scene payload' };
+  for (let i = 0; i < b.widgets.length; i++) {
+    const err = validateWidget(b.widgets[i], i);
+    if (err) return { ok: false, error: err };
+  }
   const moodErr = validateMood(b.mood);
   if (moodErr) return { ok: false, error: moodErr };
   return { ok: true, value: b as unknown as SceneInput };

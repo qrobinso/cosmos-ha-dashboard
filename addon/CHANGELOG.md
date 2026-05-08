@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3
+
+- Fix: Scene API now accepts `mood: { enabled: false }` without requiring `strategy` / `moodId` / `weatherEntity`. Previously a disabled mood still had to declare a (dormant) strategy, which agents tripped over when trying to disable an existing mood. The other fields are still validated when `enabled: true`.
+- Fix: Sending a widget without a `config` field used to crash the repo with a `500 Internal Server Error`. The API layer now validates each widget shape and returns a clear `400` like `widgets[2].config is required (use {} for no config)`.
+- Docs: Updated `docs/scene-agent.md` to lead with `PATCH /api/scenes/:id` for scene-level edits (background, typography, mood, transition) instead of the heavyweight `PUT`. Added an explicit warning about `PUT`'s widget-replace semantics — every widget you include is stored verbatim, so `config: {}` wipes the previous config. Added a "Mood: enabling and disabling" section with the correct shapes, and a "Widget shape requirements" note. Two new agent-loop recipes for "change the font" and "turn off the mood" using PATCH.
+
 ## 0.5.2
 
 - Feat: Added `activate_scene` to the MCP surface. External agents can now push a scene live to a display — the previously documented gap that prevented an end-to-end "edit a canvas → see it on the wall" flow purely through MCP. The tool description leads with a ⚠️ warning so well-behaved clients (Claude Desktop) can surface a confirm prompt; hard-destructive tools (`delete_scene`, `delete_widget`) remain out of the MCP surface since they're data-loss operations.
