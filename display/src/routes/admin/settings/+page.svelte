@@ -20,6 +20,14 @@
   let savingAgent = false;
   let savedAgent = false;
 
+  // MCP server state — fetched on mount alongside the other settings.
+  let mcpEnabled = false;
+  let mcpHasToken = false;
+  let mcpToken: string | null = null;
+  let savingMcp = false;
+  let mcpCopied = false;
+  let snippetCopied = false;
+
   /** Three named presets map to multipliers; the slider stores the raw number. */
   const SPEED_PRESETS: { label: string; value: number }[] = [
     { label: 'Slow', value: 1.5 },
@@ -28,16 +36,20 @@
   ];
 
   onMount(async () => {
-    const [sa, ts, ag] = await Promise.all([
+    const [sa, ts, ag, mcp] = await Promise.all([
       api.settings.getSafeArea(),
       api.settings.getTransitionSpeed(),
       api.agent.getSettings().catch(() => ({ hasKey: false, model: '', confirmRequiredTools: [] })),
+      api.agent.getMcpConfig().catch(() => ({ enabled: false, hasToken: false, token: null })),
     ]);
     safeArea = sa;
     transitionSpeed = ts.multiplier;
     transitionSpeedRange = { min: ts.min, max: ts.max, default: ts.default };
     agentHasKey = ag.hasKey;
     agentModel = ag.model;
+    mcpEnabled = mcp.enabled;
+    mcpHasToken = mcp.hasToken;
+    mcpToken = mcp.token;
     loaded = true;
   });
 
@@ -92,6 +104,67 @@
     } finally {
       savingAgent = false;
     }
+  }
+
+  function onMcpToggleChange(e: Event) {
+    const target = e.currentTarget as HTMLInputElement;
+    toggleMcp(target.checked);
+  }
+
+  async function toggleMcp(next: boolean) {
+    savingMcp = true;
+    try {
+      const res = await api.agent.enableMcp(next);
+      mcpEnabled = res.enabled;
+      mcpHasToken = res.hasToken;
+      mcpToken = res.token;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'failed to toggle MCP');
+    } finally {
+      savingMcp = false;
+    }
+  }
+
+  async function regenerateMcp() {
+    if (!confirm('Regenerating will disconnect any agent currently connected. They’ll need the new token. Continue?')) return;
+    savingMcp = true;
+    try {
+      const res = await api.agent.regenerateMcpToken();
+      mcpEnabled = res.enabled;
+      mcpHasToken = res.hasToken;
+      mcpToken = res.token;
+    } finally {
+      savingMcp = false;
+    }
+  }
+
+  async function copyMcpToken() {
+    if (!mcpToken) return;
+    await navigator.clipboard.writeText(mcpToken);
+    mcpCopied = true;
+    setTimeout(() => (mcpCopied = false), 1600);
+  }
+
+  function mcpEndpoint(): string {
+    if (typeof window === 'undefined') return '/mcp';
+    return `${window.location.origin}/mcp`;
+  }
+
+  function mcpClaudeSnippet(): string {
+    return JSON.stringify({
+      mcpServers: {
+        cosmos: {
+          url: mcpEndpoint(),
+          headers: { Authorization: `Bearer ${mcpToken ?? '<token>'}` },
+        },
+      },
+    }, null, 2);
+  }
+
+  async function copyMcpSnippet() {
+    await navigator.clipboard.writeText(mcpClaudeSnippet());
+    snippetCopied = true;
+    setTimeout(() => (snippetCopied = false), 1600);
   }
 
   async function clearAgentKey() {
@@ -218,6 +291,53 @@
       {#if savedAgent}<span class="status"><span class="check">✓</span> Saved</span>{/if}
     </div>
   </section>
+
+  <section class="card reveal reveal-5">
+    <h2>Agent-to-agent (MCP)</h2>
+    <p class="hint">
+      Let external agents (Claude Desktop, Cursor, etc.) connect to Cosmos to inspect and edit
+      your wall display. Read + edit only — destructive actions are never exposed over MCP.
+    </p>
+
+    <label class="toggle">
+      <input
+        type="checkbox"
+        checked={mcpEnabled}
+        on:change={onMcpToggleChange}
+        disabled={savingMcp}
+      />
+      <span>Enable MCP server</span>
+    </label>
+
+    {#if mcpEnabled}
+      <div class="mcp-grid">
+        <Field label="Endpoint">
+          <input type="text" readonly value={mcpEndpoint()} />
+        </Field>
+
+        <Field label="Bearer token">
+          <div class="token-row">
+            <input type="text" readonly value={mcpToken ?? ''} />
+            <button type="button" class="ghost" on:click={copyMcpToken} disabled={!mcpToken}>
+              {mcpCopied ? '✓ Copied' : 'Copy'}
+            </button>
+            <button type="button" class="ghost" on:click={regenerateMcp} disabled={savingMcp}>
+              Regenerate
+            </button>
+          </div>
+        </Field>
+
+        <Field label="Claude Desktop config snippet">
+          <div class="snippet-row">
+            <pre class="snippet">{mcpClaudeSnippet()}</pre>
+            <button type="button" class="ghost" on:click={copyMcpSnippet} disabled={!mcpToken}>
+              {snippetCopied ? '✓ Copied' : 'Copy snippet'}
+            </button>
+          </div>
+        </Field>
+      </div>
+    {/if}
+  </section>
 {/if}
 
 <style>
@@ -323,5 +443,44 @@
     font-family: ui-monospace, 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     opacity: 0.75;
+  }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    user-select: none;
+    margin: 0.5rem 0 1rem;
+  }
+  .toggle input { width: 1.1rem; height: 1.1rem; min-height: 0; }
+
+  .mcp-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .token-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .token-row input { flex: 1 1 18rem; min-width: 0; }
+  .snippet-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .snippet {
+    background: var(--c-bg);
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem;
+    margin: 0;
+    font-family: ui-monospace, 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    color: var(--c-fg-2);
   }
 </style>
