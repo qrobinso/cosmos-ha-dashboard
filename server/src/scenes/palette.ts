@@ -32,6 +32,7 @@ export function reducePalette(
   const sorted = insertionOrder.slice().sort((a, b) => {
     const diff = (freq.get(b) ?? 0) - (freq.get(a) ?? 0);
     if (diff !== 0) return diff;
+        // Tie-break by insertion order: first-seen widget's contribution wins.
     return insertionOrder.indexOf(a) - insertionOrder.indexOf(b);
   });
 
@@ -41,6 +42,10 @@ export function reducePalette(
     if (kept.every((k) => hslDistance(k, color) >= 0.15)) kept.push(color);
   }
 
+  // Pad from the user's gradient.colors. Note the asymmetry vs. the loop above:
+  // contributions are auto-extracted and may include perceptually near-duplicate
+  // colors that should collapse to one stop, but fallback colors are user-picked
+  // and intentional — if the user chose three near-identical grays, honor that.
   for (const c of fallback) {
     if (kept.length >= targetCount) break;
     const norm = c.toLowerCase();
