@@ -177,6 +177,17 @@ export function createAutoExecuteTools(deps: AgentToolDeps): Record<string, Core
       }),
     }),
 
+    get_display_palette: tool({
+      description: 'Read the live color palette extracted from a display\'s widgets. Returns the colors currently driving the adaptive gradient (if enabled) plus when they were last updated. Empty colors means nothing is being reported. Useful for "what colors are showing on the kitchen wall right now?" questions.',
+      parameters: z.object({
+        displayName: z.string().describe('The display name (e.g. "kitchen-wall"), as used by /api/displays/<name>/...'),
+      }),
+      execute: async ({ displayName }) => inject(app, {
+        method: 'GET',
+        url: `/api/displays/${encodeURIComponent(displayName)}/palette`,
+      }),
+    }),
+
     list_ha_entities: tool({
       description: 'List Home Assistant entities currently cached. ALWAYS pass `domain` (light, sensor, weather, media_player, etc.) — the unfiltered catalog can be hundreds of entities and is rarely what you need. Only call this when an ask actually depends on knowing what entities exist; reuse earlier results in the same conversation instead of re-fetching.',
       parameters: z.object({

@@ -9,6 +9,7 @@ import { buildHttpApp } from '../src/api/http.js';
 import { createCanvasExtrasStore } from '../src/api/canvases.js';
 import { createAutoExecuteTools, CONFIRM_REQUIRED_TOOLS, createConfirmRequiredTools } from '../src/agent/tools.js';
 import { createFakeHaClient } from '../src/ha/fakeClient.js';
+import { createDisplayPaletteStore } from '../src/store/displayPalette.js';
 import type { HaClient } from '../src/ha/types.js';
 
 function setup() {
@@ -20,7 +21,8 @@ function setup() {
   const transitions = createTransitionsRepo(db);
   const overrides = createOverridesRepo(db);
   const canvasExtras = createCanvasExtrasStore();
-  return { displays, settings, scenes, transitions, overrides, canvasExtras };
+  const displayPalette = createDisplayPaletteStore();
+  return { displays, settings, scenes, transitions, overrides, canvasExtras, displayPalette };
 }
 
 const sceneFixture = {
@@ -141,6 +143,24 @@ describe('agent tools', () => {
     const noHa = createAutoExecuteTools({ app, haClient: null });
     const result = (await run(noHa, 'list_ha_entities', {})) as { error: string };
     expect(result.error).toMatch(/Home Assistant is not connected/i);
+  });
+
+  it('get_display_palette returns the resolved palette for a display', async () => {
+    ctx.displays.registerByName('kitchen-wall');
+    await app.inject({
+      method: 'POST',
+      url: '/api/displays/kitchen-wall/palette',
+      payload: { widgetId: 'w1', colors: ['#ff0000', '#00ff00'] },
+    });
+    const result = (await run(tools, 'get_display_palette', { displayName: 'kitchen-wall' })) as { colors: string[]; updatedAt: string | null };
+    expect(result.colors.length).toBeGreaterThan(0);
+    expect(result.updatedAt).not.toBeNull();
+  });
+
+  it('get_display_palette returns empty when nothing has been reported', async () => {
+    ctx.displays.registerByName('quiet-wall');
+    const result = (await run(tools, 'get_display_palette', { displayName: 'quiet-wall' })) as { colors: string[]; updatedAt: string | null };
+    expect(result).toEqual({ colors: [], updatedAt: null });
   });
 });
 
