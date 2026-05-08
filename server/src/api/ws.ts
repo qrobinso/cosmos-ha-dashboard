@@ -97,6 +97,14 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     const safeArea = readSafeArea(deps.settings);
     const transitionSpeedMultiplier = readTransitionSpeed(deps.settings);
     const canvasFetchPolicy = readCanvasFetchPolicy(deps.settings);
+    // Prune palette contributions BEFORE reading. Without this, the very
+    // first push after a scene change carries the previous scene's widget
+    // contributions (the assembler then overrides gradient.colors with
+    // colors derived from widgets that aren't even on the new scene).
+    if (deps.displayPalette) {
+      const keep = new Set(scene.widgets.map((w) => w.id));
+      deps.displayPalette.pruneWidgets(displayId, keep);
+    }
     const adaptiveContributions = deps.displayPalette?.getContributions(displayId);
     const payload = await assemblePush({
       scene,
@@ -118,13 +126,6 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       canvasExtras: deps.canvasExtras,
     });
     lastSceneByDisplay.set(displayId, scene.id);
-
-    // Drop palette contributions for widgets that are no longer on the
-    // active scene. Without this, a removed widget's colors would linger.
-    if (deps.displayPalette) {
-      const keep = new Set(scene.widgets.map((w) => w.id));
-      deps.displayPalette.pruneWidgets(displayId, keep);
-    }
 
     // Prune iframe-side subscriptions for canvases not on this scene.
     // Without this the extras union grows monotonically across scene
