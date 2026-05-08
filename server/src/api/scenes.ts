@@ -98,6 +98,52 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     return updated;
   });
 
+  /** PATCH /api/scenes/:id — partial update of scene metadata. Accepts any
+   *  subset of {name, layout, background, typography, defaultTransitionId,
+   *  floatWidgets, mood}; the keys you omit are preserved. Widgets are
+   *  never touched here — use PATCH /api/widgets/:id or PUT /api/widgets/:id/content
+   *  for those. Used by the agent's "just change the background" flow,
+   *  which would otherwise round-trip the entire scene including widgets. */
+  app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/scenes/:id',
+    async (req, reply) => {
+      const existing = deps.scenes.get(req.params.id);
+      if (!existing) return reply.code(404).send({ error: 'not found' });
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      if (typeof body !== 'object' || Array.isArray(body)) {
+        return reply.code(400).send({ error: 'body must be a JSON object' });
+      }
+      // Build the merged SceneInput. Widgets are preserved verbatim from
+      // the existing scene; only top-level metadata is patched.
+      const merged = {
+        name: typeof body.name === 'string' ? body.name : existing.name,
+        layout: (body.layout as typeof existing.layout) ?? existing.layout,
+        background: (body.background as typeof existing.background) ?? existing.background,
+        typography: (body.typography as typeof existing.typography) ?? existing.typography,
+        defaultTransitionId:
+          'defaultTransitionId' in body
+            ? (body.defaultTransitionId as string | null)
+            : existing.defaultTransitionId,
+        floatWidgets:
+          typeof body.floatWidgets === 'boolean' ? body.floatWidgets : existing.floatWidgets,
+        mood: (body.mood as typeof existing.mood) ?? existing.mood,
+        widgets: existing.widgets.map((w) => ({
+          id: w.id,
+          kind: w.kind,
+          position: w.position,
+          config: w.config,
+        })),
+      };
+      const moodErr = validateMood(merged.mood);
+      if (moodErr) return reply.code(400).send({ error: moodErr });
+      const updated = deps.scenes.update(req.params.id, merged);
+      notifyAffectedDisplays(req.params.id, deps);
+      if (existing.name !== updated.name) deps.onScenesListChanged?.();
+      deps.onScenesMutated?.();
+      return updated;
+    }
+  );
+
   app.delete<{ Params: { id: string } }>('/api/scenes/:id', async (req, reply) => {
     const existing = deps.scenes.get(req.params.id);
     if (!existing) return reply.code(404).send({ error: 'not found' });

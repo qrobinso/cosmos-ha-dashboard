@@ -95,7 +95,7 @@ describe('MCP /mcp transport', () => {
     const res = await rpc(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, `Bearer ${token}`);
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.result.tools).toHaveLength(11);
+    expect(body.result.tools).toHaveLength(12);
     const names = body.result.tools.map((t: { name: string }) => t.name).sort();
     expect(names).toEqual([
       'assign_scene_to_display',
@@ -106,6 +106,7 @@ describe('MCP /mcp transport', () => {
       'list_scenes',
       'list_transitions',
       'list_widgets',
+      'patch_scene',
       'patch_widget',
       'update_scene',
       'update_widget_content',
@@ -176,6 +177,65 @@ describe('MCP /mcp transport', () => {
     const body = res.json();
     expect(body.result.contents[0].mimeType).toBe('text/markdown');
     expect(body.result.contents[0].text).toContain('sensor.power');
+  });
+
+  it('tools/call update_scene round-trips with an object payload (no 415)', async () => {
+    // Regression for the bug Claude Code surfaced: update_scene was
+    // returning 415 because the LLM-supplied payload reached app.inject
+    // without an explicit content-type. The MCP inject helper now
+    // normalizes object payloads → JSON.stringify + content-type:
+    // application/json. Verify update_scene goes through cleanly.
+    setEnabled(ctx.settings, true);
+    const token = regenerateToken(ctx.settings);
+    const created = await rpc(app, {
+      jsonrpc: '2.0', id: 20, method: 'tools/call',
+      params: { name: 'create_scene', arguments: { payload: sceneFixture } },
+    }, `Bearer ${token}`);
+    const sceneId = JSON.parse(created.json().result.content[0].text).id;
+
+    const res = await rpc(app, {
+      jsonrpc: '2.0', id: 21, method: 'tools/call',
+      params: { name: 'update_scene', arguments: {
+        id: sceneId,
+        payload: { ...sceneFixture, name: 'Renamed' },
+      } },
+    }, `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.result.isError).toBeUndefined();
+    const updated = JSON.parse(body.result.content[0].text);
+    expect(updated.name).toBe('Renamed');
+  });
+
+  it('tools/call patch_scene preserves widgets and only patches metadata', async () => {
+    setEnabled(ctx.settings, true);
+    const token = regenerateToken(ctx.settings);
+    const created = await rpc(app, {
+      jsonrpc: '2.0', id: 30, method: 'tools/call',
+      params: { name: 'create_scene', arguments: { payload: sceneFixture } },
+    }, `Bearer ${token}`);
+    const sceneId = JSON.parse(created.json().result.content[0].text).id;
+    const originalWidgetCount = ctx.scenes.get(sceneId)!.widgets.length;
+    expect(originalWidgetCount).toBeGreaterThan(0);
+
+    const res = await rpc(app, {
+      jsonrpc: '2.0', id: 31, method: 'tools/call',
+      params: { name: 'patch_scene', arguments: {
+        id: sceneId,
+        background: { type: 'solid', color: '#1a1a2e' },
+      } },
+    }, `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.result.isError).toBeUndefined();
+
+    const after = ctx.scenes.get(sceneId)!;
+    expect(after.background).toEqual({ type: 'solid', color: '#1a1a2e' });
+    // Widgets untouched.
+    expect(after.widgets.length).toBe(originalWidgetCount);
+    // Other metadata (name, typography) preserved.
+    expect(after.name).toBe('Morning');
+    expect(after.typography.font_family).toBe('Inter');
   });
 
   it('regenerate invalidates the old token immediately', async () => {

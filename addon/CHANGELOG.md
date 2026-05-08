@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Fix: MCP `update_scene` was returning **415 Unsupported Media Type** for every payload shape. Root cause: when an LLM tool call's `payload` reached `app.inject` without an explicit content-type, light-my-request's auto-detection didn't fire and Fastify rejected the body. The MCP inject helper now defensively normalizes object payloads (and string payloads that parse as JSON) → `JSON.stringify` + `Content-Type: application/json`. Regression test added.
+- Feat: New `patch_scene` MCP tool. Partial-update of scene metadata — change the background, mood, typography, name, default transition, etc. without round-tripping the entire scene including widgets. Mirrors `patch_widget` for top-level fields. Backed by a new `PATCH /api/scenes/:id` REST endpoint.
+- Tweak: `update_scene` description now points at the `cosmos://docs/scene-agent` resource and lists every required top-level key, so external agents have a usable starting hint instead of just "untyped object."
+
 ## 0.5.0
 
 - Feat: New **Agent-to-agent (MCP)** server. External agents (Claude Desktop, Cursor, etc.) can now connect to Cosmos via the Model Context Protocol to list, inspect, create, and edit scenes and canvas widgets — same execution path as the in-product agent. Off by default; enable in Settings → **Agent-to-agent (MCP)**, copy the bearer token + the Claude Desktop config snippet, and paste into your client's MCP config. Read + edit only — destructive actions (activate / delete) are never exposed.

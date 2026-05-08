@@ -17,12 +17,20 @@ function errorResult(message: string): {
 }
 
 /** Reusable inject wrapper — same pattern as agent/tools.ts. Returns the
- *  parsed JSON body on 2xx, or `{error, status}` on 4xx/5xx. */
+ *  parsed JSON body on 2xx, or `{error, status}` on 4xx/5xx.
+ *
+ *  Be defensive about content-type: LLM tool calls sometimes deliver
+ *  `payload` as a JSON-stringified string instead of a parsed object. In
+ *  that case light-my-request can't infer JSON and the route 415s with no
+ *  body to debug from. We always normalize: parse strings if possible,
+ *  re-stringify objects, and set `content-type: application/json` —
+ *  works regardless of how the SDK delivered the args. */
 async function inject<T = unknown>(
   app: FastifyInstance,
   opts: import('light-my-request').InjectOptions
 ): Promise<T | { error: string; status: number }> {
-  const res = await app.inject(opts);
+  const normalized = normalizeInject(opts);
+  const res = await app.inject(normalized);
   if (res.statusCode >= 400) {
     let message = res.payload;
     try {
@@ -39,6 +47,29 @@ async function inject<T = unknown>(
   } catch {
     return res.payload as unknown as T;
   }
+}
+
+function normalizeInject(opts: import('light-my-request').InjectOptions): import('light-my-request').InjectOptions {
+  if (opts.payload === undefined || opts.payload === null) return opts;
+  let body: unknown = opts.payload;
+  // If it's a string that parses as JSON, treat it as JSON. (Some MCP
+  // clients double-encode tool args as a stringified JSON value.)
+  if (typeof body === 'string') {
+    const trimmed = body.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try { body = JSON.parse(trimmed); } catch { /* keep as raw string */ }
+    }
+  }
+  // Buffers and primitive strings pass through unchanged. Everything else
+  // gets stringified with an explicit JSON content-type.
+  if (typeof body === 'object' && body !== null && !Buffer.isBuffer(body)) {
+    return {
+      ...opts,
+      payload: JSON.stringify(body),
+      headers: { 'content-type': 'application/json', ...(opts.headers ?? {}) },
+    };
+  }
+  return opts;
 }
 
 export type McpToolDeps = {
@@ -111,11 +142,38 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     {
       name: 'update_scene',
       description:
-        'Replace an entire scene with a new SceneInput payload. Heavy-handed — overwrites layout, background, typography, AND all widgets. Prefer patch_widget / update_widget_content for incremental edits.',
+        'REPLACE an entire scene with a full SceneInput payload. Heavy-handed: overwrites layout, background, typography, AND all widgets — every key is required. For partial scene-metadata changes (just the background, just the mood, etc.), use `patch_scene`. For widget edits, use `patch_widget` / `update_widget_content`. The exact SceneInput shape is documented in the `cosmos://docs/scene-agent` resource — read it before calling this. The `payload` arg is a JSON object with these top-level keys: name (string), layout ({cols:12,rows:8,items:[]}), background (solid|gradient union), typography ({font_family,font_scale}), widgets (array), defaultTransitionId? (string|null), floatWidgets? (boolean), mood? (object).',
       inputSchema: z.object({ id: z.string(), payload: z.any() }),
       execute: async (raw) => {
         const args = raw as { id: string; payload: unknown };
         const r = await inject(app, { method: 'PUT', url: `/api/scenes/${encodeURIComponent(args.id)}`, payload: args.payload as import('light-my-request').InjectPayload });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
+
+    {
+      name: 'patch_scene',
+      description:
+        'Partial-update a scene’s metadata (background, typography, mood, name, default transition, layout, floatWidgets). Widgets are NEVER touched by this — use `patch_widget` / `update_widget_content` for those. Pass only the keys you want to change; everything you omit is preserved. Use this for "change the background to a sunrise gradient", "turn off the mood video", "rename the scene", etc. — much lighter than `update_scene`.',
+      inputSchema: z.object({
+        id: z.string(),
+        name: z.string().optional(),
+        layout: z.object({ cols: z.number(), rows: z.number(), items: z.array(z.any()).optional() }).optional(),
+        background: z.any().optional().describe('Background union — {type:"solid",color} or {type:"gradient",colors,speed,style,sun_adaptive?}.'),
+        typography: z.object({ font_family: z.string().optional(), font_scale: z.number().optional() }).partial().optional(),
+        defaultTransitionId: z.string().nullable().optional(),
+        floatWidgets: z.boolean().optional(),
+        mood: z.any().optional().describe('Mood config — {enabled, strategy: manual|time|weather, moodId?, weatherEntity?, opacity?}.'),
+      }),
+      execute: async (raw) => {
+        const args = raw as { id: string } & Record<string, unknown>;
+        const { id, ...patch } = args;
+        const r = await inject(app, {
+          method: 'PATCH',
+          url: `/api/scenes/${encodeURIComponent(id)}`,
+          payload: patch as import('light-my-request').InjectPayload,
+        });
         if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
         return jsonResult(r);
       },
