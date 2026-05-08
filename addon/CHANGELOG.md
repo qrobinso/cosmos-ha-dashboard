@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- Feat: New **Agent-to-agent (MCP)** server. External agents (Claude Desktop, Cursor, etc.) can now connect to Cosmos via the Model Context Protocol to list, inspect, create, and edit scenes and canvas widgets — same execution path as the in-product agent. Off by default; enable in Settings → **Agent-to-agent (MCP)**, copy the bearer token + the Claude Desktop config snippet, and paste into your client's MCP config. Read + edit only — destructive actions (activate / delete) are never exposed.
+
 ## 0.4.5
 
 - Feat: Each chat message now shows a timestamp ("Today at 6:32 PM" / "Yesterday at 6:32 PM" / "May 5 at 6:32 PM"), anchored to the **server's** clock instead of the browser's. The chat fetches the server time once on mount and applies the offset to every message — so timestamps stay consistent even on a wall tablet whose clock has drifted. New `GET /api/agent/time` endpoint backs it.
