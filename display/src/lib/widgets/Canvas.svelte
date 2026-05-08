@@ -3,6 +3,7 @@
   import type { WidgetState, CanvasData, EntityState, SceneState, CanvasFetchPolicy } from '$lib/types';
   import { CANVAS_BRIDGE_SCRIPT } from './canvasBridge';
   import { isHostAllowed } from './canvasFetchPolicy';
+  import { reportWidgetPalette } from '$lib/scene/reportPalette';
 
   export let widget: WidgetState;
   export let scene: SceneState;
@@ -94,6 +95,17 @@
     }
     if (msg.type === 'cosmos:fetch') {
       void handleBridgeFetch(msg as BridgeFetchRequest);
+    }
+    if (msg.type === 'cosmos:report-colors') {
+      const raw = (msg as { colors?: unknown }).colors;
+      if (!Array.isArray(raw)) return;
+      const colors: string[] = [];
+      for (const c of raw) {
+        if (typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) colors.push(c.toLowerCase());
+        if (colors.length >= 5) break;
+      }
+      reportWidgetPalette(widget.id, colors);
+      return;
     }
   }
 
@@ -225,6 +237,7 @@
       window.removeEventListener('message', onMessage);
     }
     resizeObs?.disconnect();
+    reportWidgetPalette(widget.id, []);
   });
 </script>
 
