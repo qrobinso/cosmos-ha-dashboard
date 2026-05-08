@@ -1,5 +1,7 @@
 # Canvas widget — agent contract
 
+> *This file is for an LLM. If you're a human looking for setup steps, see [getting-started-with-agents.md](./getting-started-with-agents.md).*
+
 This document is intended to be pasted into an LLM agent's system prompt or pulled in as a tool/reference document. It describes exactly what the agent should output when generating canvas widget content for Cosmos.
 
 For the surrounding scene shape (background, typography, layout, publishing flow), pair this with [`scene-agent.md`](./scene-agent.md). The typical flow is: design the scene shape from `scene-agent.md`, then author the `canvas.config.content` field using this guide, then publish via the API.
@@ -45,10 +47,50 @@ cosmos.version: string
 cosmos.entity(id: string): EntityState | null
 cosmos.subscribe(id: string, cb: (e: EntityState) => void): () => void
 
+cosmos.fetch(url: string, init?: { method?: string; headers?: Record<string,string>; body?: string }): Promise<CosmosResponse>
+
 type EntityState = { entity_id: string; state: string; attributes: Record<string, unknown> }
+type CosmosResponse = {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  url: string;
+  headers: Record<string, string>;
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+}
 ```
 
 Subscribe is the live binding; reach for it when an animation needs to react to state.
+
+### Outbound fetches (`cosmos.fetch`)
+
+The iframe sandbox blocks normal `window.fetch` for cross-origin requests, so canvases use `cosmos.fetch` instead. The display's parent context performs the request on the iframe's behalf, gated by a per-server **allowlist** the user manages at *Admin → Settings → Canvas fetch*.
+
+- **Default policy is deny.** A fresh install starts in `allowlist` mode with an empty list, so `cosmos.fetch` rejects until the user adds hostnames.
+- **Allowlist matches host + subdomains.** An entry `example.com` matches `example.com` and `api.example.com`. Schemes / ports / paths are ignored.
+- **`http(s)` only.** Other protocols (file:, ws:, data:) are rejected.
+- **No credentials.** Cookies and `Authorization` from the parent are never sent. Pass any auth header via `init.headers`.
+- **Response cap.** Bodies above ~2 MB are rejected; long-running requests time out after 15s.
+- **Use `setInterval` to poll.** Timers work normally inside the iframe.
+
+```js
+async function loadFeed() {
+  try {
+    const res = await cosmos.fetch('https://api.example.com/headlines.json');
+    if (!res.ok) return;
+    const json = await res.json();
+    render(json.items);
+  } catch (err) {
+    // err.message starts with 'cosmos.fetch:' for policy/transport failures.
+    console.warn(err);
+  }
+}
+loadFeed();
+setInterval(loadFeed, 5 * 60 * 1000);
+```
+
+If the user hasn't added the host to the allowlist, the promise rejects with a message that names the missing host. Surface that error in the UI rather than silently retrying — the user needs to act.
 
 ### Resize event
 
@@ -68,6 +110,23 @@ Cosmos sets these on `:root` and updates them live whenever the scene changes. U
 
 **Rule of thumb:** every canvas should set `font-family: var(--cosmos-font-family, system-ui)` on its root element so the typography matches the rest of the scene. Override locally for headlines/numerals if you want a typographic accent — never override globally with a hardcoded family.
 
+## Naming a canvas
+
+Canvas widgets accept an optional `config.name` — a short user-readable label the user can also set in the editor. Always set it when you create or duplicate a canvas. It's how the user (and you, on the next turn) refer back to this widget without an opaque UUID.
+
+```json
+{
+  "kind": "canvas",
+  "position": { "col": 1, "row": 1, "w": 12, "h": 8 },
+  "config": {
+    "name": "news-headlines",
+    "content": "<div>…</div>"
+  }
+}
+```
+
+Convention: short kebab-case strings tied to purpose (`news-headlines`, `kitchen-power`, `garden-cam`). Names are not unique — two scenes can each have a canvas named `power`. When the user is ambiguous, list candidates and ask.
+
 ## Updating an existing canvas
 
 When the user asks you to *change* a canvas already on a scene (rather than create a new one), use the per-widget endpoints. They let you patch one widget without round-tripping the whole scene.
@@ -80,9 +139,12 @@ GET /api/widgets
 
 # Filter by scene name + kind — usually what you want
 GET /api/widgets?scene=Kitchen&kind=canvas
+
+# Filter by user-assigned name — best when the user says "edit the news-headlines canvas"
+GET /api/widgets?kind=canvas&name=news-headlines
 ```
 
-Each entry is `{ id, sceneId, sceneName, kind, position, config }`. The widget `id` is stable across saves — once you have it, you can hold onto it.
+Each entry is `{ id, sceneId, sceneName, kind, name, position, config }`. The widget `id` is stable across saves — once you have it, you can hold onto it. `name` mirrors `config.name`, the optional label the user sets in the editor; matching is case-insensitive and exact.
 
 ### 2. Replace the canvas content (raw HTML, smallest request)
 

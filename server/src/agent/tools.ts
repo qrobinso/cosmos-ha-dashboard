@@ -41,9 +41,11 @@ function summarizeWidget(w: { id: string; kind: string; position: unknown; confi
   // Trim canvas content to a preview so list_widgets doesn't dump 50KB of HTML.
   const cfg = (w.config ?? {}) as Record<string, unknown>;
   const content = typeof cfg.content === 'string' ? cfg.content : null;
+  const name = typeof cfg.name === 'string' ? cfg.name : null;
   return {
     id: w.id,
     kind: w.kind,
+    name,
     position: w.position,
     config: content !== null
       ? { ...cfg, content: content.length > 500 ? content.slice(0, 500) + `… (${content.length} chars)` : content }
@@ -106,17 +108,19 @@ export function createAutoExecuteTools(deps: AgentToolDeps): Record<string, Core
     }),
 
     list_widgets: tool({
-      description: 'Flat list of every widget across every scene, with the parent scene id+name. Filter with `scene` (id or name) and/or `kind`. Returns widget id, kind, position, and config (canvas content is truncated for context — fetch the full content via get_scene if you need it verbatim).',
+      description: 'Flat list of every widget across every scene, with the parent scene id+name. Filter with `scene` (id or name), `kind`, and/or `name` (matches `config.name` exactly, case-insensitively — useful when the user calls a canvas by name like "the news-headlines canvas"). Returns widget id, kind, name, position, and config (canvas content is truncated for context — fetch the full content via get_scene if you need it verbatim).',
       parameters: z.object({
         scene: z.string().optional().describe('Filter by scene id or name.'),
         kind: z.enum(['clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text', 'camera', 'canvas']).optional(),
+        name: z.string().optional().describe('Filter by config.name (case-insensitive exact match). Best paired with kind=canvas.'),
       }),
-      execute: async ({ scene, kind }) => {
+      execute: async ({ scene, kind, name }) => {
         const qs = new URLSearchParams();
         if (scene) qs.set('scene', scene);
         if (kind) qs.set('kind', kind);
+        if (name) qs.set('name', name);
         const url = qs.toString() ? `/api/widgets?${qs}` : '/api/widgets';
-        const list = await inject<Array<{ id: string; sceneId: string; sceneName: string; kind: string; position: unknown; config: unknown }>>(app, { method: 'GET', url });
+        const list = await inject<Array<{ id: string; sceneId: string; sceneName: string; kind: string; name: string | null; position: unknown; config: unknown }>>(app, { method: 'GET', url });
         if ('error' in list) return list;
         return list.map((w) => ({
           ...summarizeWidget(w),
@@ -174,7 +178,7 @@ export function createAutoExecuteTools(deps: AgentToolDeps): Record<string, Core
     }),
 
     list_ha_entities: tool({
-      description: 'List Home Assistant entities currently cached. Optionally filter by domain (light, sensor, weather, media_player, etc.). The "LIVE HA ENTITIES" section in the system prompt is a snapshot from conversation start; call this for fresh state.',
+      description: 'List Home Assistant entities currently cached. ALWAYS pass `domain` (light, sensor, weather, media_player, etc.) — the unfiltered catalog can be hundreds of entities and is rarely what you need. Only call this when an ask actually depends on knowing what entities exist; reuse earlier results in the same conversation instead of re-fetching.',
       parameters: z.object({
         domain: z.string().optional().describe("HA domain prefix, e.g. 'light' or 'sensor'."),
       }),

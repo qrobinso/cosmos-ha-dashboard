@@ -250,16 +250,22 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
    *  the parent scene's id + name so an agent can locate "the canvas widget
    *  on the Kitchen scene" without fetching scenes one-by-one. Filters:
    *  `?scene=<id-or-name>` and `?kind=<kind>`. */
-  app.get<{ Querystring: { scene?: string; kind?: string } }>(
+  app.get<{ Querystring: { scene?: string; kind?: string; name?: string } }>(
     '/api/widgets',
     async (req) => {
       const sceneFilter = typeof req.query?.scene === 'string' ? req.query.scene : null;
       const kindFilter = typeof req.query?.kind === 'string' ? req.query.kind : null;
+      // `name` matches `config.name` case-insensitively. Used by agents and the
+      // admin agent to locate "the news-headlines canvas" without knowing its id.
+      const nameFilter = typeof req.query?.name === 'string' && req.query.name.length > 0
+        ? req.query.name.trim().toLowerCase()
+        : null;
       const out: Array<{
         id: string;
         sceneId: string;
         sceneName: string;
         kind: string;
+        name: string | null;
         position: unknown;
         config: unknown;
       }> = [];
@@ -267,11 +273,15 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
         if (sceneFilter && s.id !== sceneFilter && s.name !== sceneFilter) continue;
         for (const w of s.widgets) {
           if (kindFilter && w.kind !== kindFilter) continue;
+          const cfg = (w.config ?? {}) as Record<string, unknown>;
+          const name = typeof cfg.name === 'string' ? cfg.name : null;
+          if (nameFilter && (name === null || name.toLowerCase() !== nameFilter)) continue;
           out.push({
             id: w.id,
             sceneId: s.id,
             sceneName: s.name,
             kind: w.kind,
+            name,
             position: w.position,
             config: w.config,
           });

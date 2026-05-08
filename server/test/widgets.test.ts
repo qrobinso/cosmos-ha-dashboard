@@ -71,6 +71,26 @@ describe('widget endpoints', () => {
     expect(list[0].kind).toBe('canvas');
   });
 
+  it('GET /api/widgets exposes config.name as a top-level field', async () => {
+    await app.inject({ method: 'POST', url: '/api/scenes', payload: sceneWithCanvas });
+    const res = await app.inject({ method: 'GET', url: '/api/widgets?kind=canvas' });
+    expect(res.json()).toEqual([
+      expect.objectContaining({ kind: 'canvas', name: 'main' }),
+    ]);
+  });
+
+  it('GET /api/widgets filters by name (case-insensitive exact)', async () => {
+    await app.inject({ method: 'POST', url: '/api/scenes', payload: sceneWithCanvas });
+    const hit = await app.inject({ method: 'GET', url: '/api/widgets?name=MAIN' });
+    expect(hit.statusCode).toBe(200);
+    const list = hit.json();
+    expect(list).toHaveLength(1);
+    expect(list[0].name).toBe('main');
+
+    const miss = await app.inject({ method: 'GET', url: '/api/widgets?name=does-not-exist' });
+    expect(miss.json()).toEqual([]);
+  });
+
   it('PATCH /api/widgets/:id shallow-merges config', async () => {
     const created = (await app.inject({ method: 'POST', url: '/api/scenes', payload: sceneWithCanvas })).json();
     const widgetId = created.widgets[0].id;

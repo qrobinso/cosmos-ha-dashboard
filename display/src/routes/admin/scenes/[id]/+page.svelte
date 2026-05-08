@@ -1098,6 +1098,15 @@
               </label>
             </div>
           {:else if w.kind === 'canvas'}
+            <Field label="Name (optional)">
+              <input
+                type="text"
+                placeholder="e.g. kitchen-power, news-headlines, garden-cam"
+                value={configStr(w.config, 'name')}
+                on:input={(e) => { w.config = { ...w.config, name: e.currentTarget.value }; widgets = widgets; }}
+              />
+              <span class="hint">A short label so you (and your LLM agent) can refer to this canvas by name later — "edit the news-headlines canvas" instead of "the canvas with id abc123".</span>
+            </Field>
             <Field label="Content (HTML / CSS / JS)">
               <div class="canvas-editor-toolbar">
                 <span
