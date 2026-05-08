@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
+import { networkInterfaces } from 'node:os';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { SettingsRepo } from '../store/settings.js';
 import type { HaClient } from '../ha/types.js';
@@ -10,6 +11,35 @@ import {
   isEnabled,
   setEnabled,
 } from '../store/mcp-token.js';
+
+/** Best-guess LAN-reachable hostnames for this machine, in preference order.
+ *  Filters out loopback (127.0.0.1, ::1) and link-local (169.254.x.x, fe80::)
+ *  so the admin UI can substitute a real address when the user opens admin
+ *  from `localhost`. IPv6 addresses get bracketed for URL-safety. */
+function getLanHosts(): string[] {
+  const out: string[] = [];
+  const ifaces = networkInterfaces();
+  for (const list of Object.values(ifaces)) {
+    if (!list) continue;
+    for (const a of list) {
+      if (a.internal) continue;
+      if (a.family === 'IPv4') {
+        if (a.address.startsWith('169.254.')) continue;
+        out.push(a.address);
+      } else if (a.family === 'IPv6') {
+        if (a.address.toLowerCase().startsWith('fe80')) continue;
+        out.push(`[${a.address}]`);
+      }
+    }
+  }
+  // Prefer IPv4 over IPv6 (most users expect that). Stable sort within family.
+  return out.sort((x, y) => {
+    const xv6 = x.startsWith('[');
+    const yv6 = y.startsWith('[');
+    if (xv6 === yv6) return 0;
+    return xv6 ? 1 : -1;
+  });
+}
 
 export type McpRoutesDeps = {
   app: FastifyInstance;
@@ -29,6 +59,12 @@ type McpStatusResponse = {
   /** Returned to the admin UI (same origin) so the user can copy it.
    *  Never returned from the /mcp transport endpoint. */
   token: string | null;
+  /** LAN-reachable hostnames for this machine (IPv4 first). The admin UI
+   *  uses these to substitute the host part of the endpoint URL when the
+   *  user opens admin from `localhost` — that bare URL would never work
+   *  for an external Claude Desktop on a different machine. Empty array
+   *  if no non-loopback NICs are available. */
+  endpointHosts: string[];
 };
 
 export function registerMcpRoutes(app: FastifyInstance, deps: McpRoutesDeps): void {
@@ -38,6 +74,7 @@ export function registerMcpRoutes(app: FastifyInstance, deps: McpRoutesDeps): vo
       enabled: isEnabled(deps.settings),
       hasToken: getToken(deps.settings) !== null,
       token: getToken(deps.settings),
+      endpointHosts: getLanHosts(),
     };
   });
 
@@ -56,6 +93,7 @@ export function registerMcpRoutes(app: FastifyInstance, deps: McpRoutesDeps): vo
         enabled: isEnabled(deps.settings),
         hasToken: getToken(deps.settings) !== null,
         token: getToken(deps.settings),
+        endpointHosts: getLanHosts(),
       };
     }
   );
@@ -68,6 +106,7 @@ export function registerMcpRoutes(app: FastifyInstance, deps: McpRoutesDeps): vo
       enabled: isEnabled(deps.settings),
       hasToken: getToken(deps.settings) !== null,
       token: getToken(deps.settings),
+      endpointHosts: getLanHosts(),
     };
   });
 
