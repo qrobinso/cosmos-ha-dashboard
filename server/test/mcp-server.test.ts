@@ -212,4 +212,17 @@ describe('MCP /mcp transport', () => {
     expect(regenerated.token).not.toBe(enabled.token);
     expect(regenerated.token).toMatch(/^cosmos_mcp_/);
   });
+
+  it('rejects a wrong-but-equal-length bearer (timingSafeEqual sanity)', async () => {
+    setEnabled(ctx.settings, true);
+    const real = regenerateToken(ctx.settings);
+    // Wrong token, same length as the real one. timingSafeEqual must
+    // reject these without leaking via timing. Functionally, we just
+    // verify it 401s.
+    const wrong = 'cosmos_mcp_' + '0'.repeat(real.length - 'cosmos_mcp_'.length);
+    expect(wrong.length).toBe(real.length);
+    expect(wrong).not.toBe(real);
+    const res = await rpc(app, { jsonrpc: '2.0', id: 99, method: 'tools/list' }, `Bearer ${wrong}`);
+    expect(res.statusCode).toBe(401);
+  });
 });
