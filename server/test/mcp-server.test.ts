@@ -95,9 +95,10 @@ describe('MCP /mcp transport', () => {
     const res = await rpc(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, `Bearer ${token}`);
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.result.tools).toHaveLength(12);
+    expect(body.result.tools).toHaveLength(13);
     const names = body.result.tools.map((t: { name: string }) => t.name).sort();
     expect(names).toEqual([
+      'activate_scene',
       'assign_scene_to_display',
       'create_scene',
       'get_scene',
@@ -111,8 +112,9 @@ describe('MCP /mcp transport', () => {
       'update_scene',
       'update_widget_content',
     ]);
-    // No destructive tools.
-    expect(names).not.toContain('activate_scene');
+    // Hard-destructive tools (data loss) stay out — agents shouldn't be
+    // able to wipe scenes via MCP. activate_scene is exposed as it's
+    // reversible (just changes which scene is showing).
     expect(names).not.toContain('delete_scene');
     expect(names).not.toContain('delete_widget');
   });
@@ -236,6 +238,28 @@ describe('MCP /mcp transport', () => {
     // Other metadata (name, typography) preserved.
     expect(after.name).toBe('Morning');
     expect(after.typography.font_family).toBe('Inter');
+  });
+
+  it('tools/call activate_scene flips the display\'s currentSceneId', async () => {
+    setEnabled(ctx.settings, true);
+    const token = regenerateToken(ctx.settings);
+    // Seed a display + a scene.
+    const display = ctx.displays.registerByName('Living Room');
+    const created = await rpc(app, {
+      jsonrpc: '2.0', id: 40, method: 'tools/call',
+      params: { name: 'create_scene', arguments: { payload: sceneFixture } },
+    }, `Bearer ${token}`);
+    const sceneId = JSON.parse(created.json().result.content[0].text).id;
+
+    const res = await rpc(app, {
+      jsonrpc: '2.0', id: 41, method: 'tools/call',
+      params: { name: 'activate_scene', arguments: { displayName: 'Living Room', sceneId } },
+    }, `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().result.isError).toBeUndefined();
+
+    const after = ctx.displays.getById(display.id);
+    expect(after?.currentSceneId).toBe(sceneId);
   });
 
   it('regenerate invalidates the old token immediately', async () => {

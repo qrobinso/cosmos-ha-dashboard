@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- Feat: Added `activate_scene` to the MCP surface. External agents can now push a scene live to a display — the previously documented gap that prevented an end-to-end "edit a canvas → see it on the wall" flow purely through MCP. The tool description leads with a ⚠️ warning so well-behaved clients (Claude Desktop) can surface a confirm prompt; hard-destructive tools (`delete_scene`, `delete_widget`) remain out of the MCP surface since they're data-loss operations.
+
 ## 0.5.1
 
 - Fix: MCP `update_scene` was returning **415 Unsupported Media Type** for every payload shape. Root cause: when an LLM tool call's `payload` reached `app.inject` without an explicit content-type, light-my-request's auto-detection didn't fire and Fastify rejected the body. The MCP inject helper now defensively normalizes object payloads (and string payloads that parse as JSON) → `JSON.stringify` + `Content-Type: application/json`. Regression test added.

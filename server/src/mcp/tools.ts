@@ -322,5 +322,29 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
         return jsonResult(r);
       },
     },
+
+    {
+      name: 'activate_scene',
+      description:
+        '⚠️ STATE-CHANGING — pushes a scene LIVE to a wall display. Whatever is currently on screen transitions out. Reversible (call again with a different sceneId), but visible to anyone in the room. ONLY call after the user has explicitly asked to "show", "activate", or "switch to" a scene on a specific display — well-behaved MCP clients will surface a confirm prompt for you, but treat it as if they will not. Optional `transitionId`: pass null to use the scene\'s default; pass a transition id from `list_transitions` to override for this one activation.',
+      inputSchema: z.object({
+        displayName: z.string().describe('The display name from list_displays.'),
+        sceneId: z.string().describe('The scene id from list_scenes.'),
+        transitionId: z.string().nullable().optional(),
+      }),
+      execute: async (raw) => {
+        const args = raw as { displayName: string; sceneId: string; transitionId?: string | null };
+        const r = await inject(app, {
+          method: 'POST',
+          url: `/api/displays/${encodeURIComponent(args.displayName)}/scene/activate`,
+          payload: {
+            sceneId: args.sceneId,
+            ...(args.transitionId !== undefined ? { transitionId: args.transitionId } : {}),
+          } as import('light-my-request').InjectPayload,
+        });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
   ];
 }
