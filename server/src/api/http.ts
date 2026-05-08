@@ -19,6 +19,7 @@ import { registerDocsRoutes } from './docs.js';
 import { registerAgentRoutes } from './agent.js';
 import { registerMcpRoutes } from './mcp.js';
 import type { AlertManager } from '../scenes/alerts.js';
+import type { DisplayPaletteStore } from '../store/displayPalette.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 export const DEFAULT_SAFE_AREA: SafeArea = { top: 16, right: 16, bottom: 16, left: 16 };
@@ -87,6 +88,12 @@ export type HttpDeps = {
   /** Absolute path to the bundled `docs/` directory. When provided, the
    *  `/api/docs` and `/api/docs/:slug` routes are registered. */
   docsDir?: string;
+  /** Per-display palette store for the adaptive-gradient feature. */
+  displayPalette?: DisplayPaletteStore;
+  /** Fired by the palette POST endpoint when the resolved set actually
+   *  changed for a display. The host wires this to a per-display scene
+   *  re-push so the new gradient.colors land on the wall. */
+  onPaletteChanged?: (displayId: string) => void;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -153,6 +160,36 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     const stored = writeCanvasFetchPolicy(deps.settings, merged);
     deps.onSettingsChanged?.();
     return stored;
+  });
+
+  app.get<{ Params: { name: string } }>('/api/displays/:name/palette', async (req, reply) => {
+    const display = deps.displays.getByName(req.params.name);
+    if (!display) return reply.code(404).send({ error: 'display not found' });
+    const result = deps.displayPalette?.getResolved(display.id) ?? { colors: [], updatedAt: null };
+    return result;
+  });
+
+  app.post<{
+    Params: { name: string };
+    Body: { widgetId?: unknown; colors?: unknown };
+  }>('/api/displays/:name/palette', async (req, reply) => {
+    const display = deps.displays.getByName(req.params.name);
+    if (!display) return reply.code(404).send({ error: 'display not found' });
+    const widgetId = typeof req.body?.widgetId === 'string' ? req.body.widgetId : '';
+    if (!widgetId) return reply.code(400).send({ error: 'widgetId is required' });
+    const raw = req.body?.colors;
+    if (!Array.isArray(raw)) return reply.code(400).send({ error: 'colors must be an array' });
+    if (raw.length > 5) return reply.code(400).send({ error: 'colors must contain at most 5 entries' });
+    const colors: string[] = [];
+    for (const c of raw) {
+      if (typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c)) {
+        return reply.code(400).send({ error: 'each color must be a #rrggbb string' });
+      }
+      colors.push(c.toLowerCase());
+    }
+    const result = deps.displayPalette?.set(display.id, widgetId, colors);
+    if (result?.resolvedChanged) deps.onPaletteChanged?.(display.id);
+    return reply.code(204).send();
   });
 
   registerTransitionRoutes(app, deps.transitions);
