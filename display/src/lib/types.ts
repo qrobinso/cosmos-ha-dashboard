@@ -8,6 +8,7 @@ export type Background =
       speed: 'slow' | 'medium' | 'fast';
       style: 'mesh' | 'linear' | 'radial';
       sun_adaptive?: boolean;
+      adaptive_colors?: boolean;
     };
 export type Typography = { font_family: string; font_scale: number };
 export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
