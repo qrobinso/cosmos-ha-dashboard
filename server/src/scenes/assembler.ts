@@ -407,7 +407,8 @@ export async function buildSceneState(
   scene: Scene,
   safeArea: { top: number; right: number; bottom: number; left: number },
   resolverOrDeps: EntityResolver | DataResolvers = mockEntityResolver,
-  canvasFetchPolicy?: CanvasFetchPolicy
+  canvasFetchPolicy?: CanvasFetchPolicy,
+  adaptivePalette?: string[]
 ): Promise<SceneState> {
   // Backwards-compat: callers that pass a plain resolver function still work.
   const deps: DataResolvers =
@@ -458,6 +459,18 @@ export async function buildSceneState(
     const colors = resolveSunGradient(now, readEntitySync('sun.sun'));
     background = { ...background, colors };
   }
+  // Adaptive colors run AFTER sun-adaptive: with both flags on, the sun
+  // palette is the resting fallback and adaptive_colors overrides it
+  // whenever any widget is reporting. With adaptive on alone, the user's
+  // hand-picked gradient.colors stays as the empty-palette fallback.
+  if (
+    background.type === 'gradient' &&
+    background.adaptive_colors &&
+    adaptivePalette &&
+    adaptivePalette.length > 0
+  ) {
+    background = { ...background, colors: adaptivePalette };
+  }
 
   return {
     id: scene.id,
@@ -500,6 +513,11 @@ export type AssemblePushArgs = {
   transitionSpeedMultiplier?: number;
   /** Per-server policy controlling canvas-iframe outbound `cosmos.fetch`. */
   canvasFetchPolicy?: CanvasFetchPolicy;
+  /** Resolved per-display palette. When the scene's gradient has
+   *  `adaptive_colors` enabled and this is non-empty, it overrides
+   *  `gradient.colors`. Read from `displayPalette.getResolved(displayId)`
+   *  in the WS hub's `buildPayload`. */
+  adaptivePalette?: string[];
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -528,7 +546,8 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
       canvasResolver: args.canvasResolver,
       canvasExtras: args.canvasExtras,
     },
-    args.canvasFetchPolicy
+    args.canvasFetchPolicy,
+    args.adaptivePalette
   );
   const transition = resolveTransition(args);
   const scaled = transition && args.transitionSpeedMultiplier !== undefined && args.transitionSpeedMultiplier !== 1

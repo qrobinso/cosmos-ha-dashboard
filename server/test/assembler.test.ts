@@ -127,6 +127,46 @@ describe('buildSceneState', () => {
     });
     expect(state.widgets[0].data).toEqual({ resolved: '<h1>42</h1>', liveEntityIds: ['x'] });
   });
+
+  describe('adaptive_colors override', () => {
+    const baseScene = {
+      id: 's1',
+      name: 'Test',
+      layout: { cols: 12, rows: 8, items: [] as any[] },
+      background: {
+        type: 'gradient' as const,
+        colors: ['#111111', '#222222', '#333333'],
+        speed: 'medium' as const,
+        style: 'mesh' as const,
+        adaptive_colors: true,
+      },
+      typography: { font_family: 'Inter', font_scale: 1 },
+      defaultTransitionId: null,
+      floatWidgets: false,
+      mood: { enabled: false, strategy: 'manual' as const },
+      widgets: [],
+    };
+
+    it('overrides gradient.colors when adaptive_colors=true and palette non-empty', async () => {
+      const state = await buildSceneState(baseScene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, ['#abcdef', '#fedcba']);
+      expect(state.background.type).toBe('gradient');
+      if (state.background.type !== 'gradient') return;
+      expect(state.background.colors).toEqual(['#abcdef', '#fedcba']);
+    });
+
+    it('keeps user colors when adaptive_colors=true but palette is empty', async () => {
+      const state = await buildSceneState(baseScene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, []);
+      if (state.background.type !== 'gradient') return;
+      expect(state.background.colors).toEqual(['#111111', '#222222', '#333333']);
+    });
+
+    it('keeps user colors when adaptive_colors=false even if palette supplied', async () => {
+      const scene = { ...baseScene, background: { ...baseScene.background, adaptive_colors: false } };
+      const state = await buildSceneState(scene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, ['#abcdef']);
+      if (state.background.type !== 'gradient') return;
+      expect(state.background.colors).toEqual(['#111111', '#222222', '#333333']);
+    });
+  });
 });
 
 function reposFor() {
