@@ -11,6 +11,7 @@ import { registerMoodRoutes } from './moods.js';
 import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
 import { registerDocsRoutes } from './docs.js';
 import { registerAgentRoutes } from './agent.js';
+import { registerMcpRoutes } from './mcp.js';
 import type { AlertManager } from '../scenes/alerts.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
@@ -163,6 +164,13 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   // 503 work even when no docs are bundled. The system-prompt builder
   // gracefully handles a missing docs directory.
   registerAgentRoutes(app, {
+    app,
+    settings: deps.settings,
+    haClient: deps.haClient ?? null,
+    docsDir: deps.docsDir ?? '',
+  });
+
+  registerMcpRoutes(app, {
     app,
     settings: deps.settings,
     haClient: deps.haClient ?? null,
