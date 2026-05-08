@@ -31,6 +31,7 @@
   let mcpEnabled = false;
   let mcpHasToken = false;
   let mcpToken: string | null = null;
+  let mcpEndpointHosts: string[] = [];
   let savingMcp = false;
   let mcpCopied = false;
   let snippetCopied = false;
@@ -48,7 +49,7 @@
       api.settings.getTransitionSpeed(),
       api.agent.getSettings().catch(() => ({ hasKey: false, model: '', confirmRequiredTools: [] })),
       api.settings.getCanvasFetch().catch(() => ({ mode: 'allowlist' as const, allowlist: [] })),
-      api.agent.getMcpConfig().catch(() => ({ enabled: false, hasToken: false, token: null })),
+      api.agent.getMcpConfig().catch(() => ({ enabled: false, hasToken: false, token: null, endpointHosts: [] })),
     ]);
     safeArea = sa;
     transitionSpeed = ts.multiplier;
@@ -60,6 +61,7 @@
     mcpEnabled = mcp.enabled;
     mcpHasToken = mcp.hasToken;
     mcpToken = mcp.token;
+    mcpEndpointHosts = mcp.endpointHosts ?? [];
     loaded = true;
   });
 
