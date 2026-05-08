@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { getDisplayName, setDisplayName } from '$lib/storage';
+  import { setDisplayName as setReportDisplayName } from '$lib/scene/reportPalette';
   import { connect, type ServerMessage, type Orientation } from '$lib/ws';
   import type { SceneState } from '$lib/types';
   import TransitionStage from '$lib/scene/TransitionStage.svelte';
@@ -44,6 +45,7 @@
 
   function start(n: string) {
     name = n;
+    setReportDisplayName(n);
     socket = connect(n, handleMessage);
   }
 
@@ -70,6 +72,7 @@
 
   onDestroy(() => {
     socket?.close();
+    setReportDisplayName(null);
   });
 </script>
 
