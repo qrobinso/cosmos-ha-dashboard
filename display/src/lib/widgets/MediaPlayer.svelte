@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import type { WidgetState, MediaPlayerData } from '$lib/types';
   import { marquee } from '$lib/actions/marquee';
+  import { extractFromUrl } from '$lib/scene/extractPalette';
+  import { reportWidgetPalette } from '$lib/scene/reportPalette';
 
   export let widget: WidgetState;
 
@@ -30,7 +32,10 @@
   onMount(() => {
     timer = setInterval(() => (nowMs = Date.now()), 1000);
   });
-  onDestroy(() => clearInterval(timer));
+  onDestroy(() => {
+    clearInterval(timer);
+    if (lastExtractedUrl !== null) reportWidgetPalette(widget.id, []);
+  });
 
   let receivedAtMs = Date.now();
   let lastPosition: number | null = null;
@@ -55,6 +60,29 @@
   $: progressPct = livePosition !== null && data?.duration
     ? Math.min(100, Math.max(0, (livePosition / data.duration) * 100))
     : 0;
+
+  let lastExtractedUrl: string | null = null;
+
+  // Reactive: when album_art_url changes, extract and report. When it
+  // disappears, clear our contribution.
+  $: handleArtChange(data?.album_art_url ?? null);
+
+  function handleArtChange(url: string | null) {
+    if (!url) {
+      if (lastExtractedUrl !== null) {
+        lastExtractedUrl = null;
+        reportWidgetPalette(widget.id, []);
+      }
+      return;
+    }
+    if (url === lastExtractedUrl) return;
+    lastExtractedUrl = url;
+    void extractFromUrl(url).then((colors) => {
+      // Re-check: the URL might have changed again while we were extracting.
+      if (lastExtractedUrl !== url) return;
+      reportWidgetPalette(widget.id, colors);
+    });
+  }
 
   $: stateLabel = data
     ? data.state === 'playing' ? 'Playing'
