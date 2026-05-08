@@ -149,6 +149,24 @@ export const api = {
       const res = await fetch('/api/agent/time');
       return (await res.json()) as { now: number; iso: string };
     },
+    async getMcpConfig(): Promise<{ enabled: boolean; hasToken: boolean; token: string | null }> {
+      const res = await fetch('/api/agent/mcp');
+      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null };
+    },
+    async enableMcp(enabled: boolean): Promise<{ enabled: boolean; hasToken: boolean; token: string | null }> {
+      const res = await fetch('/api/agent/mcp/enable', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      await ensureOk(res);
+      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null };
+    },
+    async regenerateMcpToken(): Promise<{ enabled: boolean; hasToken: boolean; token: string | null }> {
+      const res = await fetch('/api/agent/mcp/regenerate', { method: 'POST' });
+      await ensureOk(res);
+      return (await res.json()) as { enabled: boolean; hasToken: boolean; token: string | null };
+    },
   },
   moods: {
     async list(): Promise<{ id: string; label: string; tags: string[] }[]> {
