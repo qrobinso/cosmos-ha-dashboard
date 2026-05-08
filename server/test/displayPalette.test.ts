@@ -63,4 +63,19 @@ describe('displayPalette', () => {
     const t2 = store.getResolved('d1').updatedAt;
     expect(t2 === null ? 0 : Date.parse(t2)).toBeGreaterThan(t1 === null ? 0 : Date.parse(t1));
   });
+
+  it('getContributions returns a defensive copy of the raw map', () => {
+    store.set('d1', 'w1', ['#ff0000']);
+    store.set('d1', 'w2', ['#00ff00']);
+    const c = store.getContributions('d1');
+    expect(c.get('w1')).toEqual(['#ff0000']);
+    expect(c.get('w2')).toEqual(['#00ff00']);
+    // Mutation of the returned map does not affect store state.
+    c.delete('w1');
+    expect(store.getContributions('d1').size).toBe(2);
+  });
+
+  it('getContributions returns empty map for unknown display', () => {
+    expect(store.getContributions('nope').size).toBe(0);
+  });
 });

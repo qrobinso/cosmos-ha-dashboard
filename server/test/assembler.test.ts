@@ -148,23 +148,43 @@ describe('buildSceneState', () => {
     };
 
     it('overrides gradient.colors when adaptive_colors=true and palette non-empty', async () => {
-      const state = await buildSceneState(baseScene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, ['#abcdef', '#fedcba']);
+      const state = await buildSceneState(baseScene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, new Map([['w1', ['#abcdef', '#fedcba']]]));
       expect(state.background.type).toBe('gradient');
       if (state.background.type !== 'gradient') return;
-      expect(state.background.colors).toEqual(['#abcdef', '#fedcba']);
+      // Two contribution colors + one pad from gradient.colors → 3 stops total.
+      expect(state.background.colors).toHaveLength(3);
+      expect(state.background.colors[0]).toBe('#abcdef');
+      expect(state.background.colors[1]).toBe('#fedcba');
+      expect(state.background.colors[2]).toBe('#111111');
     });
 
     it('keeps user colors when adaptive_colors=true but palette is empty', async () => {
-      const state = await buildSceneState(baseScene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, []);
+      const state = await buildSceneState(baseScene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, new Map<string, string[]>());
       if (state.background.type !== 'gradient') return;
       expect(state.background.colors).toEqual(['#111111', '#222222', '#333333']);
     });
 
     it('keeps user colors when adaptive_colors=false even if palette supplied', async () => {
       const scene = { ...baseScene, background: { ...baseScene.background, adaptive_colors: false } };
-      const state = await buildSceneState(scene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, ['#abcdef']);
+      const state = await buildSceneState(scene, { top: 0, right: 0, bottom: 0, left: 0 }, undefined, undefined, new Map([['w1', ['#abcdef']]]));
       if (state.background.type !== 'gradient') return;
       expect(state.background.colors).toEqual(['#111111', '#222222', '#333333']);
+    });
+
+    it('pads with gradient.colors when adaptive palette is shorter than targetCount', async () => {
+      const state = await buildSceneState(
+        baseScene,
+        { top: 0, right: 0, bottom: 0, left: 0 },
+        undefined,
+        undefined,
+        new Map([['w1', ['#ff0000']]])  // single color
+      );
+      if (state.background.type !== 'gradient') return;
+      // Must have 3 stops; first is the contribution, rest are padded from baseScene.colors.
+      expect(state.background.colors).toHaveLength(3);
+      expect(state.background.colors[0]).toBe('#ff0000');
+      // Pads come from ['#111111', '#222222', '#333333']
+      expect(state.background.colors).toContain('#111111');
     });
   });
 });

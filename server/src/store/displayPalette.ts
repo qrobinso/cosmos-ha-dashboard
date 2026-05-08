@@ -10,6 +10,10 @@ export type DisplayPaletteStore = {
   /** Read the most recent resolved palette for a display. Empty when nothing
    *  has been reported. */
   getResolved(displayId: string): { colors: string[]; updatedAt: string | null };
+  /** Read raw per-widget contributions for a display. The assembler runs
+   *  the reducer at apply time with `gradient.colors` as the fallback so
+   *  the resolved palette is padded to the target stop count. */
+  getContributions(displayId: string): Map<string, string[]>;
   /** Drop every contribution for a display (called on disconnect). */
   clearDisplay(displayId: string): void;
   /** Drop contributions whose widget id isn't in `keep` (called from the
@@ -58,6 +62,12 @@ export function createDisplayPaletteStore(): DisplayPaletteStore {
       const entry = byDisplay.get(displayId);
       if (!entry) return { colors: [], updatedAt: null };
       return { colors: [...entry.resolved], updatedAt: entry.updatedAt };
+    },
+    getContributions(displayId) {
+      const entry = byDisplay.get(displayId);
+      if (!entry) return new Map();
+      // Defensive copy so callers can't mutate internal state.
+      return new Map(entry.contributions);
     },
     clearDisplay(displayId) {
       byDisplay.delete(displayId);

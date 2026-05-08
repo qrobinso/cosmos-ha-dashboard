@@ -97,7 +97,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     const safeArea = readSafeArea(deps.settings);
     const transitionSpeedMultiplier = readTransitionSpeed(deps.settings);
     const canvasFetchPolicy = readCanvasFetchPolicy(deps.settings);
-    const adaptivePalette = deps.displayPalette?.getResolved(displayId).colors ?? [];
+    const adaptiveContributions = deps.displayPalette?.getContributions(displayId);
     const payload = await assemblePush({
       scene,
       safeArea,
@@ -107,7 +107,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       explicitTransitionId,
       transitionSpeedMultiplier,
       canvasFetchPolicy,
-      adaptivePalette,
+      adaptiveContributions,
       resolver: deps.resolveEntity,
       resolveCalendarEvents: deps.resolveCalendarEvents,
       resolveHistory: deps.resolveHistory,

@@ -22,6 +22,7 @@ import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import type { CanvasFetchPolicy } from '../store/canvasFetch.js';
 import { resolveMood } from '../moods/resolve.js';
 import { resolveSunGradient } from './sunGradient.js';
+import { reducePalette } from './palette.js';
 import {
   mockEntity,
   mockCalendar,
@@ -408,7 +409,7 @@ export async function buildSceneState(
   safeArea: { top: number; right: number; bottom: number; left: number },
   resolverOrDeps: EntityResolver | DataResolvers = mockEntityResolver,
   canvasFetchPolicy?: CanvasFetchPolicy,
-  adaptivePalette?: string[]
+  adaptiveContributions?: Map<string, string[]>
 ): Promise<SceneState> {
   // Backwards-compat: callers that pass a plain resolver function still work.
   const deps: DataResolvers =
@@ -466,10 +467,13 @@ export async function buildSceneState(
   if (
     background.type === 'gradient' &&
     background.adaptive_colors &&
-    adaptivePalette &&
-    adaptivePalette.length > 0
+    adaptiveContributions &&
+    adaptiveContributions.size > 0
   ) {
-    background = { ...background, colors: adaptivePalette };
+    const padded = reducePalette(adaptiveContributions, background.colors, 3);
+    if (padded.length > 0) {
+      background = { ...background, colors: padded };
+    }
   }
 
   return {
@@ -513,11 +517,13 @@ export type AssemblePushArgs = {
   transitionSpeedMultiplier?: number;
   /** Per-server policy controlling canvas-iframe outbound `cosmos.fetch`. */
   canvasFetchPolicy?: CanvasFetchPolicy;
-  /** Resolved per-display palette. When the scene's gradient has
-   *  `adaptive_colors` enabled and this is non-empty, it overrides
-   *  `gradient.colors`. Read from `displayPalette.getResolved(displayId)`
-   *  in the WS hub's `buildPayload`. */
-  adaptivePalette?: string[];
+  /** Raw per-widget palette contributions; the assembler pads with
+   *  `gradient.colors` to reach 3 stops. When the scene's gradient has
+   *  `adaptive_colors` enabled and contributions are non-empty, it
+   *  overrides `gradient.colors`. Read from
+   *  `displayPalette.getContributions(displayId)` in the WS hub's
+   *  `buildPayload`. */
+  adaptiveContributions?: Map<string, string[]>;
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -547,7 +553,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
       canvasExtras: args.canvasExtras,
     },
     args.canvasFetchPolicy,
-    args.adaptivePalette
+    args.adaptiveContributions
   );
   const transition = resolveTransition(args);
   const scaled = transition && args.transitionSpeedMultiplier !== undefined && args.transitionSpeedMultiplier !== 1
