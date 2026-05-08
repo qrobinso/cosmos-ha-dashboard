@@ -28,6 +28,7 @@
   let resizeObs: ResizeObserver | null = null;
   let lastEntityById = new Map<string, EntityState>();
   let extraSubscribed = new Set<string>();
+  let hasReportedColors = false;
   let prevContent: string | undefined;
   $: if (content !== prevContent) {
     extraSubscribed = new Set();
@@ -103,6 +104,11 @@
       for (const c of raw) {
         if (typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) colors.push(c.toLowerCase());
         if (colors.length >= 5) break;
+      }
+      if (colors.length > 0) {
+        hasReportedColors = true;
+      } else {
+        hasReportedColors = false;
       }
       reportWidgetPalette(widget.id, colors);
       return;
@@ -237,7 +243,7 @@
       window.removeEventListener('message', onMessage);
     }
     resizeObs?.disconnect();
-    reportWidgetPalette(widget.id, []);
+    if (hasReportedColors) reportWidgetPalette(widget.id, []);
   });
 </script>
 
