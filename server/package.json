@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^0.0.72",
     "@fastify/static": "^7.0.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^3.4.33",
     "better-sqlite3": "^11.0.0",
     "fastify": "^4.28.0",
