@@ -46,10 +46,11 @@ type SceneInput = {
 type Background =
   | { type: 'solid'; color: string }     // any CSS color string ("#0a0f1c", "rgb(...)")
   | { type: 'gradient';
-      colors: string[];                  // 2–4 CSS colors
+      colors: string[];                  // 2–4 CSS colors (used as fallback when overrides apply)
       speed: 'slow' | 'medium' | 'fast';
       style: 'mesh' | 'linear' | 'radial';
       sun_adaptive?: boolean;            // when true, server overrides colors by time of day
+      adaptive_colors?: boolean;         // when true, pull live colors from widgets (album art, canvas reports)
     };
 
 type WidgetKind =
@@ -113,6 +114,12 @@ The Cosmos display is a wall surface viewed from across a room. Its design langu
 - **Solid first.** A flat, dark-ish color (`#0a0f1c`, `#0e0e0e`, `#101820`) reads cleaner than any gradient, and lets widget content carry the visual interest.
 - **Gradient when the scene IS the visual.** Reach for a gradient when there's no foreground content to look at — an ambient "now playing" or weather-only scene.
 - **`sun_adaptive: true`** is a powerful default for a single "ambient" scene the user runs all day. The server picks colors by time of day; you don't have to.
+- **`adaptive_colors: true`** when the scene has a widget that supplies colors — the gradient then tracks what's on screen. Reach for it when:
+  - The scene has a `media_player` widget (album art drives the gradient — works anytime music is playing).
+  - The scene has a `canvas` widget that calls `cosmos.reportColors([...])` to feed the gradient (see canvas-widget-agent.md).
+  - You want the wall to feel "alive" with whatever the user is doing — a now-playing scene, a generative-canvas mood scene, a hero-image dashboard.
+
+  Don't bother enabling it on scenes that have no color-emitting widgets (clock-only, weather-only, plain entity tiles) — nothing reports, the gradient stays on `colors`. Composes with `sun_adaptive`: sun sets the resting palette, adaptive overrides whenever a widget is reporting. The `colors` you provide are still used as the fallback when nothing's reporting *and* to pad the palette to 3 stops if a widget reports fewer.
 
 ### Typography
 
@@ -310,7 +317,7 @@ Every widget in `widgets[]` must have `kind` (string), `position` (object), and 
 `background` must be an object — never a JSON-stringified version of one. The PATCH/PUT validators check shape:
 
 - `{type:"solid", color:"<css-color>"}` — `color` is required and must be a non-empty string.
-- `{type:"gradient", colors:[<css-colors>], speed:"slow|medium|fast", style:"mesh|linear|radial", sun_adaptive?: boolean}` — `colors` must be an array of strings.
+- `{type:"gradient", colors:[<css-colors>], speed:"slow|medium|fast", style:"mesh|linear|radial", sun_adaptive?: boolean, adaptive_colors?: boolean}` — `colors` must be an array of strings. `adaptive_colors` opts into pulling live colors from widgets (album art, canvas `cosmos.reportColors`); `colors` then becomes the fallback / padding palette.
 
 A string-typed background (e.g. `"{\"type\":\"solid\",\"color\":\"#fff\"}"`) returns a `400 background must be an object` rather than persisting silently.
 

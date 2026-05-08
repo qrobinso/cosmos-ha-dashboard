@@ -95,7 +95,9 @@ If the user hasn't added the host to the allowlist, the promise rejects with a m
 
 ### Reporting palette colors (`cosmos.reportColors`)
 
-If your canvas has dominant colors worth contributing to the scene's gradient — say, a glowing accent or a hero image — report them with `cosmos.reportColors([...])`. The user opts the scene into using these via the **Adapt to widget colors** toggle in the gradient block; if they haven't, the call is a harmless no-op as far as visuals go (but the server still records the palette and exposes it via `GET /api/displays/<name>/palette`, so an agent can ask "what colors is the kitchen-wall canvas reporting?").
+If your canvas has dominant colors worth contributing to the scene's gradient — say, a glowing accent or a hero image — report them with `cosmos.reportColors([...])`. The visual effect activates when the scene's gradient has `adaptive_colors: true`; if it doesn't, the call still records the palette server-side (the agent can read it via `GET /api/displays/<name>/palette`) but the wall's gradient won't track it.
+
+**When you author a canvas that calls `cosmos.reportColors`, set `adaptive_colors: true` on the scene's gradient as part of the same change** so the user sees the effect without a follow-up step. A `gradient` background is required — adaptive_colors is a no-op on `solid` backgrounds. Either author the scene with a gradient + `adaptive_colors: true` from the start, or call `patch_scene` to flip the flag while you're updating the canvas. See scene-agent.md → Background → `adaptive_colors`.
 
 - Pass 1–5 `#rrggbb` strings. Anything else is dropped at the parent.
 - Pass `[]` to clear your contribution.
