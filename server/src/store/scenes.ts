@@ -16,6 +16,11 @@ export type Background =
        *  a clock fallback). The user-specified colors above are ignored while
        *  this flag is on. */
       sun_adaptive?: boolean;
+      /** When true, the server overrides `colors` at scene-push time with
+       *  the resolved palette reported by this display (album art, canvas
+       *  reports, …). Composes with `sun_adaptive`: sun runs first as the
+       *  resting palette, this overrides it whenever something is reporting. */
+      adaptive_colors?: boolean;
     };
 export type Typography = { font_family: string; font_scale: number };
 export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
