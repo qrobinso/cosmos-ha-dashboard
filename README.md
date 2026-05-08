@@ -11,6 +11,10 @@ npm run dev:display  # http://localhost:5173
 npm test
 ```
 
+## Authoring with an LLM agent
+
+Want Claude Code, OpenCode, Cursor, or another agent to write a custom canvas widget for your wall? See [`docs/getting-started-with-agents.md`](docs/getting-started-with-agents.md) — it covers both the paste flow and the direct-send (agent calls the Cosmos REST API) flow.
+
 ## Install as a Home Assistant app
 
 > Home Assistant renamed "add-ons" to "apps" in 2026. The terminology below reflects the current UI; older versions used the **Settings → Add-ons** path.
