@@ -69,6 +69,16 @@ export const CANVAS_BRIDGE_SCRIPT = `
         }
       });
     },
+    /** Report this canvas's dominant colors back to Cosmos. Feeds the
+     *  scene's adaptive gradient when the user has enabled it. Pass an
+     *  empty array to clear. Caller can call as often as it likes; the
+     *  parent dedupes via the server-side change detector. */
+    reportColors: function (colors) {
+      if (!Array.isArray(colors)) return;
+      try {
+        window.parent.postMessage({ type: 'cosmos:report-colors', colors: colors }, '*');
+      } catch (e) {}
+    },
   };
   window.cosmos = cosmos;
 
