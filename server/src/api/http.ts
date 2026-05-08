@@ -1,6 +1,12 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { SettingsRepo } from '../store/settings.js';
+import {
+  readCanvasFetchPolicy,
+  writeCanvasFetchPolicy,
+  normalizeCanvasFetchPolicy,
+  type CanvasFetchPolicy,
+} from '../store/canvasFetch.js';
 import type { ScenesRepo } from '../store/scenes.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { registerSceneRoutes } from './scenes.js';
@@ -128,6 +134,25 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     deps.settings.set('transition_speed_multiplier', String(n));
     deps.onSettingsChanged?.();
     return { multiplier: n };
+  });
+
+  app.get('/api/settings/canvas-fetch', async () => readCanvasFetchPolicy(deps.settings));
+  app.put<{ Body: unknown }>('/api/settings/canvas-fetch', async (req, reply) => {
+    // Defensive: the body must be a JSON object with a recognizable shape.
+    // normalizeCanvasFetchPolicy is tolerant of extras but a non-object body
+    // (string, array, null) is almost certainly a client mistake.
+    const body = req.body as unknown;
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return reply.code(400).send({ error: 'body must be a JSON object' });
+    }
+    const incoming = body as Partial<CanvasFetchPolicy>;
+    if (incoming.mode !== undefined && incoming.mode !== 'off' && incoming.mode !== 'allowlist' && incoming.mode !== 'any') {
+      return reply.code(400).send({ error: 'mode must be off | allowlist | any' });
+    }
+    const merged = { ...readCanvasFetchPolicy(deps.settings), ...normalizeCanvasFetchPolicy(incoming) };
+    const stored = writeCanvasFetchPolicy(deps.settings, merged);
+    deps.onSettingsChanged?.();
+    return stored;
   });
 
   registerTransitionRoutes(app, deps.transitions);

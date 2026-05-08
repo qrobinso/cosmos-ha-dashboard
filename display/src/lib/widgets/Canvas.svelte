@@ -1,12 +1,23 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { WidgetState, CanvasData, EntityState, SceneState } from '$lib/types';
+  import type { WidgetState, CanvasData, EntityState, SceneState, CanvasFetchPolicy } from '$lib/types';
   import { CANVAS_BRIDGE_SCRIPT } from './canvasBridge';
+  import { isHostAllowed } from './canvasFetchPolicy';
 
   export let widget: WidgetState;
   export let scene: SceneState;
   export let displayName: string;
   export let entitiesById: Map<string, import('$lib/types').EntityState> = new Map();
+  export let canvasFetchPolicy: CanvasFetchPolicy | undefined = undefined;
+
+  /** Hard cap on a single response body forwarded to the iframe. RSS feeds
+   *  are usually a few hundred KB; this cap protects the kiosk from a hostile
+   *  or runaway endpoint streaming megabytes. Mirrors the spirit of HA's
+   *  template-render limits. */
+  const MAX_FETCH_BYTES = 2_000_000;
+  /** Hard cap on a single fetch's wall-clock time. Long enough for a slow
+   *  feed; short enough to recover from a hung server. */
+  const FETCH_TIMEOUT_MS = 15_000;
 
   $: data = (widget.data as CanvasData | null) ?? { resolved: '', liveEntityIds: [] };
   $: content = data.resolved;
@@ -80,6 +91,99 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ display_name: displayName, entity_ids: fresh }),
       }).catch(() => {});
+    }
+    if (msg.type === 'cosmos:fetch') {
+      void handleBridgeFetch(msg as BridgeFetchRequest);
+    }
+  }
+
+  type BridgeFetchRequest = {
+    type: 'cosmos:fetch';
+    id: number;
+    url: string;
+    init: { method?: string; headers?: Record<string, string>; body?: string } | null;
+  };
+
+  function postFetchResult(id: number, result: Record<string, unknown>) {
+    iframeEl?.contentWindow?.postMessage({ type: 'cosmos:fetch:result', id, ...result }, '*');
+  }
+
+  async function handleBridgeFetch(req: BridgeFetchRequest) {
+    const id = req.id;
+    let parsed: URL;
+    try {
+      parsed = new URL(req.url);
+    } catch {
+      postFetchResult(id, { error: 'cosmos.fetch: invalid URL' });
+      return;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      postFetchResult(id, { error: 'cosmos.fetch: only http(s) URLs are allowed' });
+      return;
+    }
+    if (!isHostAllowed(parsed.hostname, canvasFetchPolicy)) {
+      const mode = canvasFetchPolicy?.mode ?? 'off';
+      postFetchResult(id, {
+        error:
+          mode === 'off'
+            ? 'cosmos.fetch is disabled. Enable it under Admin → Settings → Canvas fetch.'
+            : `cosmos.fetch: host "${parsed.hostname}" is not on the allowlist.`,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const init: RequestInit = {
+        method: req.init?.method || 'GET',
+        headers: req.init?.headers || {},
+        body: req.init?.body,
+        // Never send credentials, never follow redirects to a different
+        // origin without re-checking the allowlist (browser will follow
+        // by default; we redo the host check on the response URL below).
+        credentials: 'omit',
+        mode: 'cors',
+        redirect: 'follow',
+        signal: controller.signal,
+      };
+      const res = await fetch(parsed.toString(), init);
+      // Re-check the post-redirect host before forwarding the body.
+      try {
+        const finalHost = new URL(res.url || parsed.toString()).hostname;
+        if (!isHostAllowed(finalHost, canvasFetchPolicy)) {
+          postFetchResult(id, { error: `cosmos.fetch: redirected to "${finalHost}" which is not on the allowlist.` });
+          return;
+        }
+      } catch {
+        // If we can't parse res.url, fall through with the original parsed host.
+      }
+
+      // Cap the body. Reading as text first lets us honor the cap before
+      // the iframe sees anything; we always serialize as text and let the
+      // iframe call .json() if it wants JSON.
+      const text = await res.text();
+      if (text.length > MAX_FETCH_BYTES) {
+        postFetchResult(id, { error: `cosmos.fetch: response exceeded ${MAX_FETCH_BYTES} bytes` });
+        return;
+      }
+      const headersOut: Record<string, string> = {};
+      res.headers.forEach((v, k) => {
+        headersOut[k.toLowerCase()] = v;
+      });
+      postFetchResult(id, {
+        ok: res.ok,
+        status: res.status,
+        statusText: res.statusText,
+        url: res.url,
+        headers: headersOut,
+        body: text,
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'fetch failed';
+      postFetchResult(id, { error: `cosmos.fetch: ${reason}` });
+    } finally {
+      window.clearTimeout(timer);
     }
   }
 

@@ -89,7 +89,7 @@
         {:else if w.kind === 'camera'}
           <Camera widget={w} />
         {:else if w.kind === 'canvas'}
-          <Canvas widget={w} {scene} {entitiesById} displayName={displayName ?? ''} />
+          <Canvas widget={w} {scene} {entitiesById} displayName={displayName ?? ''} canvasFetchPolicy={scene.canvasFetchPolicy} />
         {/if}
       </WidgetSlot>
     {/each}

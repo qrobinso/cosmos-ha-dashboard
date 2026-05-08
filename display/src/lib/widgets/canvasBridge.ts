@@ -16,6 +16,9 @@ export const CANVAS_BRIDGE_SCRIPT = `
   var initReceived = false;
   var readyInterval = null;
 
+  var fetchSeq = 0;
+  var fetchPending = {};
+
   var cosmos = {
     size: { w: 0, h: 0 },
     scene: { id: '', name: '' },
@@ -35,6 +38,36 @@ export const CANVAS_BRIDGE_SCRIPT = `
         var i = (subscribers[id] || []).indexOf(cb);
         if (i >= 0) subscribers[id].splice(i, 1);
       };
+    },
+    /** Bridge fetch — the parent does the actual request on this iframe's
+     *  behalf, gated by the per-server allowlist. Resolves with a small
+     *  Response-shaped object: { ok, status, statusText, url, headers, text(),
+     *  json() }. Rejects on network errors, allowlist denial, timeouts, or
+     *  oversized responses (parent caps body size). */
+    fetch: function (url, init) {
+      var id = ++fetchSeq;
+      return new Promise(function (resolve, reject) {
+        fetchPending[id] = { resolve: resolve, reject: reject };
+        // Only forward fields we explicitly support. The parent strips
+        // anything else; spelling them out here gives the agent a clear
+        // contract and avoids serialization surprises (e.g. Headers / Blob).
+        var safeInit = null;
+        if (init && typeof init === 'object') {
+          safeInit = {};
+          if (typeof init.method === 'string') safeInit.method = init.method;
+          if (init.headers && typeof init.headers === 'object') safeInit.headers = init.headers;
+          if (typeof init.body === 'string') safeInit.body = init.body;
+        }
+        try {
+          window.parent.postMessage(
+            { type: 'cosmos:fetch', id: id, url: String(url), init: safeInit },
+            '*'
+          );
+        } catch (e) {
+          delete fetchPending[id];
+          reject(new Error('cosmos.fetch: parent unreachable'));
+        }
+      });
     },
   };
   window.cosmos = cosmos;
@@ -81,6 +114,27 @@ export const CANVAS_BRIDGE_SCRIPT = `
     } else if (msg.type === 'cosmos:context') {
       applyContext(msg.context || {});
       try { window.dispatchEvent(new CustomEvent('cosmos:resize')); } catch (e) {}
+    } else if (msg.type === 'cosmos:fetch:result') {
+      var pending = fetchPending[msg.id];
+      if (!pending) return;
+      delete fetchPending[msg.id];
+      if (msg.error) {
+        pending.reject(new Error(msg.error));
+        return;
+      }
+      var bodyText = typeof msg.body === 'string' ? msg.body : '';
+      pending.resolve({
+        ok: !!msg.ok,
+        status: msg.status || 0,
+        statusText: msg.statusText || '',
+        url: msg.url || '',
+        headers: msg.headers || {},
+        text: function () { return Promise.resolve(bodyText); },
+        json: function () {
+          try { return Promise.resolve(JSON.parse(bodyText)); }
+          catch (e) { return Promise.reject(e); }
+        },
+      });
     }
   });
 

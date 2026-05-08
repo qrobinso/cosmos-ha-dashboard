@@ -19,6 +19,7 @@ import type {
 } from './types.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
+import type { CanvasFetchPolicy } from '../store/canvasFetch.js';
 import { resolveMood } from '../moods/resolve.js';
 import { resolveSunGradient } from './sunGradient.js';
 import {
@@ -405,7 +406,8 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
 export async function buildSceneState(
   scene: Scene,
   safeArea: { top: number; right: number; bottom: number; left: number },
-  resolverOrDeps: EntityResolver | DataResolvers = mockEntityResolver
+  resolverOrDeps: EntityResolver | DataResolvers = mockEntityResolver,
+  canvasFetchPolicy?: CanvasFetchPolicy
 ): Promise<SceneState> {
   // Backwards-compat: callers that pass a plain resolver function still work.
   const deps: DataResolvers =
@@ -470,6 +472,7 @@ export async function buildSceneState(
     safeArea,
     ...(resolvedMood ? { resolvedMood } : {}),
     ...(liveEntities ? { liveEntities } : {}),
+    ...(canvasFetchPolicy ? { canvasFetchPolicy } : {}),
   };
 }
 
@@ -495,6 +498,8 @@ export type AssemblePushArgs = {
    *  durations. 1.0 = baked-in builtin durations; <1 faster; >1 slower.
    *  Out-of-range values are caller's responsibility to clamp. */
   transitionSpeedMultiplier?: number;
+  /** Per-server policy controlling canvas-iframe outbound `cosmos.fetch`. */
+  canvasFetchPolicy?: CanvasFetchPolicy;
 };
 
 export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor | null {
@@ -510,16 +515,21 @@ export function resolveTransition(args: AssemblePushArgs): TransitionDescriptor 
 }
 
 export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPayload> {
-  const state = await buildSceneState(args.scene, args.safeArea, {
-    resolveEntity: args.resolver,
-    resolveCalendarEvents: args.resolveCalendarEvents,
-    resolveHistory: args.resolveHistory,
-    resolveWeatherForecasts: args.resolveWeatherForecasts,
-    readEntitySync: args.readEntitySync,
-    mediaUrlBase: args.mediaUrlBase,
-    canvasResolver: args.canvasResolver,
-    canvasExtras: args.canvasExtras,
-  });
+  const state = await buildSceneState(
+    args.scene,
+    args.safeArea,
+    {
+      resolveEntity: args.resolver,
+      resolveCalendarEvents: args.resolveCalendarEvents,
+      resolveHistory: args.resolveHistory,
+      resolveWeatherForecasts: args.resolveWeatherForecasts,
+      readEntitySync: args.readEntitySync,
+      mediaUrlBase: args.mediaUrlBase,
+      canvasResolver: args.canvasResolver,
+      canvasExtras: args.canvasExtras,
+    },
+    args.canvasFetchPolicy
+  );
   const transition = resolveTransition(args);
   const scaled = transition && args.transitionSpeedMultiplier !== undefined && args.transitionSpeedMultiplier !== 1
     ? scaleTransition(transition, args.transitionSpeedMultiplier)

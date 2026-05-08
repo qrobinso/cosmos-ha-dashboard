@@ -6,6 +6,7 @@ import type { SettingsRepo } from '../store/settings.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import { assemblePush } from '../scenes/assembler.js';
 import { readSafeArea, readTransitionSpeed } from './http.js';
+import { readCanvasFetchPolicy } from '../store/canvasFetch.js';
 import type { OverlayMessage } from '../overlay/types.js';
 
 export type WsDeps = {
@@ -91,6 +92,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     const previousSceneId = lastSceneByDisplay.get(displayId) ?? null;
     const safeArea = readSafeArea(deps.settings);
     const transitionSpeedMultiplier = readTransitionSpeed(deps.settings);
+    const canvasFetchPolicy = readCanvasFetchPolicy(deps.settings);
     const payload = await assemblePush({
       scene,
       safeArea,
@@ -99,6 +101,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       overrides: deps.overrides,
       explicitTransitionId,
       transitionSpeedMultiplier,
+      canvasFetchPolicy,
       resolver: deps.resolveEntity,
       resolveCalendarEvents: deps.resolveCalendarEvents,
       resolveHistory: deps.resolveHistory,

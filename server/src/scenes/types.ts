@@ -1,6 +1,7 @@
 import type { Scene, Widget } from '../store/scenes.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { ResolvedMood } from '../moods/types.js';
+import type { CanvasFetchPolicy } from '../store/canvasFetch.js';
 
 export type ClockData = null;
 
@@ -184,6 +185,12 @@ export type SceneState = Omit<Scene, 'widgets'> & {
    *  forwards to canvas iframes, so canvases can read entity state for
    *  entities that aren't displayed by any other widget on the scene. */
   liveEntities?: EntityState[];
+  /** Per-server allowlist policy for `cosmos.fetch` calls from canvas iframes.
+   *  Enforcement happens on the display (it does the fetch on the iframe's
+   *  behalf), so the policy travels with every scene push. Absent when the
+   *  default (allowlist + empty list) is in effect — display treats absent
+   *  as "deny everything". */
+  canvasFetchPolicy?: CanvasFetchPolicy;
 };
 
 export type ScenePushPayload = {

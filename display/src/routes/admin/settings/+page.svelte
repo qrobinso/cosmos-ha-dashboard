@@ -20,6 +20,13 @@
   let savingAgent = false;
   let savedAgent = false;
 
+  // Canvas-fetch policy — controls outbound `cosmos.fetch(url)` from canvas
+  // iframes. Default is 'allowlist' with empty list, which behaves like 'off'.
+  let canvasFetchMode: 'off' | 'allowlist' | 'any' = 'allowlist';
+  let canvasFetchAllowlistText = '';
+  let savingCanvasFetch = false;
+  let savedCanvasFetch = false;
+
   // MCP server state — fetched on mount alongside the other settings.
   let mcpEnabled = false;
   let mcpHasToken = false;
@@ -36,10 +43,11 @@
   ];
 
   onMount(async () => {
-    const [sa, ts, ag, mcp] = await Promise.all([
+    const [sa, ts, ag, cf, mcp] = await Promise.all([
       api.settings.getSafeArea(),
       api.settings.getTransitionSpeed(),
       api.agent.getSettings().catch(() => ({ hasKey: false, model: '', confirmRequiredTools: [] })),
+      api.settings.getCanvasFetch().catch(() => ({ mode: 'allowlist' as const, allowlist: [] })),
       api.agent.getMcpConfig().catch(() => ({ enabled: false, hasToken: false, token: null })),
     ]);
     safeArea = sa;
@@ -47,6 +55,8 @@
     transitionSpeedRange = { min: ts.min, max: ts.max, default: ts.default };
     agentHasKey = ag.hasKey;
     agentModel = ag.model;
+    canvasFetchMode = cf.mode;
+    canvasFetchAllowlistText = cf.allowlist.join('\n');
     mcpEnabled = mcp.enabled;
     mcpHasToken = mcp.hasToken;
     mcpToken = mcp.token;
@@ -103,6 +113,27 @@
       alert(err instanceof Error ? err.message : 'save failed');
     } finally {
       savingAgent = false;
+    }
+  }
+
+  async function saveCanvasFetch() {
+    savingCanvasFetch = true;
+    savedCanvasFetch = false;
+    try {
+      // Split on newlines OR commas so users can paste either shape.
+      const allowlist = canvasFetchAllowlistText
+        .split(/[\n,]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      const res = await api.settings.updateCanvasFetch({ mode: canvasFetchMode, allowlist });
+      canvasFetchMode = res.mode;
+      canvasFetchAllowlistText = res.allowlist.join('\n');
+      savedCanvasFetch = true;
+      setTimeout(() => (savedCanvasFetch = false), 2000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'save failed');
+    } finally {
+      savingCanvasFetch = false;
     }
   }
 
@@ -181,8 +212,7 @@
 </script>
 
 <header class="page-header reveal reveal-1">
-  <span class="eyebrow">Settings</span>
-  <h1>Global preferences.</h1>
+  <h1>Settings</h1>
 </header>
 
 {#if !loaded}
@@ -289,6 +319,51 @@
         <button class="ghost" on:click={clearAgentKey} disabled={savingAgent}>Clear key</button>
       {/if}
       {#if savedAgent}<span class="status"><span class="check">✓</span> Saved</span>{/if}
+    </div>
+  </section>
+
+  <section class="card reveal reveal-4">
+    <h2>Canvas fetch</h2>
+    <p class="hint">
+      Lets canvas widgets call <code>cosmos.fetch(url)</code> to pull external data — RSS feeds,
+      JSON APIs, anything served over HTTP(S). Requests are made by the display browser on the
+      iframe's behalf and gated by this allowlist. Disabled by default.
+    </p>
+
+    <Field label="Mode">
+      <select bind:value={canvasFetchMode}>
+        <option value="off">Off — canvases cannot fetch</option>
+        <option value="allowlist">Allowlist — only the hosts below</option>
+        <option value="any">Any — every host (use with care)</option>
+      </select>
+    </Field>
+
+    {#if canvasFetchMode === 'allowlist'}
+      <Field label="Allowed hostnames (one per line)">
+        <textarea
+          rows="4"
+          bind:value={canvasFetchAllowlistText}
+          placeholder={'example.com\napi.weather.gov\nrss.cnn.com'}
+          spellcheck="false"
+          autocapitalize="off"
+        ></textarea>
+      </Field>
+      <p class="hint" style="margin-top: 0.25rem;">
+        Each entry matches the exact host and any subdomain (<code>example.com</code> matches
+        <code>api.example.com</code>). Schemes, paths, and ports are ignored — host only.
+      </p>
+    {:else if canvasFetchMode === 'any'}
+      <p class="hint warn">
+        ⚠ Any-host mode lets a canvas widget call any URL. An LLM-authored canvas you paste in
+        could exfiltrate the entity state it can read. Prefer Allowlist for everyday use.
+      </p>
+    {/if}
+
+    <div class="actions">
+      <button class="primary" on:click={saveCanvasFetch} disabled={savingCanvasFetch}>
+        {savingCanvasFetch ? 'Saving…' : 'Save changes'}
+      </button>
+      {#if savedCanvasFetch}<span class="status"><span class="check">✓</span> Saved</span>{/if}
     </div>
   </section>
 
@@ -407,6 +482,20 @@
     border-radius: 999px;
     background: rgba(109, 213, 140, 0.18);
     font-size: 0.7rem;
+  }
+  .hint.warn {
+    color: var(--c-danger);
+    background: rgba(240, 107, 117, 0.08);
+    border: 1px solid rgba(240, 107, 117, 0.25);
+    border-radius: var(--radius-sm);
+    padding: 0.65rem 0.85rem;
+  }
+  textarea {
+    width: 100%;
+    min-height: 6rem;
+    font-family: var(--f-mono);
+    font-size: 0.85rem;
+    resize: vertical;
   }
 
   @media (min-width: 600px) {

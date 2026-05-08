@@ -1,5 +1,7 @@
 # Scene authoring — agent contract
 
+> *This file is for an LLM. If you're a human looking for setup steps, see [getting-started-with-agents.md](./getting-started-with-agents.md).*
+
 This document is intended to be pasted into an LLM agent's system prompt or pulled in alongside [`canvas-widget-agent.md`](./canvas-widget-agent.md). It describes how to compose a Cosmos scene — the surface a wall display renders — and how to publish it through the REST API.
 
 The expected pairing: the agent decides on a scene shape (background + typography + a small set of widgets), authors any canvas content separately using the canvas guide, then `POST`s a scene payload, assigns the scene to a display, and activates it.

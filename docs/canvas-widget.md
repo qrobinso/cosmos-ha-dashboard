@@ -1,5 +1,7 @@
 # Cosmos canvas widget
 
+> *Want an LLM agent (Claude Code, OpenCode, Cursor, …) to author this for you? See [getting-started-with-agents.md](./getting-started-with-agents.md).*
+
 The canvas widget is a sandboxed iframe living inside a single grid cell of your scene. Inside it, you (or an LLM agent) can write any HTML / CSS / JavaScript and bind it to live Home Assistant data using HA's own template engine.
 
 It's the most powerful widget in Cosmos and the only one with a real attack surface; this guide is comprehensive on both ends.
@@ -53,8 +55,9 @@ Inside the iframe, `window.cosmos` exposes a small read-only API.
 | `cosmos.version` | `string` | Bridge protocol version. |
 | `cosmos.entity(id)` | `(id: string) => EntityState \| null` | One-shot read of a cached entity. Returns null if the entity isn't being tracked yet. |
 | `cosmos.subscribe(id, cb)` | `(id: string, cb: (e: EntityState) => void) => () => void` | Calls `cb(entity)` on every state change. The first call also seeds `cb` with the current value if known. Returns an unsubscribe. Subscribing to an entity not already in your templates triggers a server-side subscription request automatically. |
+| `cosmos.fetch(url, init?)` | `(url, init?) => Promise<CosmosResponse>` | Outbound HTTP(S) on the iframe's behalf, gated by an admin-managed allowlist. Default policy is deny. See **Outbound fetches** below. |
 
-The API is intentionally read-only in v1. Calling HA services from inside the iframe is on the v2 list, gated behind an explicit "allow service calls" toggle.
+The API is intentionally read-only in v1 (no HA service calls). Outbound HTTP via `cosmos.fetch` is the one network primitive available, and only against hosts the user has explicitly allowed.
 
 ## Scene tokens (CSS variables)
 
@@ -78,6 +81,27 @@ Recommended baseline for any canvas:
 
 The variables update on every scene push and on resize, so picking them up via CSS means your typography and sizing stay in lockstep with the rest of the scene without you writing any JS.
 
+## Outbound fetches
+
+The iframe sandbox blocks normal `window.fetch` for cross-origin requests, so canvases use `cosmos.fetch(url, init?)`. Under the hood the display browser's parent context performs the request and posts the response back to the iframe.
+
+```js
+const res = await cosmos.fetch('https://api.weather.gov/alerts/active?area=NY');
+if (res.ok) {
+  const json = await res.json();
+  // …render
+}
+```
+
+**Allowlist.** A fresh install denies every fetch. To enable, go to **Admin → Settings → Canvas fetch** and either:
+
+- pick **Allowlist** and enter the hostnames you trust (one per line — `example.com` matches subdomains too), or
+- pick **Any** to skip the allowlist entirely (acceptable for a fully self-hosted setup; not recommended when you paste in canvases an LLM wrote).
+
+**Limits.** Schemes other than `http(s)` are rejected. No cookies or `Authorization` from the parent are forwarded. Responses larger than ~2 MB are dropped. A single request times out after 15 seconds. Polling with `setInterval` is the expected pattern.
+
+**Errors.** Rejections from `cosmos.fetch` carry a message starting with `cosmos.fetch:` — surface it in your UI rather than swallow it, since the user might need to add a host to the allowlist or change the mode.
+
 ## Sandbox
 
 The iframe runs with `sandbox="allow-scripts"`. The browser enforces:
@@ -85,7 +109,7 @@ The iframe runs with `sandbox="allow-scripts"`. The browser enforces:
 - **Origin is `null`** — no access to parent storage or cookies, no same-origin fetches, no top-level navigation.
 - **No forms, popups, plugins, pointer-lock, or modals.**
 - **Cross-origin `@font-face` loading fails** — use system fonts (Cosmos passes a sensible `cosmos.font.family`) or embed fonts as data URLs.
-- **Network requests** can still happen via `fetch()`, but only to public URLs that allow CORS. Same-origin (Cosmos's API) is blocked by the null origin.
+- **Network requests** must go through `cosmos.fetch` (see above). Direct `window.fetch` works only against URLs that send permissive CORS headers, which most won't.
 
 If you find yourself wanting to break out of these constraints, you almost certainly want a different widget kind — entity tile, statistics, or media player.
 
@@ -128,7 +152,7 @@ Each example is a self-contained ~30–60 line snippet you can copy, modify, and
 Cosmos isn't connected to HA, or the template engine isn't initialised yet. Check the addon log for `Home Assistant connected` near startup. In dev mode (no HA), templates always pass through unrendered.
 
 **My fetch() returns CORS errors.**
-The iframe origin is `null`; only public CORS-permissive URLs work. Cosmos's own API isn't reachable from inside the canvas (and shouldn't be — that's the security boundary).
+Use `cosmos.fetch(url)` instead of `window.fetch(url)` — the bridge variant runs in the parent context and isn't subject to the iframe's null-origin CORS wall. You'll also need to add the host to the allowlist at *Admin → Settings → Canvas fetch*; the default policy denies everything.
 
 **My font doesn't load.**
 Cross-origin `@font-face` fails because of the null origin. Use system fonts via `cosmos.font.family`, or inline the font as a base64 data URL inside `@font-face`.

@@ -147,6 +147,9 @@ export type MoodConfig = {
 };
 export type ResolvedMood = { url: string; blend: 'screen' | 'lighten'; opacity: number };
 
+export type CanvasFetchMode = 'off' | 'allowlist' | 'any';
+export type CanvasFetchPolicy = { mode: CanvasFetchMode; allowlist: string[] };
+
 export type SceneState = {
   id: string;
   name: string;
@@ -164,6 +167,9 @@ export type SceneState = {
    *  display merges these into the map forwarded to canvas iframes so
    *  canvases can read entities that aren't bound to any other widget. */
   liveEntities?: EntityState[];
+  /** Per-server allowlist policy for canvas-iframe `cosmos.fetch`. Absent
+   *  means default (deny everything). */
+  canvasFetchPolicy?: CanvasFetchPolicy;
 };
 
 export type OverlayMessage = {

@@ -124,6 +124,22 @@ export const api = {
       await ensureOk(res);
       return (await res.json()) as { multiplier: number };
     },
+    async getCanvasFetch(): Promise<{ mode: 'off' | 'allowlist' | 'any'; allowlist: string[] }> {
+      const res = await fetch('/api/settings/canvas-fetch');
+      return (await res.json()) as { mode: 'off' | 'allowlist' | 'any'; allowlist: string[] };
+    },
+    async updateCanvasFetch(payload: {
+      mode: 'off' | 'allowlist' | 'any';
+      allowlist: string[];
+    }): Promise<{ mode: 'off' | 'allowlist' | 'any'; allowlist: string[] }> {
+      const res = await fetch('/api/settings/canvas-fetch', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      await ensureOk(res);
+      return (await res.json()) as { mode: 'off' | 'allowlist' | 'any'; allowlist: string[] };
+    },
   },
   ha: {
     async listEntities(domain?: string): Promise<{ entity_id: string; state: string; attributes: Record<string, unknown> }[]> {
