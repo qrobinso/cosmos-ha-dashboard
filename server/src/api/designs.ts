@@ -6,7 +6,7 @@ export type DesignRoutesDeps = {
   designs: DesignPacksRepo;
 };
 
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
 
 function findByIdOrSlug(repo: DesignPacksRepo, key: string) {
   return repo.getBySlug(key) ?? repo.get(key);
