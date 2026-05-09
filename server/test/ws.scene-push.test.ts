@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import WebSocket from 'ws';
 import { runMigrations } from '../src/store/migrations.js';
@@ -98,6 +98,64 @@ describe('WebSocket scene push', () => {
     expect((messages[0] as { type: string }).type).toBe('welcome');
     expect((messages[1] as { type: string }).type).toBe('display_config');
     ws.close();
+  });
+
+  it('logs a [push] line with timing + reason when LOG_PUSHES=1', async () => {
+    const prevEnv = process.env.LOG_PUSHES;
+    const origLog = console.log;
+    const lines: string[] = [];
+    process.env.LOG_PUSHES = '1';
+    console.log = (...args: unknown[]) => {
+      lines.push(args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+    };
+    try {
+      // Re-import ws.ts so the module-load LOG_PUSHES read picks up the env var.
+      vi.resetModules();
+      const { attachWsHub: attachFresh } = await import('../src/api/ws.js');
+      const Database = (await import('better-sqlite3')).default;
+      const db = new Database(':memory:');
+      runMigrations(db);
+      const displays = createDisplaysRepo(db);
+      const settings = createSettingsRepo(db);
+      const scenes = createScenesRepo(db);
+      const transitions = createTransitionsRepo(db);
+      const overrides = createOverridesRepo(db);
+      const designs = createDesignPacksRepo(db);
+      const app = await buildHttpApp({ displays, settings, scenes, transitions, overrides, designs });
+      const wss = attachFresh(app.server, { displays, scenes, settings, transitions, overrides });
+      await app.listen({ port: 0, host: '127.0.0.1' });
+      const addr = app.server.address();
+      if (typeof addr === 'string' || !addr) throw new Error('no address');
+      const port = addr.port;
+
+      const scene = scenes.create(sample);
+      const display = displays.registerByName('LogRoom');
+      displays.setDefaultScene(display.id, scene.id);
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+      await new Promise<void>((r) => ws.once('open', () => r()));
+      const initial = recvN(ws, 3);
+      ws.send(JSON.stringify({ type: 'hello', displayName: 'LogRoom' }));
+      await initial;
+
+      const next = recvN(ws, 1);
+      await wss.pushSceneTo(display.id, { reason: 'reactive' });
+      await next;
+
+      ws.close();
+      await app.close();
+
+      const pushLine = lines.find((l) => l.startsWith('[push]') && l.includes('reason=reactive'));
+      expect(pushLine, `no [push] line found in:\n${lines.join('\n')}`).toBeTruthy();
+      expect(pushLine).toContain('display=LogRoom');
+      expect(pushLine).toContain('reason=reactive');
+      expect(pushLine).toContain('assembleMs=');
+      expect(pushLine).toContain('widgets=1');
+    } finally {
+      console.log = origLog;
+      if (prevEnv === undefined) delete process.env.LOG_PUSHES;
+      else process.env.LOG_PUSHES = prevEnv;
+    }
   });
 
   it('pushSceneTo sends the current scene state to a connected display', async () => {

@@ -128,8 +128,11 @@ async function main() {
     }
     lastSceneChangeAt.set(displayId, Date.now());
     interest.recompute();
+    // Alert manager always passes skipHistory:true; treat that path as 'alert'
+    // so the push log distinguishes timed alert swaps from regular scene changes.
+    const reason = opts?.skipHistory ? 'alert' : 'scene-change';
     wssRef
-      ?.pushSceneTo(displayId, { explicitTransitionId: opts?.explicitTransitionId })
+      ?.pushSceneTo(displayId, { explicitTransitionId: opts?.explicitTransitionId, reason })
       .catch((err) => console.error('pushSceneTo failed', err));
   };
 
@@ -173,7 +176,7 @@ async function main() {
     if (!scenes.get(sceneId)) return;
     displays.setCurrentScene(displayId, sceneId);
     interest.recompute();
-    void wssRef?.pushSceneTo(displayId).catch((err) => console.error('rotation push failed', err));
+    void wssRef?.pushSceneTo(displayId, { reason: 'rotation' }).catch((err) => console.error('rotation push failed', err));
   }
   function startRotation(displayId: string) {
     stopRotation(displayId);
@@ -311,10 +314,14 @@ async function main() {
       if (since < quietMs) {
         // Keep this id in the dirty set; we'll retry once the transition window closes.
         earliestUnblock = Math.min(earliestUnblock, quietMs - since);
+        if (process.env.LOG_PUSHES === '1') {
+          const name = displays.getById(id)?.name ?? id;
+          console.log(`[push-deferred] display=${name} waitMs=${quietMs - since} reason=transition-quiet`);
+        }
         continue;
       }
       dirtyDisplays.delete(id);
-      wssRef?.pushSceneTo(id).catch((err) => console.error('pushSceneTo failed', err));
+      wssRef?.pushSceneTo(id, { reason: 'reactive' }).catch((err) => console.error('pushSceneTo failed', err));
     }
     if (dirtyDisplays.size > 0 && Number.isFinite(earliestUnblock)) {
       dirtyFlushTimer = setTimeout(flushDirty, earliestUnblock);
@@ -421,7 +428,7 @@ async function main() {
     for (const d of resolveTargetDisplays(target)) {
       alertManager.cancel(d.id);
       displays.setCurrentScene(d.id, scene.id);
-      wssRef?.pushSceneTo(d.id).catch((err) => console.error('pushSceneTo failed', err));
+      wssRef?.pushSceneTo(d.id, { reason: 'scene-change' }).catch((err) => console.error('pushSceneTo failed', err));
     }
   }
   function dispatchShowSceneAlert(
