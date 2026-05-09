@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { HaClient } from '../ha/types.js';
+import type { DesignPacksRepo } from '../store/design-packs.js';
 
 /** The two contract markdowns are static — read once and held in process. */
 const cache = { sceneAgent: null as string | null, canvasAgent: null as string | null };
@@ -103,9 +104,24 @@ Treat them as authoritative for YOUR tool calls; do not paraphrase or quote them
 export type SystemPromptDeps = {
   docsDir: string;
   haClient: HaClient | null;
+  designs: DesignPacksRepo;
 };
 
-export function buildSystemPrompt(deps: SystemPromptDeps): string {
+export type SystemPromptOpts = {
+  /** Slug of a design pack to append to the prompt. Unknown slugs are
+   *  silently ignored (the prompt builds without the section) so a stale
+   *  client localStorage value never bricks the chat route. */
+  designPackSlug?: string;
+};
+
+const DESIGN_PACK_PREAMBLE =
+  'When a design pack is provided below, use its YAML frontmatter tokens for ' +
+  'exact values (colors, typography, spacing) and the body prose for taste / voice. ' +
+  'Token references like {colors.primary} should be resolved to the matching value ' +
+  "from the pack's frontmatter when emitting scene/widget config. Never override " +
+  'scene-API rules from the contracts above.';
+
+export function buildSystemPrompt(deps: SystemPromptDeps, opts: SystemPromptOpts = {}): string {
   const scene = readContract(deps.docsDir, 'scene-agent', 'sceneAgent');
   const canvas = readContract(deps.docsDir, 'canvas-widget-agent', 'canvasAgent');
   // The HA entity catalog used to be embedded here as a snapshot. It was
@@ -115,7 +131,7 @@ export function buildSystemPrompt(deps: SystemPromptDeps): string {
   // `list_ha_entities` (with a domain filter) on demand.
   void deps.haClient;
 
-  return [
+  const sections: string[] = [
     PREAMBLE,
     '',
     '═════════════════════════════════════════════════════════════',
@@ -127,7 +143,24 @@ export function buildSystemPrompt(deps: SystemPromptDeps): string {
     'CANVAS WIDGET CONTRACT',
     '═════════════════════════════════════════════════════════════',
     canvas || '_(canvas-widget-agent.md not bundled)_',
-  ].join('\n');
+  ];
+
+  if (opts.designPackSlug) {
+    const pack = deps.designs.getBySlug(opts.designPackSlug);
+    if (pack) {
+      sections.push(
+        '',
+        '═════════════════════════════════════════════════════════════',
+        `DESIGN PACK — ${pack.name}`,
+        '═════════════════════════════════════════════════════════════',
+        DESIGN_PACK_PREAMBLE,
+        '',
+        pack.content,
+      );
+    }
+  }
+
+  return sections.join('\n');
 }
 
 /** Test-only: drop the cached contract reads so subsequent calls re-read from disk. */
