@@ -66,7 +66,7 @@ Beyond the JS API, Cosmos sets a handful of CSS custom properties on `:root` ins
 
 | Variable | Source | Use it for |
 |---|---|---|
-| `--cosmos-font-family` | scene's typography | `font-family: var(--cosmos-font-family, system-ui)` |
+| `--cosmos-font-family` | scene's typography | `font-family: var(--cosmos-font-family, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` |
 | `--cosmos-font-scale` | scene's font scale knob | `font-size: calc(1rem * var(--cosmos-font-scale, 1))` |
 | `--cosmos-bg` | solid background color, or first stop of a gradient | `background: var(--cosmos-bg, transparent)` for surfaces that should blend |
 | `--cosmos-w` / `--cosmos-h` | iframe pixel size | `clamp()` / `min()` math without a `cosmos:resize` listener |
@@ -75,12 +75,14 @@ Beyond the JS API, Cosmos sets a handful of CSS custom properties on `:root` ins
 Recommended baseline for any canvas:
 
 ```html
-<div style="width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui);font-size:calc(1rem * var(--cosmos-font-scale,1));color:#f5f5f5">
+<div style="width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:calc(1rem * var(--cosmos-font-scale,1));color:#f5f5f5">
   …your content…
 </div>
 ```
 
 The variables update on every scene push and on resize, so picking them up via CSS means your typography and sizing stay in lockstep with the rest of the scene without you writing any JS.
+
+> **Why the long font fallback chain?** Cosmos always sets `--cosmos-font-family`, so the `system-ui` *inside* `var()` only fires if the variable were undefined — which it never is. The canvas iframe is sandboxed and can't load Cosmos's bundled `@fontsource` fonts, so the named scene font (e.g. `"Space Grotesk"`) usually fails to resolve. Without a real fallback **after** the `var()`, the browser drops to its ultimate default — Times New Roman on most platforms. The trailing list keeps you on a real sans-serif when the named font isn't loadable.
 
 ## Outbound fetches
 

@@ -257,6 +257,27 @@ GET /api/widgets?scene=Kitchen&kind=canvas
 
 Widget `id`s are stable across saves. Once you have one you can hold onto it for repeated patches.
 
+### Discovering HA entities (for canvas templates and entity-bearing widgets)
+
+A real HA install can have thousands of entities. **Don't slurp the full list** into context — narrow before reading.
+
+```bash
+# Orient first if you have no idea what's there. Tiny payload.
+GET /api/ha/entities/summary
+# → { total: 412, domains: { sensor: 198, light: 38, ... },
+#                deviceClasses: { temperature: 14, motion: 8, ... } }
+
+# Narrow with any combination of domain / device_class / search / limit.
+# `search` is case-insensitive substring against entity_id + friendly_name.
+GET /api/ha/entities?domain=sensor&search=kitchen
+GET /api/ha/entities?device_class=temperature
+GET /api/ha/entities?domain=light&limit=20
+```
+
+Over MCP the same pattern is `summarize_ha_entities` (the orientation snapshot) and `list_ha_entities` (with `domain`, `device_class`, `search`, `limit` args). The server echoes `{count, totalMatches, truncated}` so you can tell when more rows existed than were returned.
+
+Use the entity ids you discover here in your widget configs (`entity_tile.config.entity_id`, `weather.config.entity_id`, etc.) and in canvas widget Jinja templates (`{{ states('sensor.kitchen_temp') }}`). Validating entity_ids client-side: any entity-bearing widget kind requires `config.entity_id` to be a syntactically-valid `domain.object_id` — empty strings and freeform text are rejected with a 400.
+
 ### Update one widget — the most common agent task
 
 For a canvas's HTML body, the smallest possible request:

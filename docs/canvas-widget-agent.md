@@ -13,7 +13,7 @@ You are emitting a complete HTML body for a Cosmos canvas widget. Output ONLY th
 Example completion:
 
 ```html
-<div style="display:grid;place-items:center;width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui);color:#f5f5f5">
+<div style="display:grid;place-items:center;width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#f5f5f5">
   <div>{{ states("sensor.power") }} W</div>
 </div>
 ```
@@ -34,6 +34,14 @@ Wrap any expression in `{{ ... }}`. Standard Home Assistant Jinja:
 - `{% if %}`, `{% for %}` — full control flow
 
 Cosmos automatically subscribes to entities your templates touch and re-renders the canvas when they change.
+
+**Finding the right entity to template against.** Real HA installs have hundreds-to-thousands of entities — never guess `sensor.power` and hope. Discover before you write:
+
+- `GET /api/ha/entities/summary` — `{total, domains, deviceClasses}`. Tiny. Tells you what's available without reading the full list.
+- `GET /api/ha/entities?domain=sensor&search=kitchen` — narrow by `domain`, `device_class`, and a case-insensitive `search` substring (matches `entity_id` + `friendly_name`). Add `limit=N` to cap responses.
+- Over MCP: `summarize_ha_entities` and `list_ha_entities({domain?, device_class?, search?, limit?})`.
+
+A canvas template that references an entity that doesn't exist in this install will render `unknown` (or your `| default('—')`) — the wall will look broken. Verify discovery results before committing the template.
 
 ### JS API (in-iframe, exposed as `window.cosmos`)
 
@@ -117,13 +125,15 @@ Cosmos sets these on `:root` and updates them live whenever the scene changes. U
 
 | Variable | Source | Typical use |
 |---|---|---|
-| `--cosmos-font-family` | scene's `typography.font_family` | `font-family: var(--cosmos-font-family, system-ui)` |
+| `--cosmos-font-family` | scene's `typography.font_family` | `font-family: var(--cosmos-font-family, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` |
 | `--cosmos-font-scale` | scene's `typography.font_scale` | `font-size: calc(1rem * var(--cosmos-font-scale, 1))` |
 | `--cosmos-bg` | scene background — solid color, or first stop of a gradient | `background: var(--cosmos-bg, transparent)` for blend-in surfaces |
 | `--cosmos-w` / `--cosmos-h` | iframe pixel size | `clamp()`/`min()` calculations |
 | `--cosmos-scene-id` / `--cosmos-scene-name` | scene metadata as strings | `[data-scene]` selectors, or `content: var(...)` in pseudo-elements |
 
-**Rule of thumb:** every canvas should set `font-family: var(--cosmos-font-family, system-ui)` on its root element so the typography matches the rest of the scene. Override locally for headlines/numerals if you want a typographic accent — never override globally with a hardcoded family.
+**Rule of thumb:** every canvas should set `font-family: var(--cosmos-font-family, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` on its root element so the typography matches the rest of the scene. Override locally for headlines/numerals if you want a typographic accent — never override globally with a hardcoded family.
+
+**Why the long chain after `var(...)`?** Cosmos always sets `--cosmos-font-family`, so the `system-ui` *inside* `var()` only fires if the variable were undefined — which it never is. But the canvas iframe is sandboxed (`sandbox="allow-scripts"`, null origin) and can't load Cosmos's bundled `@fontsource` fonts, so the named scene font (e.g. `"Space Grotesk"`) usually fails to resolve inside the iframe. Without a real fallback **after** the `var()`, the browser falls through to its ultimate default — Times New Roman on most platforms — which looks broken next to the rest of the scene. The trailing `system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` gives the browser a real sans-serif to land on.
 
 ## Naming a canvas
 
@@ -392,7 +402,7 @@ Reach for Jinja when the value should be baked-in once. Reach for JS subscribe w
 ## Style hints
 
 - Always size your root to `width: 100%; height: 100%`. The canvas fills its grid cell, which is variable.
-- Apply `font-family: var(--cosmos-font-family, system-ui)` to your root so typography matches the surrounding scene. Use `calc(1rem * var(--cosmos-font-scale, 1))` for body copy that should track the scene's scale knob.
+- Apply `font-family: var(--cosmos-font-family, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` to your root so typography matches the surrounding scene. Use `calc(1rem * var(--cosmos-font-scale, 1))` for body copy that should track the scene's scale knob.
 - For surfaces that should blend with the scene, reach for `var(--cosmos-bg, transparent)` rather than a hardcoded color.
 - Prefer light, airy layouts. Cosmos kiosk surfaces are usually viewed from across a room.
 - Pure-CSS animations beat JS animations. Use `requestAnimationFrame` only when CSS can't express the effect.
@@ -403,7 +413,7 @@ Reach for Jinja when the value should be baked-in once. Reach for JS subscribe w
 ### "Number card" — show one HA value with a label
 
 ```html
-<div style="padding:1.5rem;font-family:var(--cosmos-font-family,system-ui);color:#f5f5f5">
+<div style="padding:1.5rem;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#f5f5f5">
   <div style="opacity:0.6;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">{LABEL}</div>
   <div style="font-size:calc(3rem * var(--cosmos-font-scale,1));font-weight:200;line-height:1.1">{{ states("{ENTITY}") }} {UNIT}</div>
 </div>
@@ -432,7 +442,7 @@ Reach for Jinja when the value should be baked-in once. Reach for JS subscribe w
 ### "Static info card" — fixed content, no templates, no JS
 
 ```html
-<div style="padding:1rem;font-family:var(--cosmos-font-family,system-ui);color:#f5f5f5">
+<div style="padding:1rem;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#f5f5f5">
   <h2 style="margin:0;font-weight:300">{TITLE}</h2>
   <p style="margin:0.5rem 0 0;opacity:0.85;line-height:1.5">{BODY}</p>
 </div>
