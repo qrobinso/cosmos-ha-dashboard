@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4
+
+- Fix: Agent chat broke for **every OpenAI/Azure-routed model** with `Invalid schema for function 'patch_scene': array schema missing items`. Root cause: `patch_scene.layout.items` was typed as `z.array(z.any())`, and the AI SDK's zod-to-JSON-Schema conversion drops the `items` keyword for `z.any()` element types — Anthropic accepts that, OpenAI/Azure strict-mode tool validation rejects it. Switched to `z.array(z.unknown())` so the converter emits `items: {}` and any model can call the tool.
+
 ## 0.6.3
 
 - Fix: Agent error reporting now extracts and surfaces the upstream provider's actual message. Previously a typo'd model name (e.g. `google/gemini-3.1-flash-lite` — doesn't exist) returned `AI_APICallError: Provider returned error` with no further detail in either the chat UI or the addon log. The handler now duck-types the AI-SDK error to pull out `statusCode`, `url`, and `responseBody`, parses OpenRouter's standard `{"error":{"message":...}}` shape, and surfaces that message in both the addon log and the 503 returned to the chat UI. Net effect: the next bad model setting / billing problem / auth failure is self-diagnosing.

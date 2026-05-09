@@ -184,7 +184,15 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
       inputSchema: z.object({
         id: z.string(),
         name: z.string().optional(),
-        layout: z.object({ cols: z.number(), rows: z.number(), items: z.array(z.any()).optional() }).optional(),
+        // `items` is the array of WidgetLayoutItem objects on the scene's
+        // grid. Use `z.unknown()` (not `z.any()`) for the element type so
+        // the zod→JSON-Schema conversion emits `items: {}` rather than
+        // dropping the `items` keyword entirely — Azure/OpenAI strict-mode
+        // tool validation rejects arrays without `items` ("array schema
+        // missing items"), which otherwise breaks every OpenAI-family
+        // model. Anthropic accepts both shapes, hence the bug only
+        // surfaced on OpenAI/Azure-routed providers.
+        layout: z.object({ cols: z.number(), rows: z.number(), items: z.array(z.unknown()).optional() }).optional(),
         // Use a permissive object shape rather than z.any() so MCP clients
         // see "type": "object" in the JSON Schema and pass the value through
         // as an object (not string-coerced). The REST layer enforces the
