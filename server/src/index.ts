@@ -616,6 +616,20 @@ async function main() {
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
+// Defense in depth: never let a stray promise rejection from a third-party
+// library (notably home-assistant-js-websocket, which sometimes leaks
+// rejections during reconnect storms) crash the addon. Logged loudly, then
+// swallowed. Without this, Node's default behavior is process.exit(1) on
+// any unhandled rejection, which on the HA add-on triggers Supervisor to
+// restart the container — visible to the user as a kiosk WS reconnect and
+// scene re-render every time the HA WS hiccups.
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('unhandledRejection', reason, 'promise:', promise);
+});
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException', err);
+});
+
 main().catch((err) => {
   console.error(err);
   process.exit(1);

@@ -139,7 +139,22 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
     }
   }
 
-  async function getWeatherForecasts(
+  /** Cache weather forecasts so we don't fire `weather.get_forecasts` on
+   *  every scene push. HA forecasts update every 10–30 min in practice;
+   *  refreshing every 5 minutes is plenty fresh for a wall display, and
+   *  it eliminates the call storm that used to swamp the HA WS during
+   *  bursts of scene re-pushes (one forecast call per push per weather
+   *  widget). The cache also coalesces concurrent in-flight requests for
+   *  the same (entity, type) into a single network call. Cleared keys
+   *  fall through to the upstream call. */
+  const FORECAST_TTL_MS = 5 * 60 * 1000;
+  type ForecastCacheEntry = {
+    expires: number;
+    promise: Promise<WeatherForecastItem[]>;
+  };
+  const forecastCache = new Map<string, ForecastCacheEntry>();
+
+  async function fetchForecastsUncached(
     entityId: string,
     type: WeatherForecastType
   ): Promise<WeatherForecastItem[]> {
@@ -175,6 +190,24 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
       console.error(`HA weather.get_forecasts failed for ${entityId}`, err);
       return [];
     }
+  }
+
+  async function getWeatherForecasts(
+    entityId: string,
+    type: WeatherForecastType
+  ): Promise<WeatherForecastItem[]> {
+    const key = `${entityId}|${type}`;
+    const now = Date.now();
+    const cached = forecastCache.get(key);
+    if (cached && cached.expires > now) return cached.promise;
+    const promise = fetchForecastsUncached(entityId, type);
+    forecastCache.set(key, { expires: now + FORECAST_TTL_MS, promise });
+    // If the upstream call rejected (which shouldn't happen — we catch and
+    // return [] inside fetchForecastsUncached — but defensively), drop the
+    // cache entry so the next caller can retry instead of being stuck on
+    // a permanently-rejected promise.
+    promise.catch(() => forecastCache.delete(key));
+    return promise;
   }
 
   return {
