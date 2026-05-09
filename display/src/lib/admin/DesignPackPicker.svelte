@@ -96,13 +96,20 @@
     color: var(--c-fg-3, #9b9b9b);
   }
   select {
-    background: transparent;
+    background: var(--c-surface-2, #1a1a1a);
     color: var(--c-fg, #f0f0f0);
     border: 1px solid var(--c-line, rgba(255, 255, 255, 0.12));
     border-radius: 6px;
     padding: 0.35rem 0.5rem;
     font: inherit;
     min-height: 2rem;
+  }
+  /* Native option lists otherwise inherit the OS surface (white on Windows),
+   * which leaves light-on-light text once the user opens the dropdown. */
+  select option,
+  select optgroup {
+    background: var(--c-surface-2, #1a1a1a);
+    color: var(--c-fg, #f0f0f0);
   }
   .preview {
     display: flex;
