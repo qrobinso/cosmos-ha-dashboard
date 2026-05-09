@@ -48,3 +48,7 @@ npm --workspace server test -- ws            # filter
 ```
 
 The WS tests start a real Fastify on an ephemeral port (`port: 0`) and connect with a real `ws.WebSocket` client. They are integration tests, not mocks.
+
+## Debug flags
+
+- `LOG_PUSHES=1` — emits `[push]` lines from `api/ws.ts` for every scene push (display, scene, reason, resolved transition id, `assembleMs`, widget count, payload KB, open socket count) and `[push-deferred]` lines from `index.ts` `flushDirty` when a reactive re-push is held back inside the transition-quiet window. Read once at module load; off by default. Turn it on when investigating jerky transitions, runaway reactive pushes, or to attribute a push to its trigger (`hello | scene-change | reactive | rotation | settings | alert | palette | canvas-extras | unknown`).

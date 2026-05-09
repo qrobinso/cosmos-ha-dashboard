@@ -35,6 +35,7 @@ Cosmos sets these on `:root` and updates them live with the scene:
 | `--cosmos-font-family` | `font-family: var(--cosmos-font-family, system-ui)` |
 | `--cosmos-font-scale` | `font-size: calc(1rem * var(--cosmos-font-scale, 1))` |
 | `--cosmos-bg` | `background: var(--cosmos-bg, transparent)` |
+| `--cosmos-fg` | `color: var(--cosmos-fg, #f5f5f5)` — tracks the scene's text color override + background auto-contrast |
 | `--cosmos-w` / `--cosmos-h` | iframe pixel size for `clamp()` math |
 
 Reach for these instead of reading `cosmos.font.*` from JS — your styles track the scene automatically.

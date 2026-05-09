@@ -12,7 +12,7 @@ It's the most powerful widget in Cosmos and the only one with a real attack surf
 2. Paste this into the content textarea:
 
 ```html
-<div style="display:grid;place-items:center;width:100%;height:100%;font-family:system-ui;color:#f5f5f5">
+<div style="display:grid;place-items:center;width:100%;height:100%;font-family:system-ui;color:var(--cosmos-fg,#f5f5f5)">
   <div>
     <div style="opacity:0.6;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Power</div>
     <div style="font-size:3rem;font-weight:200">{{ states("sensor.power") }} W</div>
@@ -75,7 +75,7 @@ Beyond the JS API, Cosmos sets a handful of CSS custom properties on `:root` ins
 Recommended baseline for any canvas:
 
 ```html
-<div style="width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:calc(1rem * var(--cosmos-font-scale,1));color:#f5f5f5">
+<div style="width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:calc(1rem * var(--cosmos-font-scale,1));color:var(--cosmos-fg,#f5f5f5)">
   …your content…
 </div>
 ```

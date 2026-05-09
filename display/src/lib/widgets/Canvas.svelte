@@ -4,6 +4,7 @@
   import { CANVAS_BRIDGE_SCRIPT } from './canvasBridge';
   import { isHostAllowed } from './canvasFetchPolicy';
   import { reportWidgetPalette } from '$lib/scene/reportPalette';
+  import { pickContrastColor } from '$lib/scene/contrastColor';
 
   export let widget: WidgetState;
   export let scene: SceneState;
@@ -50,11 +51,21 @@
     const bg = scene.background.type === 'solid'
       ? scene.background.color
       : (scene.background.colors?.[0] ?? '');
+    // Foreground (text) color — same priority as SceneCanvas:
+    //   typography.color > auto-contrast pick > kiosk default (#f5f5f5).
+    // Canvases that opt in via `color: var(--cosmos-fg)` (or use the bridge's
+    // body default) match the rest of the scene automatically.
+    const explicit =
+      typeof scene.typography?.color === 'string' && scene.typography.color.trim() !== ''
+        ? scene.typography.color
+        : null;
+    const fg = explicit
+      ?? (scene.background.auto_contrast === true ? pickContrastColor(scene.background) : '#f5f5f5');
     return {
       size: { w, h },
       scene: { id: scene.id, name: scene.name },
       font: { family: fontFamily, scale: fontScale },
-      tokens: { bg },
+      tokens: { bg, fg },
     };
   }
 
@@ -228,6 +239,7 @@
   $: sceneSig = JSON.stringify({
     f: scene.typography?.font_family,
     s: scene.typography?.font_scale,
+    c: scene.typography?.color,
     b: scene.background,
     n: scene.name,
   });

@@ -5,7 +5,7 @@ export const CANVAS_EXAMPLES: CanvasExample[] = [
     id: 'hello',
     label: 'Hello world',
     description: 'Static text + a live read of the canvas size.',
-    content: `<div style="display:grid;place-items:center;width:100%;height:100%;font-family:system-ui;color:#f5f5f5">
+    content: `<div style="display:grid;place-items:center;width:100%;height:100%;font-family:system-ui;color:var(--cosmos-fg,#f5f5f5)">
   <div>
     <h1 style="margin:0;font-weight:300">Hello, canvas!</h1>
     <p id="size" style="margin:0.5rem 0 0;opacity:0.6"></p>
@@ -24,7 +24,7 @@ export const CANVAS_EXAMPLES: CanvasExample[] = [
     id: 'entity-card',
     label: 'Templated entity card',
     description: 'One Jinja template + a styled box. No JS.',
-    content: `<div style="padding:1.5rem;font-family:system-ui;color:#f5f5f5">
+    content: `<div style="padding:1.5rem;font-family:system-ui;color:var(--cosmos-fg,#f5f5f5)">
   <div style="opacity:0.6;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Power</div>
   <div style="font-size:3rem;font-weight:200;line-height:1.1">{{ states("sensor.power") }} W</div>
   <div style="opacity:0.6;font-size:0.85rem">last updated {{ relative_time(states.sensor.power.last_changed) }}</div>
@@ -54,7 +54,7 @@ export const CANVAS_EXAMPLES: CanvasExample[] = [
     id: 'recipe',
     label: 'Recipe card',
     description: 'Static HTML — no templates, no JS.',
-    content: `<div style="display:grid;grid-template-rows:auto 1fr;width:100%;height:100%;font-family:system-ui;color:#f5f5f5;padding:1rem">
+    content: `<div style="display:grid;grid-template-rows:auto 1fr;width:100%;height:100%;font-family:system-ui;color:var(--cosmos-fg,#f5f5f5);padding:1rem">
   <h2 style="margin:0;font-weight:300">Tonight: shakshuka</h2>
   <ol style="margin:0.5rem 0 0;padding-left:1.25rem;line-height:1.5;opacity:0.85">
     <li>Sauté onion + pepper in olive oil 8 min</li>

@@ -5,6 +5,10 @@ export const CANVAS_BRIDGE_SCRIPT = `
 <style>
   html, body { width: 100%; height: 100%; margin: 0; padding: 0; box-sizing: border-box; }
   *, *::before, *::after { box-sizing: inherit; }
+  /* Default text color follows the scene's resolved foreground (typography.color
+     override > auto-contrast pick > kiosk default). Canvases that set their own
+     'color' inline still win; this is just the inherited fallback. */
+  body { color: var(--cosmos-fg, #f5f5f5); }
 </style>
 <script>
 (function () {
@@ -23,7 +27,7 @@ export const CANVAS_BRIDGE_SCRIPT = `
     size: { w: 0, h: 0 },
     scene: { id: '', name: '' },
     font: { family: 'system-ui', scale: 1 },
-    tokens: { bg: '' },
+    tokens: { bg: '', fg: '' },
     version: COSMOS_VERSION,
     ready: ready,
     entity: function (id) { return entitiesById[id] || null; },
@@ -86,7 +90,10 @@ export const CANVAS_BRIDGE_SCRIPT = `
     if (ctx.size) { cosmos.size.w = ctx.size.w; cosmos.size.h = ctx.size.h; }
     if (ctx.scene) { cosmos.scene.id = ctx.scene.id; cosmos.scene.name = ctx.scene.name; }
     if (ctx.font) { cosmos.font.family = ctx.font.family; cosmos.font.scale = ctx.font.scale; }
-    if (ctx.tokens) { cosmos.tokens.bg = ctx.tokens.bg || ''; }
+    if (ctx.tokens) {
+      cosmos.tokens.bg = ctx.tokens.bg || '';
+      cosmos.tokens.fg = ctx.tokens.fg || '';
+    }
     applyCssVars();
   }
 
@@ -98,6 +105,7 @@ export const CANVAS_BRIDGE_SCRIPT = `
     root.setProperty('--cosmos-w', cosmos.size.w + 'px');
     root.setProperty('--cosmos-h', cosmos.size.h + 'px');
     root.setProperty('--cosmos-bg', cosmos.tokens.bg);
+    root.setProperty('--cosmos-fg', cosmos.tokens.fg);
     root.setProperty('--cosmos-scene-id', cosmos.scene.id);
     root.setProperty('--cosmos-scene-name', cosmos.scene.name);
   }

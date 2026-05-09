@@ -9,6 +9,21 @@ import { readSafeArea, readTransitionSpeed } from './http.js';
 import { readCanvasFetchPolicy } from '../store/canvasFetch.js';
 import type { OverlayMessage } from '../overlay/types.js';
 
+export type PushReason =
+  | 'hello'
+  | 'scene-change'
+  | 'reactive'
+  | 'rotation'
+  | 'settings'
+  | 'alert'
+  | 'palette'
+  | 'canvas-extras'
+  | 'unknown';
+
+// Read once at module load: gating each push on a fresh process.env lookup
+// would be wasted work in the hot path.
+const LOG_PUSHES = process.env.LOG_PUSHES === '1';
+
 export type WsDeps = {
   displays: DisplaysRepo;
   scenes: ScenesRepo;
@@ -44,7 +59,10 @@ export type WsDeps = {
 };
 
 export type CosmosWss = WebSocketServer & {
-  pushSceneTo(displayId: string, opts?: { explicitTransitionId?: string | null }): Promise<void>;
+  pushSceneTo(
+    displayId: string,
+    opts?: { explicitTransitionId?: string | null; reason?: PushReason }
+  ): Promise<void>;
   pushSettingsChanged(): Promise<void>;
   pushOverlayTo(displayId: string, overlay: OverlayMessage): void;
   pushOverlayToAll(overlay: OverlayMessage): void;
@@ -92,7 +110,10 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   }, PING_INTERVAL_MS);
   wss.on('close', () => clearInterval(heartbeat));
 
-  async function buildPayload(displayId: string, explicitTransitionId?: string | null): Promise<string | null> {
+  async function buildPayload(
+    displayId: string,
+    explicitTransitionId?: string | null
+  ): Promise<{ payload: string; assembleMs: number; widgets: number; sceneName: string; transitionId: string | null } | null> {
     const sceneId = activeSceneId(displayId, deps);
     if (!sceneId) return null;
     const scene = deps.scenes.get(sceneId);
@@ -110,6 +131,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       deps.displayPalette.pruneWidgets(displayId, keep);
     }
     const adaptiveContributions = deps.displayPalette?.getContributions(displayId);
+    const t0 = performance.now();
     const payload = await assemblePush({
       scene,
       safeArea,
@@ -129,6 +151,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       canvasResolver: deps.canvasResolver,
       canvasExtras: deps.canvasExtras,
     });
+    const assembleMs = performance.now() - t0;
     lastSceneByDisplay.set(displayId, scene.id);
 
     // Prune iframe-side subscriptions for canvases not on this scene.
@@ -145,7 +168,9 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     }
 
     deps.onSceneActivated?.(displayId, scene.name);
-    return JSON.stringify(payload);
+    const transitionId = (payload as { transition?: { id?: string } }).transition?.id ?? null;
+    const json = JSON.stringify(payload);
+    return { payload: json, assembleMs, widgets: scene.widgets.length, sceneName: scene.name, transitionId };
   }
 
   wss.on('connection', (socket: WebSocket) => {
@@ -210,8 +235,17 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
         // Hello-time push has no previous scene by definition, so no transition.
         lastSceneByDisplay.delete(display.id);
         deps.onDisplayOnline?.(display.id, display.name);
-        const payload = await buildPayload(display.id);
-        if (payload) socket.send(payload);
+        const built = await buildPayload(display.id);
+        if (built) {
+          socket.send(built.payload);
+          if (LOG_PUSHES) {
+            const set = sockets.get(display.id);
+            const bytesKB = Math.round(built.payload.length / 1024);
+            console.log(
+              `[push] display=${display.name} scene=${built.sceneName} reason=hello transition=${built.transitionId ?? 'none'} assembleMs=${Math.round(built.assembleMs)} widgets=${built.widgets} bytesKB=${bytesKB} sockets=${set?.size ?? 0}`
+            );
+          }
+        }
       })();
     });
   });
@@ -219,15 +253,27 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   wss.pushSceneTo = async (displayId, opts) => {
     const set = sockets.get(displayId);
     if (!set || set.size === 0) return;
-    const payload = await buildPayload(displayId, opts?.explicitTransitionId);
-    if (!payload) return;
+    const built = await buildPayload(displayId, opts?.explicitTransitionId);
+    if (!built) return;
+    let sent = 0;
     for (const s of set) {
-      if (s.readyState === s.OPEN) s.send(payload);
+      if (s.readyState === s.OPEN) {
+        s.send(built.payload);
+        sent++;
+      }
+    }
+    if (LOG_PUSHES) {
+      const display = deps.displays.getById(displayId);
+      const reason: PushReason = opts?.reason ?? 'unknown';
+      const bytesKB = Math.round(built.payload.length / 1024);
+      console.log(
+        `[push] display=${display?.name ?? displayId} scene=${built.sceneName} reason=${reason} transition=${built.transitionId ?? 'none'} assembleMs=${Math.round(built.assembleMs)} widgets=${built.widgets} bytesKB=${bytesKB} sockets=${sent}`
+      );
     }
   };
 
   wss.pushSettingsChanged = async () => {
-    for (const displayId of sockets.keys()) await wss.pushSceneTo(displayId);
+    for (const displayId of sockets.keys()) await wss.pushSceneTo(displayId, { reason: 'settings' });
   };
 
   function sendToDisplay(displayId: string, payload: object): void {
