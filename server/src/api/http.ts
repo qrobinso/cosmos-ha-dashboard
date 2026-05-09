@@ -243,6 +243,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     settings: deps.settings,
     haClient: deps.haClient ?? null,
     docsDir: deps.docsDir ?? '',
+    designs: deps.designs,
   });
 
   return app;

@@ -101,11 +101,14 @@ describe('MCP /mcp transport', () => {
     expect(names).toEqual([
       'activate_scene',
       'assign_scene_to_display',
+      'create_design',
       'create_scene',
       'delete_scene',
       'delete_widget',
+      'get_design',
       'get_display_palette',
       'get_scene',
+      'list_designs',
       'list_displays',
       'list_ha_entities',
       'list_scenes',
@@ -114,6 +117,7 @@ describe('MCP /mcp transport', () => {
       'patch_scene',
       'patch_widget',
       'summarize_ha_entities',
+      'update_design',
       'update_scene',
       'update_widget_content',
     ]);
@@ -165,17 +169,39 @@ describe('MCP /mcp transport', () => {
     expect(body.result.content[0].text).toMatch(/layout/i);
   });
 
-  it('resources/list returns the three known URIs', async () => {
+  it('resources/list returns the known baseline URIs plus design pack index', async () => {
     setEnabled(ctx.settings, true);
     const token = regenerateToken(ctx.settings);
     const res = await rpc(app, { jsonrpc: '2.0', id: 4, method: 'resources/list' }, `Bearer ${token}`);
     expect(res.statusCode).toBe(200);
-    const uris = res.json().result.resources.map((r: { uri: string }) => r.uri).sort();
-    expect(uris).toEqual([
-      'cosmos://docs/canvas-widget-agent',
-      'cosmos://docs/scene-agent',
-      'cosmos://entities',
-    ]);
+    const uris = res.json().result.resources.map((r: { uri: string }) => r.uri);
+    expect(uris).toContain('cosmos://docs/canvas-widget-agent');
+    expect(uris).toContain('cosmos://docs/scene-agent');
+    expect(uris).toContain('cosmos://entities');
+    expect(uris).toContain('cosmos://designs');
+  });
+
+  it('resources/list includes per-pack URIs for seeded design packs', async () => {
+    setEnabled(ctx.settings, true);
+    ctx.designs.create({ slug: 'sample', name: 'Sample', content: '---\nname: Sample\n---\nbody', source: 'user' });
+    const token = regenerateToken(ctx.settings);
+    const res = await rpc(app, { jsonrpc: '2.0', id: 4, method: 'resources/list' }, `Bearer ${token}`);
+    const uris = res.json().result.resources.map((r: { uri: string }) => r.uri);
+    expect(uris).toContain('cosmos://designs');
+    expect(uris).toContain('cosmos://designs/sample');
+  });
+
+  it('tools/call list_designs returns the seeded packs', async () => {
+    setEnabled(ctx.settings, true);
+    ctx.designs.create({ slug: 'a', name: 'A', content: '---\nname: A\n---\nb', source: 'user' });
+    const token = regenerateToken(ctx.settings);
+    const res = await rpc(app, {
+      jsonrpc: '2.0', id: 99, method: 'tools/call',
+      params: { name: 'list_designs', arguments: {} },
+    }, `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const list = JSON.parse(res.json().result.content[0].text) as Array<{ slug: string }>;
+    expect(list.map((p) => p.slug)).toContain('a');
   });
 
   it('resources/read returns the live entity catalog', async () => {

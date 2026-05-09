@@ -442,6 +442,70 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     },
 
     {
+      name: 'list_designs',
+      description:
+        'List every design pack available on this Cosmos. Returns slug, name, source (built-in / user), and a small preview shape (first 4 hex colors + body fontFamily). Use this to find packs before calling get_design or before referencing one in a generated scene.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const r = await inject(app, { method: 'GET', url: '/api/designs' });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
+
+    {
+      name: 'get_design',
+      description:
+        'Read the full content + parsed frontmatter of a design pack by slug. Use the returned `frontmatter.colors`, `frontmatter.typography`, and `body` prose to inform the visual design of any scene or canvas you generate.',
+      inputSchema: z.object({ slug: z.string() }),
+      execute: async (raw) => {
+        const args = raw as { slug: string };
+        const r = await inject(app, { method: 'GET', url: `/api/designs/${encodeURIComponent(args.slug)}` });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
+
+    {
+      name: 'create_design',
+      description:
+        'Create a new user design pack. The content must follow the DESIGN.md spec (https://github.com/google-labs-code/design.md): YAML frontmatter with `colors`, `typography`, optional `rounded` / `spacing` / `components`, then markdown body in canonical section order (Overview, Colors, Typography, Layout, Elevation, Shapes, Components, Do\'s and Don\'ts). Slug must be lowercase, hyphen-separated, 3-64 chars. Read cosmos://docs/scene-agent and the existing built-in packs (cosmos://designs/<slug>) for examples before writing one.',
+      inputSchema: z.object({
+        slug: z.string(),
+        name: z.string(),
+        content: z.string(),
+      }),
+      execute: async (raw) => {
+        const args = raw as { slug: string; name: string; content: string };
+        const r = await inject(app, { method: 'POST', url: '/api/designs', payload: args as import('light-my-request').InjectPayload });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
+
+    {
+      name: 'update_design',
+      description:
+        'Update a user-authored design pack (name and/or content). Built-in packs are read-only and reject updates. Slug is immutable — use create_design to fork.',
+      inputSchema: z.object({
+        slug: z.string(),
+        name: z.string().optional(),
+        content: z.string().optional(),
+      }),
+      execute: async (raw) => {
+        const args = raw as { slug: string; name?: string; content?: string };
+        const { slug, ...patch } = args;
+        const r = await inject(app, {
+          method: 'PATCH',
+          url: `/api/designs/${encodeURIComponent(slug)}`,
+          payload: patch as import('light-my-request').InjectPayload,
+        });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult(r);
+      },
+    },
+
+    {
       name: 'delete_scene',
       description:
         '⚠️ DESTRUCTIVE — permanently removes a scene and all its widgets. Cannot be undone. Any display rotation referencing this scene is cleaned up automatically; if a display has it set as default or current, that pointer is cleared. ONLY call after the user has explicitly asked to delete the scene by name. Well-behaved MCP clients should surface a confirm prompt — treat as if they will not.',

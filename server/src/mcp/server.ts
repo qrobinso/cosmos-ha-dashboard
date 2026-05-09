@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { FastifyInstance } from 'fastify';
 import type { HaClient } from '../ha/types.js';
+import type { DesignPacksRepo } from '../store/design-packs.js';
 import { createMcpTools, type McpToolDef } from './tools.js';
 import { listMcpResources, readMcpResource } from './resources.js';
 
@@ -8,6 +9,7 @@ export type CreateMcpServerDeps = {
   app: FastifyInstance;
   haClient: HaClient | null;
   docsDir: string;
+  designs: DesignPacksRepo;
   /** Server `name` advertised to clients. */
   serverName?: string;
   /** Server `version` advertised to clients. Pulled from addon/config.yaml
@@ -31,16 +33,18 @@ export function createCosmosMcpServer(deps: CreateMcpServerDeps): McpServer {
   }
 
   // Resources — register each known URI as a static resource.
-  for (const r of listMcpResources()) {
+  const resourceDeps = {
+    docsDir: deps.docsDir,
+    haClient: deps.haClient,
+    designs: deps.designs,
+  };
+  for (const r of listMcpResources(resourceDeps)) {
     server.resource(
       r.name,
       r.uri,
       { description: r.description, mimeType: r.mimeType },
       async (uri) => {
-        const result = await readMcpResource(uri.toString(), {
-          docsDir: deps.docsDir,
-          haClient: deps.haClient,
-        });
+        const result = await readMcpResource(uri.toString(), resourceDeps);
         if (!result) {
           throw new Error(`Unknown resource: ${uri.toString()}`);
         }

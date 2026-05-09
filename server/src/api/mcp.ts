@@ -4,6 +4,7 @@ import { networkInterfaces } from 'node:os';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { SettingsRepo } from '../store/settings.js';
 import type { HaClient } from '../ha/types.js';
+import type { DesignPacksRepo } from '../store/design-packs.js';
 import { createCosmosMcpServer } from '../mcp/server.js';
 import {
   getToken,
@@ -48,6 +49,7 @@ export type McpRoutesDeps = {
   /** Path to the bundled docs/ directory; passed through to the MCP server
    *  factory so the resources can read the contracts off disk. */
   docsDir: string;
+  designs: DesignPacksRepo;
   /** Addon version to advertise to MCP clients. Optional; defaults to
    *  '0.0.0'. */
   serverVersion?: string;
@@ -154,6 +156,7 @@ export function registerMcpTransport(app: FastifyInstance, deps: McpRoutesDeps):
       app: deps.app,
       haClient: deps.haClient,
       docsDir: deps.docsDir,
+      designs: deps.designs,
       serverVersion: deps.serverVersion,
     });
     const transport = new StreamableHTTPServerTransport({
