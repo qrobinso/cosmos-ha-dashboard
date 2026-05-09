@@ -23,7 +23,15 @@
   // use the visual effect.
   $: $paletteEnabled = scene.background.type === 'gradient' && scene.background.adaptive_colors === true;
 
-  const fontVar = (family: string) => `var(--cosmos-font-${family.replace(/\s+/g, '')}, system-ui, sans-serif)`;
+  // Defensive: scenes created via the agent / MCP can land with an
+  // incomplete typography block (`{}` or missing `font_family`). Without
+  // this guard the kiosk crashes on `.replace` and stops rendering — once
+  // it's broken, every subsequent scene push hits the same error before
+  // the WebSocket client can even read the next message.
+  const fontVar = (family: string | undefined | null) => {
+    const f = typeof family === 'string' && family.trim() !== '' ? family : 'Inter';
+    return `var(--cosmos-font-${f.replace(/\s+/g, '')}, system-ui, sans-serif)`;
+  };
 
   $: entitiesById = (() => {
     const map = new Map<string, import('$lib/types').EntityState>();

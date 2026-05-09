@@ -69,11 +69,53 @@ function validateBackground(bg: unknown): string | null {
   return 'background.type must be "solid" or "gradient"';
 }
 
+/** Kinds that require `config.entity_id` to be a syntactically valid HA
+ *  entity reference. We check format only (`domain.id`); the HA cache may
+ *  not yet contain the entity at scene-create time, so we don't enforce
+ *  existence here. */
+const ENTITY_BEARING_KINDS = new Set([
+  'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'camera',
+]);
+
+/** Pattern for HA entity ids — `domain.object_id`. Both halves are
+ *  lowercase with digits and underscores, separated by exactly one dot.
+ *  Matches HA's own entityId regex. */
+const ENTITY_ID_RE = /^[a-z][a-z0-9_]*\.[a-z0-9_]+$/;
+
+/** Validate a widget position against the scene's layout. Catches the
+ *  off-by-one and out-of-grid bugs that previously persisted as broken
+ *  scenes that wouldn't render. */
+function validatePosition(pos: unknown, layout: { cols: number; rows: number }, label: string): string | null {
+  if (typeof pos !== 'object' || pos === null || Array.isArray(pos)) {
+    return `${label} must be an object`;
+  }
+  const p = pos as Record<string, unknown>;
+  for (const key of ['col', 'row', 'w', 'h'] as const) {
+    const v = p[key];
+    if (typeof v !== 'number' || !Number.isFinite(v) || !Number.isInteger(v)) {
+      return `${label}.${key} must be an integer`;
+    }
+  }
+  const col = p.col as number;
+  const row = p.row as number;
+  const w = p.w as number;
+  const h = p.h as number;
+  if (col < 1 || row < 1) return `${label}.col and ${label}.row must be >= 1`;
+  if (w < 1 || h < 1) return `${label}.w and ${label}.h must be >= 1`;
+  if (col + w - 1 > layout.cols) {
+    return `${label} extends past layout.cols (${layout.cols}): col=${col} w=${w}`;
+  }
+  if (row + h - 1 > layout.rows) {
+    return `${label} extends past layout.rows (${layout.rows}): row=${row} h=${h}`;
+  }
+  return null;
+}
+
 /** Validate one widget in the SceneInput.widgets array. Returns null on
  *  success or a user-readable error string on failure. Catches missing
  *  config / non-object position / unknown kind early so the API returns
  *  4xx with a clear message instead of crashing the repo with a 500. */
-function validateWidget(widget: unknown, index: number): string | null {
+function validateWidget(widget: unknown, index: number, layout: { cols: number; rows: number }): string | null {
   if (typeof widget !== 'object' || widget === null || Array.isArray(widget)) {
     return `widgets[${index}] must be an object`;
   }
@@ -81,9 +123,8 @@ function validateWidget(widget: unknown, index: number): string | null {
   if (typeof w.kind !== 'string' || w.kind.trim() === '') {
     return `widgets[${index}].kind must be a non-empty string`;
   }
-  if (typeof w.position !== 'object' || w.position === null) {
-    return `widgets[${index}].position must be an object`;
-  }
+  const posErr = validatePosition(w.position, layout, `widgets[${index}].position`);
+  if (posErr) return posErr;
   // config is required and must be an object (even if empty {} for "no
   // config"). undefined / null would crash JSON.stringify in the repo.
   if (w.config === undefined || w.config === null) {
@@ -92,20 +133,54 @@ function validateWidget(widget: unknown, index: number): string | null {
   if (typeof w.config !== 'object' || Array.isArray(w.config)) {
     return `widgets[${index}].config must be an object`;
   }
+  // Entity-bearing kinds need a syntactically-valid entity_id. Empty / bad
+  // formats used to slip through and silently render a blank tile.
+  if (ENTITY_BEARING_KINDS.has(w.kind)) {
+    const cfg = w.config as Record<string, unknown>;
+    const eid = cfg.entity_id;
+    if (typeof eid !== 'string' || eid.trim() === '') {
+      return `widgets[${index}].config.entity_id is required for kind "${w.kind}"`;
+    }
+    if (!ENTITY_ID_RE.test(eid)) {
+      return `widgets[${index}].config.entity_id "${eid}" is not a valid HA entity id (expected "domain.object_id")`;
+    }
+  }
   return null;
 }
 
 function validateSceneInput(body: unknown): { ok: true; value: SceneInput } | { ok: false; error: string } {
-  if (typeof body !== 'object' || body === null) return { ok: false, error: 'invalid scene payload' };
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return { ok: false, error: 'scene payload must be an object' };
+  }
   const b = body as Record<string, unknown>;
-  if (typeof b.name !== 'string' || b.name.trim() === '') return { ok: false, error: 'invalid scene payload' };
-  if (typeof b.layout !== 'object' || b.layout === null) return { ok: false, error: 'invalid scene payload' };
+  if (typeof b.name !== 'string' || b.name.trim() === '') {
+    return { ok: false, error: 'name must be a non-empty string' };
+  }
+  if (typeof b.layout !== 'object' || b.layout === null || Array.isArray(b.layout)) {
+    return { ok: false, error: 'layout must be an object' };
+  }
+  const layout = b.layout as Record<string, unknown>;
+  if (typeof layout.cols !== 'number' || !Number.isInteger(layout.cols) || layout.cols < 1) {
+    return { ok: false, error: 'layout.cols must be a positive integer' };
+  }
+  if (typeof layout.rows !== 'number' || !Number.isInteger(layout.rows) || layout.rows < 1) {
+    return { ok: false, error: 'layout.rows must be a positive integer' };
+  }
   const bgErr = validateBackground(b.background);
   if (bgErr) return { ok: false, error: bgErr };
-  if (typeof b.typography !== 'object' || b.typography === null) return { ok: false, error: 'invalid scene payload' };
-  if (!Array.isArray(b.widgets)) return { ok: false, error: 'invalid scene payload' };
+  if (typeof b.typography !== 'object' || b.typography === null || Array.isArray(b.typography)) {
+    return { ok: false, error: 'typography must be an object' };
+  }
+  const typo = b.typography as Record<string, unknown>;
+  if (typeof typo.font_family !== 'string' || typo.font_family.trim() === '') {
+    return { ok: false, error: 'typography.font_family must be a non-empty string' };
+  }
+  if (typeof typo.font_scale !== 'number' || !Number.isFinite(typo.font_scale) || typo.font_scale <= 0) {
+    return { ok: false, error: 'typography.font_scale must be a positive number' };
+  }
+  if (!Array.isArray(b.widgets)) return { ok: false, error: 'widgets must be an array' };
   for (let i = 0; i < b.widgets.length; i++) {
-    const err = validateWidget(b.widgets[i], i);
+    const err = validateWidget(b.widgets[i], i, { cols: layout.cols, rows: layout.rows });
     if (err) return { ok: false, error: err };
   }
   const moodErr = validateMood(b.mood);
@@ -143,6 +218,9 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
   app.post('/api/scenes', async (req, reply) => {
     const v = validateSceneInput(req.body);
     if (!v.ok) return reply.code(400).send({ error: v.error });
+    if (v.value.defaultTransitionId != null && deps.transitions.getById(v.value.defaultTransitionId) === null) {
+      return reply.code(400).send({ error: `defaultTransitionId "${v.value.defaultTransitionId}" not found` });
+    }
     const created = deps.scenes.create(v.value);
     deps.onScenesListChanged?.();
     deps.onScenesMutated?.();
@@ -160,6 +238,9 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
   app.put<{ Params: { id: string } }>('/api/scenes/:id', async (req, reply) => {
     const v = validateSceneInput(req.body);
     if (!v.ok) return reply.code(400).send({ error: v.error });
+    if (v.value.defaultTransitionId != null && deps.transitions.getById(v.value.defaultTransitionId) === null) {
+      return reply.code(400).send({ error: `defaultTransitionId "${v.value.defaultTransitionId}" not found` });
+    }
     const existing = deps.scenes.get(req.params.id);
     if (!existing) return reply.code(404).send({ error: 'not found' });
     const updated = deps.scenes.update(req.params.id, v.value);
@@ -199,11 +280,25 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
         const err = validateBackground(body.background);
         if (err) return reply.code(400).send({ error: err });
       }
-      if (body.typography !== undefined && (typeof body.typography !== 'object' || body.typography === null || Array.isArray(body.typography))) {
-        return reply.code(400).send({ error: 'typography must be an object' });
+      if (body.typography !== undefined) {
+        if (typeof body.typography !== 'object' || body.typography === null || Array.isArray(body.typography)) {
+          return reply.code(400).send({ error: 'typography must be an object' });
+        }
+        const t = body.typography as Record<string, unknown>;
+        if (typeof t.font_family !== 'string' || t.font_family.trim() === '') {
+          return reply.code(400).send({ error: 'typography.font_family must be a non-empty string' });
+        }
+        if (typeof t.font_scale !== 'number' || !Number.isFinite(t.font_scale) || t.font_scale <= 0) {
+          return reply.code(400).send({ error: 'typography.font_scale must be a positive number' });
+        }
       }
       if (body.defaultTransitionId !== undefined && body.defaultTransitionId !== null && typeof body.defaultTransitionId !== 'string') {
         return reply.code(400).send({ error: 'defaultTransitionId must be a string or null' });
+      }
+      // Existence check: previously this 500'd on a bad id because the
+      // foreign-key violation surfaced from SQLite as a generic error.
+      if (typeof body.defaultTransitionId === 'string' && deps.transitions.getById(body.defaultTransitionId) === null) {
+        return reply.code(400).send({ error: `defaultTransitionId "${body.defaultTransitionId}" not found` });
       }
       if (body.floatWidgets !== undefined && typeof body.floatWidgets !== 'boolean') {
         return reply.code(400).send({ error: 'floatWidgets must be a boolean' });
@@ -245,7 +340,20 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
   app.delete<{ Params: { id: string } }>('/api/scenes/:id', async (req, reply) => {
     const existing = deps.scenes.get(req.params.id);
     if (!existing) return reply.code(404).send({ error: 'not found' });
-    deps.scenes.delete(req.params.id);
+    const deletedId = req.params.id;
+    deps.scenes.delete(deletedId);
+    // Prune dangling references in display rotations. Without this, a
+    // rotation pointing at a deleted scene either silently skips that
+    // entry forever or (worse) throws when the rotation timer ticks.
+    for (const d of deps.displays.list()) {
+      if (!d.rotation || !d.rotation.sceneIds.includes(deletedId)) continue;
+      const remaining = d.rotation.sceneIds.filter((s) => s !== deletedId);
+      const next = remaining.length > 0
+        ? { enabled: d.rotation.enabled, sceneIds: remaining, intervalSec: d.rotation.intervalSec }
+        : null;
+      deps.displays.setRotation(d.id, next);
+      deps.onRotationChanged?.(d.id);
+    }
     deps.onScenesListChanged?.();
     deps.onScenesMutated?.();
     return reply.code(204).send();
@@ -452,23 +560,46 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       const { scene, widget, index } = found;
 
       const body = req.body ?? {};
+      // No-fields = silent no-op was confusing for agents — they'd believe
+      // their patch landed when nothing changed. Reject with a clear 400.
+      if (body.position === undefined && body.config === undefined) {
+        return reply.code(400).send({ error: 'patch body must include at least one of "position" or "config"' });
+      }
+      if (body.position !== undefined) {
+        const err = validatePosition(body.position, scene.layout, 'position');
+        if (err) return reply.code(400).send({ error: err });
+      }
+      let mergedConfig: Record<string, unknown> | null = null;
+      if (body.config !== undefined) {
+        if (typeof body.config !== 'object' || body.config === null || Array.isArray(body.config)) {
+          return reply.code(400).send({ error: 'config must be an object' });
+        }
+        mergedConfig = { ...(widget.config ?? {}), ...(body.config as Record<string, unknown>) };
+        // If the merged config still names an entity for an entity-bearing
+        // kind, validate the format. Patches that touch entity_id must
+        // produce a syntactically valid id.
+        if (ENTITY_BEARING_KINDS.has(widget.kind)) {
+          const eid = mergedConfig.entity_id;
+          if (typeof eid !== 'string' || eid.trim() === '') {
+            return reply.code(400).send({
+              error: `config.entity_id is required for kind "${widget.kind}"`,
+            });
+          }
+          if (!ENTITY_ID_RE.test(eid)) {
+            return reply.code(400).send({
+              error: `config.entity_id "${eid}" is not a valid HA entity id (expected "domain.object_id")`,
+            });
+          }
+        }
+      }
       const newWidgets = scene.widgets.map((w, i) => {
         if (i !== index) return w;
         const next: typeof widget = { ...w };
         if (body.position !== undefined) {
-          if (typeof body.position !== 'object' || body.position === null) {
-            // Soft-fail by ignoring; we surface validation in the response below.
-          } else {
-            next.position = body.position as typeof widget.position;
-          }
+          next.position = body.position as typeof widget.position;
         }
-        if (body.config !== undefined) {
-          if (typeof body.config !== 'object' || body.config === null) {
-            // Same as above.
-          } else {
-            // Shallow-merge; the agent passes only the keys it wants to change.
-            next.config = { ...(w.config ?? {}), ...(body.config as Record<string, unknown>) };
-          }
+        if (mergedConfig !== null) {
+          next.config = mergedConfig;
         }
         return next;
       });
