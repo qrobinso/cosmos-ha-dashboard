@@ -4,6 +4,7 @@
   import type { Message } from '@ai-sdk/ui-utils';
   import { marked } from 'marked';
   import ChatToolCall from './ChatToolCall.svelte';
+  import DesignPackPicker from './DesignPackPicker.svelte';
   import { api } from './api.js';
 
   const HISTORY_KEY = 'cosmos.agent.history';
@@ -18,6 +19,15 @@
    *  once on mount; applied to every rendered message timestamp so all
    *  times show the server's clock, not the browser's. */
   let serverOffset = 0;
+
+  // Slug of the user-selected design pack, sent with every chat request so the
+  // server-side agent can fetch the pack contents and inject them as system
+  // context. Null = no pack selected. Updated by the DesignPackPicker child.
+  let designPackSlug: string | null = null;
+
+  function handleDesignChange(e: CustomEvent<{ slug: string | null }>) {
+    designPackSlug = e.detail.slug;
+  }
 
   // Restore conversation from localStorage *before* mounting useChat — once
   // useChat is initialized its initialMessages can't be reset.
@@ -95,10 +105,22 @@
     if (typeof localStorage !== 'undefined') localStorage.removeItem(HISTORY_KEY);
   }
 
+  /** Build the per-call ChatRequestOptions object so `designPackSlug` rides
+   *  along on every send. The pinned @ai-sdk/svelte (0.0.57) does not support
+   *  a function-form `body` on `useChat`, so we pass body per-call instead. */
+  function chatRequestOptions() {
+    return { body: { designPackSlug } };
+  }
+
+  function onSubmit(e: SubmitEvent) {
+    e.preventDefault();
+    handleSubmit(e, chatRequestOptions());
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if ($input.trim()) handleSubmit();
+      if ($input.trim()) handleSubmit(undefined, chatRequestOptions());
     }
   }
 
@@ -187,7 +209,7 @@
   $: suggestions = $messages.length === 0 ? buildSuggestions(new Date()) : [];
 
   function sendSuggestion(text: string) {
-    void append({ role: 'user', content: text });
+    void append({ role: 'user', content: text }, chatRequestOptions());
   }
 </script>
 
@@ -283,7 +305,9 @@
     {/if}
   </div>
 
-  <form class="composer" on:submit|preventDefault={handleSubmit}>
+  <DesignPackPicker on:change={handleDesignChange} />
+
+  <form class="composer" on:submit={onSubmit}>
     <textarea
       bind:this={inputEl}
       bind:value={$input}

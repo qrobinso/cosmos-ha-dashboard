@@ -208,4 +208,48 @@ export const api = {
       return await res.text();
     },
   },
+  designs: {
+    async list(): Promise<Array<{
+      id: string;
+      slug: string;
+      name: string;
+      source: 'builtin' | 'user';
+      preview: { colors: string[]; font_family: string | null };
+    }>> {
+      const res = await fetch('/api/designs');
+      if (!res.ok) throw new Error(`GET /api/designs failed: ${res.status}`);
+      return (await res.json()) as Array<{
+        id: string;
+        slug: string;
+        name: string;
+        source: 'builtin' | 'user';
+        preview: { colors: string[]; font_family: string | null };
+      }>;
+    },
+    async get(slug: string): Promise<{
+      id: string;
+      slug: string;
+      name: string;
+      source: 'builtin' | 'user';
+      content: string;
+      frontmatter: Record<string, unknown>;
+      body: string;
+      parseErrors: string[];
+    }> {
+      const res = await fetch(`/api/designs/${encodeURIComponent(slug)}`);
+      if (!res.ok) throw new Error(`GET /api/designs/${slug} failed: ${res.status}`);
+      return (await res.json()) as {
+        id: string;
+        slug: string;
+        name: string;
+        source: 'builtin' | 'user';
+        content: string;
+        frontmatter: Record<string, unknown>;
+        body: string;
+        parseErrors: string[];
+      };
+    },
+  },
 };
+
+export const designs = api.designs;
