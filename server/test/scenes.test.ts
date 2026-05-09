@@ -86,6 +86,32 @@ describe('scenes repo', () => {
     expect(ctx.scenes.listAssignedTo(d.id)).toEqual([]);
   });
 
+  it('background.auto_contrast round-trips on solid and gradient', () => {
+    const solid = ctx.scenes.create({
+      ...sample,
+      name: 'Solid auto',
+      background: { type: 'solid', color: '#eeeeee', auto_contrast: true },
+    });
+    const fetchedSolid = ctx.scenes.get(solid.id)!;
+    expect(fetchedSolid.background).toEqual({ type: 'solid', color: '#eeeeee', auto_contrast: true });
+
+    const gradient = ctx.scenes.create({
+      ...sample,
+      name: 'Gradient auto',
+      background: {
+        type: 'gradient',
+        colors: ['#ffd1a4', '#ff8a65'],
+        speed: 'medium',
+        style: 'mesh',
+        auto_contrast: true,
+      },
+    });
+    const fetchedGradient = ctx.scenes.get(gradient.id)!;
+    if (fetchedGradient.background.type !== 'gradient') throw new Error('expected gradient');
+    expect(fetchedGradient.background.auto_contrast).toBe(true);
+    expect(fetchedGradient.background.colors).toEqual(['#ffd1a4', '#ff8a65']);
+  });
+
   it('create + update accept and persist default_transition_id', () => {
     const ctx = setup();
     const created = ctx.scenes.create({ ...sample, defaultTransitionId: 'builtin-cross-fade' });

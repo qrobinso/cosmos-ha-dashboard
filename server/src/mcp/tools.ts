@@ -200,7 +200,7 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
         // would lock out forward-compatible additions.
         background: z.object({ type: z.string() }).passthrough().optional()
           .describe('Background union — {type:"solid",color} or {type:"gradient",colors,speed,style,sun_adaptive?}.'),
-        typography: z.object({ font_family: z.string().optional(), font_scale: z.number().optional() }).partial().optional(),
+        typography: z.object({ font_family: z.string().optional(), font_scale: z.number().optional(), color: z.string().optional() }).partial().optional(),
         defaultTransitionId: z.string().nullable().optional(),
         floatWidgets: z.boolean().optional(),
         // Same reason as background — give MCP clients an object hint.
