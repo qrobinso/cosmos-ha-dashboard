@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.5
+
+- Feat: **Auto-contrast text** for scene backgrounds. New checkbox in the editor's Background panel; when on, the kiosk picks near-black or near-white widget text based on the average WCAG luminance of the active gradient/solid color, so light backgrounds (peach, cream, pastel) no longer wash out white text. Threshold is the WCAG-derived 0.179 on weighted RGB luminance, no dependencies, ~40 lines. Reactive to `sun_adaptive` and `adaptive_colors` runtime palette swaps; a 600 ms color transition smooths the moment a scene crosses the threshold.
+- Feat: **Per-scene text color override** under Typography. New color picker (with Clear button) sets `typography.color`. When set, it wins over auto-contrast and the kiosk default — useful when you want a specific brand color regardless of background. The MCP `patch_scene` tool's typography schema accepts the new field.
+
 ## 0.6.4
 
 - Fix: Agent chat broke for **every OpenAI/Azure-routed model** with `Invalid schema for function 'patch_scene': array schema missing items`. Root cause: `patch_scene.layout.items` was typed as `z.array(z.any())`, and the AI SDK's zod-to-JSON-Schema conversion drops the `items` keyword for `z.any()` element types — Anthropic accepts that, OpenAI/Azure strict-mode tool validation rejects it. Switched to `z.array(z.unknown())` so the converter emits `items: {}` and any model can call the tool.

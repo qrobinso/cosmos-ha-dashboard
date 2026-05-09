@@ -491,6 +491,16 @@
         <label><input type="radio" name="bg" checked={background.type === 'gradient'} on:change={() => setBackgroundType('gradient')} /> Animated gradient</label>
       </div>
     </Field>
+    <Field label="Auto-contrast text">
+      <label class="inline-check">
+        <input
+          type="checkbox"
+          checked={background.auto_contrast === true}
+          on:change={(e) => { background = { ...background, auto_contrast: e.currentTarget.checked }; }}
+        />
+        <span>Switch widget text to black or white based on the background's luminance. Most useful with light backgrounds where white text disappears.</span>
+      </label>
+    </Field>
     {#if background.type === 'solid'}
       <Field label="Color">
         <input type="color" bind:value={background.color} />
@@ -625,6 +635,21 @@
       <select bind:value={typography.font_scale}>
         {#each FONT_SCALES as s (s)}<option value={s}>{s}</option>{/each}
       </select>
+    </Field>
+    <Field label="Text color" hint="Overrides background auto-contrast. Leave unset to use auto-contrast or the kiosk default.">
+      <div class="color-row">
+        <input
+          type="color"
+          value={typography.color ?? '#f5f5f5'}
+          on:input={(e) => { typography = { ...typography, color: e.currentTarget.value }; }}
+        />
+        {#if typography.color}
+          <button
+            type="button"
+            on:click={() => { const { color: _drop, ...rest } = typography; typography = rest; }}
+          >Clear</button>
+        {/if}
+      </div>
     </Field>
   </section>
 

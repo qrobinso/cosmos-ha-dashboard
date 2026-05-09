@@ -5,7 +5,7 @@ import type { MoodConfig } from '../moods/types.js';
 export type Position = { col: number; row: number; w: number; h: number };
 export type Layout = { cols: number; rows: number; items: { widget_id: string; col: number; row: number; w: number; h: number }[] };
 export type Background =
-  | { type: 'solid'; color: string }
+  | { type: 'solid'; color: string; auto_contrast?: boolean }
   | {
       type: 'gradient';
       colors: string[];
@@ -21,8 +21,19 @@ export type Background =
        *  reports, …). Composes with `sun_adaptive`: sun runs first as the
        *  resting palette, this overrides it whenever something is reporting. */
       adaptive_colors?: boolean;
+      /** When true, the kiosk renders the widget layer with
+       *  `mix-blend-mode: difference` so text contrast adapts per-pixel to
+       *  whatever color sits underneath. See
+       *  `docs/superpowers/specs/2026-05-09-auto-contrast-text-design.md`. */
+      auto_contrast?: boolean;
     };
-export type Typography = { font_family: string; font_scale: number };
+export type Typography = {
+  font_family: string;
+  font_scale: number;
+  /** Optional explicit text color (CSS color string). When set, overrides
+   *  the kiosk's default `#f5f5f5` and the per-scene auto-contrast pick. */
+  color?: string;
+};
 export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
 
 export type Widget = {

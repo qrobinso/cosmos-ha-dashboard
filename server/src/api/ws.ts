@@ -24,6 +24,10 @@ export type WsDeps = {
   mediaUrlBase?: string;
   onDisplayOnline?: (displayId: string, name: string) => void;
   onDisplayOffline?: (displayId: string, name: string) => void;
+  /** Called after `displays.registerByName` succeeds during the WS hello.
+   *  Used by the host to refresh its HA interest-set so a new display's
+   *  active scene immediately starts driving entity-tick reactivity. */
+  onDisplayRegistered?: (displayId: string, name: string) => void;
   onSceneActivated?: (displayId: string, sceneName: string | null) => void;
   canvasResolver?: import('../scenes/assembler.js').DataResolvers['canvasResolver'];
   canvasExtras?: import('../scenes/assembler.js').DataResolvers['canvasExtras'];
@@ -181,6 +185,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
         }
         const display = deps.displays.registerByName(name);
         deps.displays.touch(display.id);
+        deps.onDisplayRegistered?.(display.id, display.name);
         ownDisplayId = display.id;
         const set = sockets.get(display.id) ?? new Set<WebSocket>();
         set.add(socket);

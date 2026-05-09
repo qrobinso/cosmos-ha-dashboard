@@ -13,6 +13,7 @@
   import Background from '$lib/backgrounds/Background.svelte';
   import MoodLayer from './MoodLayer.svelte';
   import { paletteEnabled } from '$lib/scene/reportPalette';
+  import { pickContrastColor } from './contrastColor';
 
   export let scene: SceneState;
   export let displayName: string | null = null;
@@ -22,6 +23,15 @@
   // is a no-op — no per-song POSTs or scene re-pushes for scenes that don't
   // use the visual effect.
   $: $paletteEnabled = scene.background.type === 'gradient' && scene.background.adaptive_colors === true;
+
+  // Resolve the active text color.
+  // Priority: explicit typography.color > auto-contrast pick > inherited default.
+  $: textColor =
+    typeof scene.typography.color === 'string' && scene.typography.color.trim() !== ''
+      ? scene.typography.color
+      : scene.background.auto_contrast === true
+        ? pickContrastColor(scene.background)
+        : null;
 
   // Defensive: scenes created via the agent / MCP can land with an
   // incomplete typography block (`{}` or missing `font_family`). Without
@@ -65,7 +75,8 @@
 <div
   class="scene-canvas"
   style="font-family: {fontVar(scene.typography.font_family)};
-         --cosmos-font-scale: {scene.typography.font_scale};"
+         --cosmos-font-scale: {scene.typography.font_scale};
+         {textColor ? `color: ${textColor};` : ''}"
 >
   <div class="background-layer" data-bg-type={scene.background.type}>
     <Background background={scene.background} fadeMs={scene.gradientFadeMs ?? 800} />
@@ -118,6 +129,9 @@
     overflow: hidden;
     color: #f5f5f5;
     isolation: isolate;
+    /* Smooth the auto-contrast swap when gradient stops change between
+       buckets (e.g. sun_adaptive day → evening crosses the threshold). */
+    transition: color 600ms ease;
   }
   .background-layer {
     position: absolute;

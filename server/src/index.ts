@@ -17,6 +17,7 @@ import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
+import { createInterestSet, sceneAmbientEntityIds } from './scenes/interest.js';
 import { createDisplayPaletteStore } from './store/displayPalette.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve as resolvePath } from 'node:path';
@@ -31,25 +32,6 @@ function widgetEntityIds(scenes: ReturnType<typeof createScenesRepo>): Set<strin
       const id = (w.config as { entity_id?: string }).entity_id;
       if (typeof id === 'string') ids.add(id);
     }
-  }
-  return ids;
-}
-
-/** Entities a scene reads beyond its widgets — used to decide whether an
- *  HA state change should trigger a reactive re-push. Currently:
- *   - `sun.sun`: read by the mood engine's time strategy AND by sun-adaptive
- *     gradient backgrounds.
- *   - the configured weather entity: read by the mood engine's weather
- *     strategy.
- */
-function sceneAmbientEntityIds(scene: ReturnType<typeof createScenesRepo>['list'] extends () => Array<infer S> ? S : never): Set<string> {
-  const ids = new Set<string>();
-  if (scene.mood?.enabled) {
-    if (scene.mood.strategy === 'time') ids.add('sun.sun');
-    if (scene.mood.strategy === 'weather' && scene.mood.weatherEntity) ids.add(scene.mood.weatherEntity);
-  }
-  if (scene.background.type === 'gradient' && scene.background.sun_adaptive) {
-    ids.add('sun.sun');
   }
   return ids;
 }
@@ -125,6 +107,12 @@ async function main() {
    *  (TRANSITION_QUIET_MS) are deferred so the in-flight CSS animation isn't
    *  competing with main-thread JSON parsing + Svelte rerenders. */
   const lastSceneChangeAt = new Map<string, number>();
+
+  const canvasExtras = createCanvasExtrasStore();
+  const displayPalette = createDisplayPaletteStore();
+  const interest = createInterestSet({ displays, scenes, canvasExtras });
+  interest.recompute();
+
   const onSceneChanged = (
     displayId: string,
     opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
@@ -139,6 +127,7 @@ async function main() {
       if (cur) lastAnnouncedScene.set(displayId, cur);
     }
     lastSceneChangeAt.set(displayId, Date.now());
+    interest.recompute();
     wssRef
       ?.pushSceneTo(displayId, { explicitTransitionId: opts?.explicitTransitionId })
       .catch((err) => console.error('pushSceneTo failed', err));
@@ -183,6 +172,7 @@ async function main() {
     rotationCursors.set(displayId, idx);
     if (!scenes.get(sceneId)) return;
     displays.setCurrentScene(displayId, sceneId);
+    interest.recompute();
     void wssRef?.pushSceneTo(displayId).catch((err) => console.error('rotation push failed', err));
   }
   function startRotation(displayId: string) {
@@ -195,9 +185,6 @@ async function main() {
   function onRotationChanged(displayId: string) {
     startRotation(displayId);
   }
-
-  const canvasExtras = createCanvasExtrasStore();
-  const displayPalette = createDisplayPaletteStore();
 
   const app = await buildHttpApp({
     displays,
@@ -215,12 +202,16 @@ async function main() {
     onRotationChanged,
     onDisplayConfigChanged: (displayId) => wssRef?.pushDisplayConfigTo(displayId),
     onScenesListChanged,
-    onScenesMutated: () => gcCanvasResolver(),
+    onScenesMutated: () => {
+      gcCanvasResolver();
+      interest.recompute();
+    },
     onDisplayDeleted,
     canvasExtras,
     onCanvasExtrasChanged: (displayName) => {
       const d = displays.getByName(displayName);
       if (d) markDisplayDirty(d.id);
+      interest.recompute();
     },
     displayPalette,
     onPaletteChanged: (displayId) => markDisplayDirty(displayId),
@@ -255,6 +246,7 @@ async function main() {
     stopRotation(displayId);
     lastAnnouncedScene.delete(displayId);
     previousSceneByDisplay.delete(displayId);
+    interest.recompute();
     if (mqttClient) {
       const id = displayId;
       const discoveryTopics = [
@@ -351,6 +343,7 @@ async function main() {
     mediaUrlBase: browserMediaBase ?? undefined,
     onDisplayOnline: publishOnline,
     onDisplayOffline: publishOffline,
+    onDisplayRegistered: () => interest.recompute(),
     onSceneActivated: publishSceneState,
     canvasResolver,
     canvasExtras: (widgetId) => {
@@ -382,6 +375,7 @@ async function main() {
   let unsubHaStateChange: (() => void) | null = null;
   if (haClient) {
     unsubHaStateChange = haClient.onStateChanged((entity) => {
+      if (!interest.has(entity.entity_id)) return;
       const usedIds = widgetEntityIds(scenes);
       const widgetUses = usedIds.has(entity.entity_id);
       for (const d of displays.list()) {
