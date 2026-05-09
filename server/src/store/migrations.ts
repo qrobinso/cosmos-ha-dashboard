@@ -141,6 +141,29 @@ const migrations: Migration[] = [
           1);
     `,
   },
+  {
+    /**
+     * Adds the `design_packs` table — small library of DESIGN.md-spec
+     * markdown files (Google Labs design.md format). Built-ins are upserted
+     * from `server/src/designs/builtins/` on every server boot, so addon
+     * updates can ship updated built-ins. User/MCP-authored packs persist
+     * as `source='user'` and are protected from the upsert. Slug is the
+     * stable identifier used by the system prompt and MCP resources.
+     */
+    version: 9,
+    up: `
+      CREATE TABLE design_packs (
+        id TEXT PRIMARY KEY,
+        slug TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('builtin','user')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX design_packs_slug_idx ON design_packs (slug);
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {
