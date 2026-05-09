@@ -3,6 +3,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { streamText, convertToCoreMessages } from 'ai';
 import type { SettingsRepo } from '../store/settings.js';
 import type { HaClient } from '../ha/types.js';
+import type { DesignPacksRepo } from '../store/design-packs.js';
 import { buildSystemPrompt } from '../agent/system-prompt.js';
 import { createAgentTools, CONFIRM_REQUIRED_TOOLS } from '../agent/tools.js';
 
@@ -16,6 +17,9 @@ export type AgentRoutesDeps = {
    *  can reuse existing endpoints via `app.inject(...)`. Avoids reimplementing
    *  validation/notification logic. */
   app: FastifyInstance;
+  /** Design packs repo — the system-prompt builder uses this to inject a
+   *  selected pack's guidance section. */
+  designs: DesignPacksRepo;
 };
 
 const DEFAULT_MODEL = 'anthropic/claude-sonnet-4-6';
@@ -84,7 +88,7 @@ export function registerAgentRoutes(app: FastifyInstance, deps: AgentRoutesDeps)
   /** POST /api/agent/chat — streams a chat completion via OpenRouter. The
    *  Vercel AI SDK handles the protocol; we adapt the Web Response stream
    *  to Fastify's `reply.raw`. */
-  app.post<{ Body: { messages?: unknown } }>('/api/agent/chat', async (req, reply) => {
+  app.post<{ Body: { messages?: unknown; designPackSlug?: unknown } }>('/api/agent/chat', async (req, reply) => {
     const { key, model } = readAgentSettings(deps.settings);
     if (!key) {
       return reply.code(503).send({
@@ -95,6 +99,18 @@ export function registerAgentRoutes(app: FastifyInstance, deps: AgentRoutesDeps)
     const messages = (req.body as { messages?: unknown })?.messages;
     if (!Array.isArray(messages)) {
       return reply.code(400).send({ error: 'messages must be an array' });
+    }
+
+    const designPackSlug = (req.body as { designPackSlug?: unknown })?.designPackSlug;
+    let resolvedSlug: string | undefined = undefined;
+    if (designPackSlug !== undefined && designPackSlug !== null && designPackSlug !== '') {
+      if (typeof designPackSlug !== 'string') {
+        return reply.code(400).send({ error: 'designPackSlug must be a string' });
+      }
+      if (!deps.designs.getBySlug(designPackSlug)) {
+        return reply.code(400).send({ error: `design pack "${designPackSlug}" not found` });
+      }
+      resolvedSlug = designPackSlug;
     }
 
     const openrouter = createOpenAI({
@@ -108,7 +124,10 @@ export function registerAgentRoutes(app: FastifyInstance, deps: AgentRoutesDeps)
     });
 
     const tools = createAgentTools({ app: deps.app, haClient: deps.haClient });
-    const system = buildSystemPrompt({ docsDir: deps.docsDir, haClient: deps.haClient });
+    const system = buildSystemPrompt(
+      { docsDir: deps.docsDir, haClient: deps.haClient, designs: deps.designs },
+      { designPackSlug: resolvedSlug }
+    );
 
     const result = await streamText({
       model: openrouter(model),
