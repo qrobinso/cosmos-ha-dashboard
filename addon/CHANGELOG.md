@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.6
+
+- Feat: Canvas widgets now receive the scene's resolved text color as `--cosmos-fg` (and `cosmos.tokens.fg`). Priority matches `SceneCanvas`: `typography.color` override > background auto-contrast pick > kiosk default. The bridge also sets a `body { color: var(--cosmos-fg, #f5f5f5) }` default so canvases inherit the right color without changes. Agent + user docs updated to instruct authors to use `color: var(--cosmos-fg, #f5f5f5)` rather than hardcoding white.
+
 ## 0.6.5
 
 - Feat: **Auto-contrast text** for scene backgrounds. New checkbox in the editor's Background panel; when on, the kiosk picks near-black or near-white widget text based on the average WCAG luminance of the active gradient/solid color, so light backgrounds (peach, cream, pastel) no longer wash out white text. Threshold is the WCAG-derived 0.179 on weighted RGB luminance, no dependencies, ~40 lines. Reactive to `sun_adaptive` and `adaptive_colors` runtime palette swaps; a 600 ms color transition smooths the moment a scene crosses the threshold.
