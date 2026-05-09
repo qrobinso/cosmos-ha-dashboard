@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDesignPack } from '../src/designs/parse.js';
+import { parseDesignPack, previewFromFrontmatter } from '../src/designs/parse.js';
 
 describe('parseDesignPack', () => {
   it('splits a well-formed file into frontmatter and body', () => {
@@ -49,8 +49,7 @@ describe('parseDesignPack', () => {
     expect(r.errors).toEqual([]);
   });
 
-  it('exposes the four-color preview helper', async () => {
-    const { previewFromFrontmatter } = await import('../src/designs/parse.js');
+  it('exposes the four-color preview helper', () => {
     const fm = {
       colors: { bg: '#0d0c0a', surface: '#3b342c', accent: '#c8b896', text: '#f3ecd8', extra: '#ffffff' },
       typography: { body: { fontFamily: 'Inter' } },
@@ -59,5 +58,39 @@ describe('parseDesignPack', () => {
       colors: ['#0d0c0a', '#3b342c', '#c8b896', '#f3ecd8'],
       font_family: 'Inter',
     });
+  });
+
+  it('returns an empty frontmatter (no error) for an empty --- --- block', () => {
+    const raw = '---\n---\n\nBody.';
+    const r = parseDesignPack(raw);
+    expect(r.frontmatter).toEqual({});
+    expect(r.body.trim()).toBe('Body.');
+    expect(r.errors).toEqual([]);
+  });
+});
+
+describe('previewFromFrontmatter', () => {
+  it('rejects 5-digit and 7-digit hex strings (invalid CSS lengths)', () => {
+    const fm = {
+      colors: { a: '#12345', b: '#1234567', c: '#123456', d: '#1234' },
+    };
+    // 5-digit '#12345' and 7-digit '#1234567' should be skipped; 6-digit '#123456' and 4-digit '#1234' kept.
+    expect(previewFromFrontmatter(fm).colors).toEqual(['#123456', '#1234']);
+  });
+
+  it('returns empty colors when colors is an array, not an object', () => {
+    const fm = { colors: ['#000', '#fff'] };
+    expect(previewFromFrontmatter(fm).colors).toEqual([]);
+  });
+
+  it('returns empty colors when colors object has no hex values', () => {
+    const fm = { colors: { bg: 'red', text: 'rebeccapurple' } };
+    expect(previewFromFrontmatter(fm).colors).toEqual([]);
+  });
+
+  it('returns null font_family when typography.body.fontFamily missing', () => {
+    expect(previewFromFrontmatter({}).font_family).toBeNull();
+    expect(previewFromFrontmatter({ typography: {} }).font_family).toBeNull();
+    expect(previewFromFrontmatter({ typography: { body: {} } }).font_family).toBeNull();
   });
 });

@@ -11,7 +11,7 @@ export type ParsedDesignPack = {
   errors: string[];
 };
 
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)(?:\r?\n)?---\r?\n?([\s\S]*)$/;
 
 export function parseDesignPack(raw: string): ParsedDesignPack {
   const m = raw.match(FRONTMATTER_RE);
@@ -21,7 +21,10 @@ export function parseDesignPack(raw: string): ParsedDesignPack {
   const [, yamlBlock, body] = m;
   try {
     const parsed = loadYaml(yamlBlock);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    if (parsed === undefined || parsed === null) {
+      return { frontmatter: {}, body, errors: [] };
+    }
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { frontmatter: {}, body, errors: ['frontmatter must be a YAML object'] };
     }
     return { frontmatter: parsed as Record<string, unknown>, body, errors: [] };
@@ -43,7 +46,7 @@ export function previewFromFrontmatter(
   const fmColors = fm.colors;
   if (fmColors && typeof fmColors === 'object' && !Array.isArray(fmColors)) {
     for (const v of Object.values(fmColors as Record<string, unknown>)) {
-      if (typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.trim())) {
+      if (typeof v === 'string' && /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim())) {
         colors.push(v.trim());
         if (colors.length === 4) break;
       }
