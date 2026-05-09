@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2
+
+- Fix: Agent chat failures used to surface in the UI as `Failed after 3 attempts. Last error: Cannot connect to API:` with **nothing in the addon log** to debug from (Fastify is configured with `logger: false`, so unhandled route errors fell on the floor). Now `/api/agent/chat` wraps the `streamText` call, logs the full error chain — message + cause + stack — to the addon log, and returns a clearer `503` to the chat UI: `Couldn't reach the LLM. <detail> (cause: <inner>). Check the addon log for full details.` Same primary failure surface; just visible from both ends now.
+
 ## 0.6.1
 
 - Fix: Addon was crash-looping on chatty HA installs (visible to users as constant kiosk WebSocket reconnects and jerky scene transitions). Two compounding bugs: (1) every scene push fired a fresh `weather.get_forecasts` RPC — dozens per second on busy installs — and when the HA WS hiccupped (`Connection lost` / code 3) the call storm caused a stray rejection to escape the local try/catch through `home-assistant-js-websocket`'s internal cleanup, killing the Node process; (2) Supervisor restarted the container, kiosk reconnected, scene re-rendered, repeat. Fixes: (a) forecast results now cached for 5 minutes per `(entity, type)` with concurrent-call coalescing — eliminates the call storm; (b) process-level `unhandledRejection` and `uncaughtException` guards log loudly but no longer exit, so future stray library rejections can't kill the addon.

@@ -129,15 +129,41 @@ export function registerAgentRoutes(app: FastifyInstance, deps: AgentRoutesDeps)
       { designPackSlug: resolvedSlug }
     );
 
-    const result = await streamText({
-      model: openrouter(model),
-      system,
-      // useChat's UIMessage[] format → CoreMessage[] for the SDK.
-      messages: convertToCoreMessages(messages as Parameters<typeof convertToCoreMessages>[0]),
-      tools,
-      // Multi-step tool loop. 5 is enough for: list → patch → verify, with headroom.
-      maxSteps: 5,
-    });
+    let result: Awaited<ReturnType<typeof streamText>>;
+    try {
+      console.log(`[agent] streamText → model=${model} messages=${messages.length} designPack=${resolvedSlug ?? 'none'}`);
+      result = await streamText({
+        model: openrouter(model),
+        system,
+        // useChat's UIMessage[] format → CoreMessage[] for the SDK.
+        messages: convertToCoreMessages(messages as Parameters<typeof convertToCoreMessages>[0]),
+        tools,
+        // Multi-step tool loop. 5 is enough for: list → patch → verify, with headroom.
+        maxSteps: 5,
+      });
+    } catch (err) {
+      // Fastify is built with `logger: false`, so anything we don't catch
+      // here is invisible in the addon log. Surface the full chain so a
+      // user staring at the UI's "Failed after 3 attempts: Cannot connect
+      // to API" toast can find the actual cause (DNS, TLS, 401, etc.) in
+      // the addon log without needing to docker exec into the container.
+      const cause = err instanceof Error && err.cause ? err.cause : null;
+      const causeStr = cause instanceof Error
+        ? `${cause.name}: ${cause.message}`
+        : cause !== null
+          ? String(cause)
+          : '(no cause)';
+      const stack = err instanceof Error && err.stack ? err.stack : '';
+      console.error(`[agent] streamText failed (model=${model})`);
+      console.error(`  message: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`  cause:   ${causeStr}`);
+      if (stack) console.error(`  stack:\n${stack}`);
+      const detail = err instanceof Error ? err.message : String(err);
+      const causeDetail = cause instanceof Error ? ` (cause: ${cause.message})` : '';
+      return reply.code(503).send({
+        error: `Couldn't reach the LLM. ${detail}${causeDetail}. Check the addon log for full details.`,
+      });
+    }
 
     // Pipe the AI SDK's data-stream Response onto Fastify's raw response.
     const response = result.toDataStreamResponse({
