@@ -144,24 +144,47 @@ export function registerAgentRoutes(app: FastifyInstance, deps: AgentRoutesDeps)
     } catch (err) {
       // Fastify is built with `logger: false`, so anything we don't catch
       // here is invisible in the addon log. Surface the full chain so a
-      // user staring at the UI's "Failed after 3 attempts: Cannot connect
-      // to API" toast can find the actual cause (DNS, TLS, 401, etc.) in
-      // the addon log without needing to docker exec into the container.
+      // user staring at the UI's truncated toast can find the actual cause
+      // (DNS, TLS, 401, "Model not found", etc.) in the addon log without
+      // needing to docker exec into the container.
       const cause = err instanceof Error && err.cause ? err.cause : null;
       const causeStr = cause instanceof Error
         ? `${cause.name}: ${cause.message}`
         : cause !== null
           ? String(cause)
           : '(no cause)';
+      // AI_APICallError carries the upstream response body, which usually
+      // contains the actually-useful upstream message (e.g. OpenRouter's
+      // "Model not found" / "Insufficient credits" / "Invalid API key").
+      // Pull it out without depending on the AI SDK's class — duck-type.
+      const apiBag = err as Record<string, unknown>;
+      const apiStatus = typeof apiBag?.statusCode === 'number' ? apiBag.statusCode : undefined;
+      const apiUrl = typeof apiBag?.url === 'string' ? apiBag.url : undefined;
+      const apiBody = typeof apiBag?.responseBody === 'string' ? apiBag.responseBody : undefined;
       const stack = err instanceof Error && err.stack ? err.stack : '';
       console.error(`[agent] streamText failed (model=${model})`);
       console.error(`  message: ${err instanceof Error ? err.message : String(err)}`);
       console.error(`  cause:   ${causeStr}`);
+      if (apiStatus !== undefined) console.error(`  status:  ${apiStatus}`);
+      if (apiUrl) console.error(`  url:     ${apiUrl}`);
+      if (apiBody) console.error(`  body:    ${apiBody}`);
       if (stack) console.error(`  stack:\n${stack}`);
-      const detail = err instanceof Error ? err.message : String(err);
+      // Try to mine a short, user-readable upstream message out of the
+      // response body. OpenRouter shapes errors as {"error":{"message":...}}.
+      let upstream: string | null = null;
+      if (apiBody) {
+        try {
+          const parsed = JSON.parse(apiBody) as { error?: { message?: unknown } | string };
+          if (typeof parsed?.error === 'string') upstream = parsed.error;
+          else if (parsed?.error && typeof parsed.error === 'object' && typeof parsed.error.message === 'string') {
+            upstream = parsed.error.message;
+          }
+        } catch { /* body wasn't JSON */ }
+      }
+      const detail = upstream ?? (err instanceof Error ? err.message : String(err));
       const causeDetail = cause instanceof Error ? ` (cause: ${cause.message})` : '';
       return reply.code(503).send({
-        error: `Couldn't reach the LLM. ${detail}${causeDetail}. Check the addon log for full details.`,
+        error: `LLM call failed: ${detail}${causeDetail}. Check the addon log for full details.`,
       });
     }
 

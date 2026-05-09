@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3
+
+- Fix: Agent error reporting now extracts and surfaces the upstream provider's actual message. Previously a typo'd model name (e.g. `google/gemini-3.1-flash-lite` — doesn't exist) returned `AI_APICallError: Provider returned error` with no further detail in either the chat UI or the addon log. The handler now duck-types the AI-SDK error to pull out `statusCode`, `url`, and `responseBody`, parses OpenRouter's standard `{"error":{"message":...}}` shape, and surfaces that message in both the addon log and the 503 returned to the chat UI. Net effect: the next bad model setting / billing problem / auth failure is self-diagnosing.
+
 ## 0.6.2
 
 - Fix: Agent chat failures used to surface in the UI as `Failed after 3 attempts. Last error: Cannot connect to API:` with **nothing in the addon log** to debug from (Fastify is configured with `logger: false`, so unhandled route errors fell on the floor). Now `/api/agent/chat` wraps the `streamText` call, logs the full error chain — message + cause + stack — to the addon log, and returns a clearer `503` to the chat UI: `Couldn't reach the LLM. <detail> (cause: <inner>). Check the addon log for full details.` Same primary failure surface; just visible from both ends now.
