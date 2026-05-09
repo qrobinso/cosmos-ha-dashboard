@@ -19,6 +19,7 @@ import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore }
 import { registerDocsRoutes } from './docs.js';
 import { registerAgentRoutes } from './agent.js';
 import { registerMcpRoutes } from './mcp.js';
+import { registerDesignRoutes } from './designs.js';
 import type { AlertManager } from '../scenes/alerts.js';
 import type { DisplayPaletteStore } from '../store/displayPalette.js';
 
@@ -195,6 +196,8 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   });
 
   registerTransitionRoutes(app, deps.transitions);
+
+  registerDesignRoutes(app, { designs: deps.designs });
 
   registerHaEntityRoutes(app, { haClient: deps.haClient ?? null });
   registerHaMediaProxyRoutes(app, { haUrl: deps.haUrl ?? null, haToken: deps.haToken ?? null });
