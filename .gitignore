@@ -12,4 +12,10 @@ addon/build/
 *.tar
 display/static/moods/*.original.mp4
 display/static/moods/*.tmp.mp4
+# Raw .mov clips dropped into the moods folder are typically huge (hundreds
+# of MB direct from screen-recordings). They should be transcoded to .mp4
+# via scripts/seamless-moods.mjs before tracking. Excluded by default so
+# `git add .` doesn't accidentally try to push a half-gig file past
+# GitHub's 100 MB hard limit.
+display/static/moods/*.mov
 .claude/
