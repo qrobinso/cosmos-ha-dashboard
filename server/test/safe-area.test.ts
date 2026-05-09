@@ -5,6 +5,7 @@ import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
 import { createScenesRepo } from '../src/store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
+import { createDesignPacksRepo } from '../src/store/design-packs.js';
 import { buildHttpApp, DEFAULT_SAFE_AREA } from '../src/api/http.js';
 
 function setup() {
@@ -16,6 +17,7 @@ function setup() {
     scenes: createScenesRepo(db),
     transitions: createTransitionsRepo(db),
     overrides: createOverridesRepo(db),
+    designs: createDesignPacksRepo(db),
   };
 }
 

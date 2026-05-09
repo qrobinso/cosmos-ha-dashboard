@@ -5,6 +5,7 @@ import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
 import { createScenesRepo } from '../src/store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
+import { createDesignPacksRepo } from '../src/store/design-packs.js';
 import { buildHttpApp } from '../src/api/http.js';
 import { createAlertManager, type AlertManager } from '../src/scenes/alerts.js';
 
@@ -24,7 +25,8 @@ function setup() {
   const scenes = createScenesRepo(db);
   const transitions = createTransitionsRepo(db);
   const overrides = createOverridesRepo(db);
-  return { displays, settings, scenes, transitions, overrides };
+  const designs = createDesignPacksRepo(db);
+  return { displays, settings, scenes, transitions, overrides, designs };
 }
 
 describe('POST /api/displays/:name/scene/alert', () => {

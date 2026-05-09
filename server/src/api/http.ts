@@ -9,6 +9,7 @@ import {
 } from '../store/canvasFetch.js';
 import type { ScenesRepo } from '../store/scenes.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
+import type { DesignPacksRepo } from '../store/design-packs.js';
 import { registerSceneRoutes } from './scenes.js';
 import { registerTransitionRoutes } from './transitions.js';
 import { registerHaEntityRoutes } from './ha-entities.js';
@@ -61,6 +62,7 @@ export type HttpDeps = {
   scenes: ScenesRepo;
   transitions: TransitionsRepo;
   overrides: OverridesRepo;
+  designs: DesignPacksRepo;
   haClient?: import('../ha/types.js').HaClient | null;
   /** Server-reachable HA URL for the media proxy (LAN URL or `http://supervisor/core`). */
   haUrl?: string | null;

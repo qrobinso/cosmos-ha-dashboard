@@ -5,6 +5,7 @@ import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
 import { createScenesRepo } from '../src/store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
+import { createDesignPacksRepo } from '../src/store/design-packs.js';
 import { buildHttpApp } from '../src/api/http.js';
 import { createCanvasExtrasStore } from '../src/api/canvases.js';
 import { createAgentTools, CONFIRM_REQUIRED_TOOLS } from '../src/agent/tools.js';
@@ -22,9 +23,10 @@ function setup() {
   const scenes = createScenesRepo(db);
   const transitions = createTransitionsRepo(db);
   const overrides = createOverridesRepo(db);
+  const designs = createDesignPacksRepo(db);
   const canvasExtras = createCanvasExtrasStore();
   const displayPalette = createDisplayPaletteStore();
-  return { displays, settings, scenes, transitions, overrides, canvasExtras, displayPalette };
+  return { displays, settings, scenes, transitions, overrides, designs, canvasExtras, displayPalette };
 }
 
 const sceneFixture = {

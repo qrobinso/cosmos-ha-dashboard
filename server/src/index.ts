@@ -5,6 +5,7 @@ import { createDisplaysRepo } from './store/displays.js';
 import { createSettingsRepo } from './store/settings.js';
 import { createScenesRepo } from './store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from './store/transitions.js';
+import { createDesignPacksRepo } from './store/design-packs.js';
 import { buildHttpApp, readTransitionSpeed } from './api/http.js';
 import { attachWsHub } from './api/ws.js';
 import { registerStatic } from './static.js';
@@ -18,9 +19,10 @@ import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
 import { createDisplayPaletteStore } from './store/displayPalette.js';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve as resolvePath } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
 
-const __cosmos_repo_root = resolvePath(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const __cosmos_src_dir = dirname(fileURLToPath(import.meta.url));
+const __cosmos_repo_root = resolvePath(__cosmos_src_dir, '..', '..');
 
 function widgetEntityIds(scenes: ReturnType<typeof createScenesRepo>): Set<string> {
   const ids = new Set<string>();
@@ -60,6 +62,10 @@ async function main() {
   const scenes = createScenesRepo(db);
   const transitions = createTransitionsRepo(db);
   const overrides = createOverridesRepo(db);
+  const designs = createDesignPacksRepo(db);
+  // Resolve the builtins folder relative to this file so the seed works from
+  // both dev (tsx running TS source under src/) and prod (compiled JS in dist/).
+  designs.seedBuiltinsFromDir(join(__cosmos_src_dir, 'designs', 'builtins'));
 
   // Resolve effective HA + MQTT settings, falling back to Supervisor when running as an add-on.
   const { fetchMqttFromSupervisor, SUPERVISOR_HA_URL, SUPERVISOR_BASE } = await import('./ha/supervisor.js');
@@ -199,6 +205,7 @@ async function main() {
     scenes,
     transitions,
     overrides,
+    designs,
     haClient,  // pass the live client (or null) so /api/ha/entities can read the cache
     haUrl: effectiveHaUrl,    // server-reachable HA URL (LAN or http://supervisor/core) for the media proxy
     haToken: effectiveHaToken, // matching auth token for the proxy's upstream fetches

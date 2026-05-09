@@ -5,6 +5,7 @@ import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
 import { createScenesRepo } from '../src/store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
+import { createDesignPacksRepo } from '../src/store/design-packs.js';
 import { buildHttpApp } from '../src/api/http.js';
 import { createCanvasExtrasStore } from '../src/api/canvases.js';
 
@@ -16,8 +17,9 @@ function setup() {
   const scenes = createScenesRepo(db);
   const transitions = createTransitionsRepo(db);
   const overrides = createOverridesRepo(db);
+  const designs = createDesignPacksRepo(db);
   const canvasExtras = createCanvasExtrasStore();
-  return { displays, settings, scenes, transitions, overrides, canvasExtras };
+  return { displays, settings, scenes, transitions, overrides, designs, canvasExtras };
 }
 
 const sample = {
@@ -285,5 +287,149 @@ describe('scenes REST API', () => {
     // Other fields preserved.
     expect(res.json().name).toBe(sample.name);
     expect(res.json().typography).toEqual(sample.typography);
+  });
+
+  // ── Validation hardening (audit follow-up) ───────────────────────────
+  // Each block here pins a previously-silent or 500-class failure to a
+  // 4xx with a clear message, so an MCP/HTTP agent can self-correct.
+
+  it('POST /api/scenes 400s when a widget position is out of grid bounds', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{ kind: 'clock', position: { col: 99, row: 1, w: 1, h: 1 }, config: {} }],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/extends past layout\.cols/);
+  });
+
+  it('POST /api/scenes 400s when a widget position has zero width', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{ kind: 'clock', position: { col: 1, row: 1, w: 0, h: 1 }, config: {} }],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/w and .* must be >= 1/i);
+  });
+
+  it('POST /api/scenes 400s when an entity-bearing widget lacks entity_id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{ kind: 'weather', position: { col: 1, row: 1, w: 4, h: 4 }, config: {} }],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/entity_id is required/i);
+  });
+
+  it('POST /api/scenes 400s when entity_id is malformed', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [
+          { kind: 'entity_tile', position: { col: 1, row: 1, w: 2, h: 2 }, config: { entity_id: 'no-domain' } },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/not a valid HA entity id/);
+  });
+
+  it('POST /api/scenes 400s (not 500) when defaultTransitionId is unknown', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: { ...sample, defaultTransitionId: 'does-not-exist' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/defaultTransitionId.*not found/);
+  });
+
+  it('PATCH /api/scenes/:id 400s (not 500) when defaultTransitionId is unknown', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/scenes', payload: sample });
+    const sceneId = created.json().id;
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/scenes/${sceneId}`,
+      payload: { defaultTransitionId: 'nope' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/defaultTransitionId.*not found/);
+  });
+
+  it('PATCH /api/widgets/:id rejects an empty body with a clear 400', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{ kind: 'clock', position: { col: 1, row: 1, w: 6, h: 2 }, config: {} }],
+      },
+    });
+    const widgetId = created.json().widgets[0].id;
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/widgets/${widgetId}`,
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/at least one of "position" or "config"/);
+  });
+
+  it('PATCH /api/widgets/:id rejects out-of-grid position', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{ kind: 'clock', position: { col: 1, row: 1, w: 6, h: 2 }, config: {} }],
+      },
+    });
+    const widgetId = created.json().widgets[0].id;
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/widgets/${widgetId}`,
+      payload: { position: { col: 1, row: 1, w: 99, h: 99 } },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/extends past layout/);
+  });
+
+  it('DELETE /api/scenes/:id prunes the scene from display rotations', async () => {
+    // Two scenes, one display, rotation across both.
+    const a = (await app.inject({ method: 'POST', url: '/api/scenes', payload: { ...sample, name: 'A' } })).json();
+    const b = (await app.inject({ method: 'POST', url: '/api/scenes', payload: { ...sample, name: 'B' } })).json();
+    const display = (await app.inject({
+      method: 'POST',
+      url: '/api/displays/register',
+      payload: { name: 'Living Room' },
+    })).json();
+    await app.inject({
+      method: 'PUT',
+      url: `/api/displays/${encodeURIComponent(display.name)}/rotation`,
+      payload: { enabled: true, sceneIds: [a.id, b.id], intervalSec: 30 },
+    });
+
+    const del = await app.inject({ method: 'DELETE', url: `/api/scenes/${a.id}` });
+    expect(del.statusCode).toBe(204);
+
+    const all = (await app.inject({ method: 'GET', url: '/api/displays' })).json() as Array<{
+      id: string;
+      rotation?: { sceneIds: string[] };
+    }>;
+    const after = all.find((d) => d.id === display.id)!;
+    expect(after.rotation?.sceneIds).toEqual([b.id]);
   });
 });
