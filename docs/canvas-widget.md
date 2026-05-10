@@ -54,7 +54,7 @@ Inside the iframe, `window.cosmos` exposes a small read-only API.
 | `cosmos.font` | `{ family: string; scale: number }` | Inherited typography. The iframe is cross-origin and can't load Cosmos's bundled fonts via `@font-face`, but `family` will name a system-available fallback. |
 | `cosmos.version` | `string` | Bridge protocol version. |
 | `cosmos.entity(id)` | `(id: string) => EntityState \| null` | One-shot read of a cached entity. Returns null if the entity isn't being tracked yet. |
-| `cosmos.subscribe(id, cb)` | `(id: string, cb: (e: EntityState) => void) => () => void` | Calls `cb(entity)` on every state change. The first call also seeds `cb` with the current value if known. Returns an unsubscribe. Subscribing to an entity not already in your templates triggers a server-side subscription request automatically. |
+| `cosmos.subscribe(id, cb)` | `(id: string, cb: (e: EntityState) => void) => () => void` | Calls `cb(entity)` on every state change AND seeds it with the current value on attach. One call covers initial paint and live updates — no need to read `cosmos.entity(id)` first. If the entity isn't in the cache yet, the bridge requests it from the server and the callback fires once state arrives. Returns an unsubscribe. |
 | `cosmos.fetch(url, init?)` | `(url, init?) => Promise<CosmosResponse>` | Outbound HTTP(S) on the iframe's behalf, gated by an admin-managed allowlist. Default policy is deny. See **Outbound fetches** below. |
 | `cosmos.getCalendarEvents(entityId, start, end)` | `(string, string, string) => Promise<CalendarEvent[]>` | Read events from a HA `calendar.*` entity in an ISO-datetime window. Proxies through Cosmos's authenticated HA connection — no allowlist needed. Cached server-side for 5 minutes per `(entity, day-aligned window)`. |
 | `cosmos.reportColors(colors)` | `(colors: string[]) => void` | Contribute up to 5 dominant `#rrggbb` colors to the scene's adaptive gradient. Pass `[]` to clear. Visual effect requires the scene's gradient to have **Adapt to widget colors** enabled; the colors are always recorded server-side regardless. |
@@ -82,6 +82,8 @@ Recommended baseline for any canvas:
 ```
 
 The variables update on every scene push and on resize, so picking them up via CSS means your typography and sizing stay in lockstep with the rest of the scene without you writing any JS.
+
+**Wrap every `font-size` in `calc(... * var(--cosmos-font-scale, 1))`** — including small kicker labels and unit suffixes, not just body copy. The scene's scale knob should affect everything proportionally; if you only scale body, turning the knob produces lopsided typography.
 
 > **Why the long font fallback chain?** Cosmos always sets `--cosmos-font-family`, so the `system-ui` *inside* `var()` only fires if the variable were undefined — which it never is. The canvas iframe is sandboxed and can't load Cosmos's bundled `@fontsource` fonts, so the named scene font (e.g. `"Space Grotesk"`) usually fails to resolve. Without a real fallback **after** the `var()`, the browser drops to its ultimate default — Times New Roman on most platforms. The trailing list keeps you on a real sans-serif when the named font isn't loadable.
 
