@@ -79,7 +79,21 @@ type CosmosResponse = {
 }
 ```
 
-Subscribe is the live binding; reach for it when an animation needs to react to state.
+**`subscribe` already seeds the callback with the current entity state on attach** if the value is known to the bridge. There is no need to read `cosmos.entity(id)` first and call your update function manually — calling `cosmos.subscribe(id, fn)` does both jobs. If the entity isn't in the bridge cache yet, the bridge posts a request to the parent and the callback fires once state arrives. Either way, your one `subscribe` call covers both initial paint and live updates.
+
+```js
+// Correct — one call, fires now (if known) and on every change
+cosmos.subscribe('sensor.power', (e) => {
+  document.getElementById('val').textContent = e.state;
+});
+
+// Redundant — the entity() prelude is dead code; subscribe already replays
+const initial = cosmos.entity('sensor.power');
+if (initial) update(initial);
+cosmos.subscribe('sensor.power', update);
+```
+
+Reach for `cosmos.entity(id)` only when you need a one-shot read with no live binding (e.g. a value computed once at mount).
 
 ### Outbound fetches (`cosmos.fetch`)
 
@@ -175,9 +189,28 @@ Cosmos sets these on `:root` and updates them live whenever the scene changes. U
 | `--cosmos-w` / `--cosmos-h` | iframe pixel size | `clamp()`/`min()` calculations |
 | `--cosmos-scene-id` / `--cosmos-scene-name` | scene metadata as strings | `[data-scene]` selectors, or `content: var(...)` in pseudo-elements |
 
-**Rule of thumb:** every canvas should set `font-family: var(--cosmos-font-family, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` on its root element so the typography matches the rest of the scene. Override locally for headlines/numerals if you want a typographic accent — never override globally with a hardcoded family.
+**Typography rule of thumb — scene font is the *voice*, Inter is the *instrument panel*.**
 
-**Color rule of thumb:** **never hardcode `color: #fff` or `color: #f5f5f5`**. Use `color: var(--cosmos-fg, #f5f5f5)` so your canvas tracks the scene's `typography.color` override and the background auto-contrast flag. Hardcoding white means your widget will disappear when the user picks a light background or sets an explicit dark text color. Same applies to nested elements: prefer `color: inherit` or `color: var(--cosmos-fg)` over a literal hex. Accent colors (chart series, glyph tones) are fine to hardcode — but body text and labels must follow the scene.
+Set `font-family: var(--cosmos-font-family, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` on the root so the scene's chosen face is the default. **But switch back to Inter inline** for any text that's instrumental rather than expressive: kicker labels, units, value suffixes (`°F`, `mph`, `W`), small-print metadata, and anything under ~1rem. Serif scene fonts (Fraunces, etc.) read as decorative at small sizes and tracked-uppercase labels in serif look ornamental, not utilitarian. Hero values, headlines, and big numerals get the scene face; everything supporting them gets Inter. Switching mid-element is expected.
+
+```html
+<div style="font-family: var(--cosmos-font-family, system-ui), system-ui, sans-serif">
+  <span style="font-weight:500;font-size:calc(7rem * var(--cosmos-font-scale,1))">72</span>
+  <span style="font-family: Inter, system-ui, sans-serif;font-size:calc(2.1rem * var(--cosmos-font-scale,1));opacity:0.5">°F</span>
+</div>
+```
+
+**Color rule of thumb — body follows the scene; the hero gets to break.**
+
+There's a hierarchy of when literal hex is wrong vs. expected:
+
+| Use | Color | Why |
+|---|---|---|
+| Body text, labels, secondary copy | `var(--cosmos-fg, #f5f5f5)` always | Tracks `typography.color` override + background auto-contrast. Hardcoding white disappears on light backgrounds. |
+| **Hero numerals, single visual anchors** | One hardcoded accent is fine | If everything is `--cosmos-fg`, the showpiece value visually disappears into the layout. Pick the accent from the active design pack's palette (e.g. Quiet Luxury's `#f3ecd8` cream); don't invent. Verify legibility against the scene background you're actually shipping on. |
+| Status colors (UV scale, alert states, chart series, active highlights) | Hardcoded hex | Semantics > theme tracking. A "danger red" must read as red regardless of scene chrome. |
+
+Same applies to nested elements: prefer `color: inherit` over a literal hex unless one of the carve-outs above applies. The agent that author this canvas should be able to point at a hardcoded color and explain *which row of the table it's exercising*.
 
 **Why the long chain after `var(...)`?** Cosmos always sets `--cosmos-font-family`, so the `system-ui` *inside* `var()` only fires if the variable were undefined — which it never is. But the canvas iframe is sandboxed (`sandbox="allow-scripts"`, null origin) and can't load Cosmos's bundled `@fontsource` fonts, so the named scene font (e.g. `"Space Grotesk"`) usually fails to resolve inside the iframe. Without a real fallback **after** the `var()`, the browser falls through to its ultimate default — Times New Roman on most platforms — which looks broken next to the rest of the scene. The trailing `system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` gives the browser a real sans-serif to land on.
 
@@ -264,6 +297,8 @@ Two requests, no scene round-trip, no widget-id management.
 - Service calls — there is no `cosmos.callService`. The agent cannot turn lights on/off; describe state, do not mutate it.
 - Top-frame navigation, popups, forms, pointer-lock — sandboxed away by the browser.
 - `@font-face` loading from cross-origin URLs — embed fonts as data URLs if you must.
+- **Camera images (`<img src=...camera.foo>`).** The iframe origin is `null`; camera-proxy URLs only resolve from the parent display, not from the canvas. Use the native `camera` widget instead. **For conditional visibility**, place a `camera` widget at the same grid position as a canvas overlay on a `floatWidgets: true` scene — the canvas can hide/show itself based on state, revealing or covering the camera underneath. (Non-obvious; this is the prescribed pattern.)
+- **Weather forecast attributes (`forecast`, `temperature_high`, `temperature_low` on `weather.*`).** Removed from the entity in HA 2024.4+. They're only available via the `weather.get_forecasts` service call, which canvases cannot make. Either use the native `weather` widget for forecast UI, or pull forecast data via `cosmos.fetch` from a public source (Open-Meteo is allowlist-friendly), or have the user create a template sensor populated by a `weather.get_forecasts` automation.
 
 ## HA entity reference
 
@@ -290,7 +325,7 @@ The reference below lists the `state` shape and the `attributes` keys Cosmos its
 | | `uv_index` (number) | |
 | | `apparent_temperature`, `dew_point` (numbers) | When provided. |
 
-Forecasts (`daily`, `hourly`, `twice_daily`) are not on the entity in HA 2024.4+; they're fetched via a service call. If the agent needs forecast data inside a canvas, prefer using a `weather` widget elsewhere on the scene, OR write Jinja that calls `state_attr(...)` for any legacy-style forecast attribute.
+**Forecasts are gone from the entity (HA 2024.4+).** `forecast`, `temperature_high`, `temperature_low` and friends are no longer attributes — they're returned by the `weather.get_forecasts` service call, which a canvas cannot make. If you need forecast UI, use the native `weather` widget or pull from `cosmos.fetch` (Open-Meteo is allowlist-friendly). Reading `state_attr(weather.X, "forecast")` will silently return `None` and your high/low values will render as `--` after a user upgrades — flag this to the user before shipping forecast layouts.
 
 ### `media_player.*`
 
@@ -445,23 +480,131 @@ Inside JS you have the standard `Date` and `Intl.DateTimeFormat` — prefer thos
 
 Reach for Jinja when the value should be baked-in once. Reach for JS subscribe when the canvas needs to react smoothly without a full re-render (animations, scroll position, etc.).
 
-## Style hints
+## Visual design
 
-- Always size your root to `width: 100%; height: 100%`. The canvas fills its grid cell, which is variable.
-- Apply `font-family: var(--cosmos-font-family, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` to your root so typography matches the surrounding scene. Use `calc(1rem * var(--cosmos-font-scale, 1))` for body copy that should track the scene's scale knob.
+These patterns came out of real-world kiosk authoring. Without them, a first-draft canvas tends to land in a generic "form on a page" aesthetic — anemic numerals, mismatched fonts between values and labels, no opinion on cards. With them, the first draft is closer to production-grade.
+
+### Foundations
+
+- Always size your root to `width: 100%; height: 100%`. The canvas fills its grid cell, which varies.
+- **Wrap every `font-size` value in `calc(... * var(--cosmos-font-scale, 1))`** — including kicker labels and unit suffixes, not just body copy. The scene's scale knob should affect everything proportionally; if you only scale body, the user turning up the knob produces lopsided typography.
 - For surfaces that should blend with the scene, reach for `var(--cosmos-bg, transparent)` rather than a hardcoded color.
-- Prefer light, airy layouts. Cosmos kiosk surfaces are usually viewed from across a room.
 - Pure-CSS animations beat JS animations. Use `requestAnimationFrame` only when CSS can't express the effect.
 - Keep total document under 50,000 characters. Larger payloads slow scene pushes.
+- Cosmos kiosks are typically read from across a room. Bigger numerals, more weight, less subtlety than a desktop UI.
+
+### Hero numerals
+
+A "hero" is the one value the widget exists to show — current temperature, current power draw, "12 days until trip", the showpiece. Treat it deliberately:
+
+```html
+<div style="font-family: Inter, system-ui, sans-serif">
+  <span style="
+    font-weight: 500;
+    font-size: calc(7rem * var(--cosmos-font-scale, 1));
+    letter-spacing: -0.01em;
+    line-height: 1;
+    color: #f3ecd8;            /* design-pack accent — see Color rules above */
+  ">72</span>
+  <span style="
+    font-size: calc(2.1rem * var(--cosmos-font-scale, 1));
+    opacity: 0.5;
+  ">°F</span>
+</div>
+```
+
+- `font-weight: 500` (not 200/300) — anemic numerals look broken on TVs and large displays.
+- `font-size: calc(6–8rem * scale)` — bigger than feels right at desktop edit time.
+- `letter-spacing: -0.01em`, `line-height: 1` — tightens the silhouette.
+- The unit suffix (`°F`, `mph`, `W`) sits at ~0.3× the value's size and `opacity: 0.5`.
+- **Always Inter for hero numerals** even when the scene font is a serif — serif numerals at this size look ornamental, not authoritative.
+- Color: pick from the active design pack's palette (Quiet Luxury cream, Editorial off-white, etc.) — see the Color rules above.
+
+The earlier "Number card" recipe in older docs (`font-weight: 200`, `font-size: calc(3rem * scale)`) is **not the right default for a one-glance value** — that's a *secondary stat*, the kind of side info you'd put in a corner. The hero gets the recipe above.
+
+### Kicker labels
+
+Every label across well-designed Cosmos widgets converges on the same recipe:
+
+```css
+font-family: Inter, system-ui, sans-serif;   /* even when scene font is serif */
+font-size: calc(0.75rem * var(--cosmos-font-scale, 1));
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.12em;       /* 0.12–0.15em */
+opacity: 0.55;                /* 0.4–0.6 */
+color: var(--cosmos-fg, #f5f5f5);
+```
+
+Reach for this for every section heading, axis label, sensor name, list category, status word. Do **not** use `<small>` or 1rem regular — that produces "form field" energy, not "instrument panel" energy.
+
+### Cards & pills (glassmorphism on dark gradient)
+
+Cosmos backgrounds are usually animated gradients. Solid panel colors fight that. The pattern that holds up:
+
+```css
+background: rgba(255, 255, 255, 0.05);
+border: 1px solid rgba(255, 255, 255, 0.08);
+border-radius: 8px;        /* cards: 8 | event/list rows: 14 | round pills: 999px */
+padding: 1rem 1.25rem;
+```
+
+The white-with-low-alpha treatment lets the underlying gradient breathe through and works on any background hue. For darker scenes you can drop the alphas to ~0.03/0.05; for very light ones bump to ~0.08/0.14 (or invert to `rgba(0,0,0,0.04)` on a `0.06` border).
+
+### Adaptive priority — show everything, emphasize one
+
+When you have a small set of items where one is "most relevant right now" but you don't want layout reflow:
+
+```css
+.item            { opacity: 0.28; transition: opacity 600ms, box-shadow 600ms; }
+.item.active     { opacity: 1; box-shadow: 0 0 18px rgba(255, 180, 90, 0.6); }
+```
+
+All items are always visible at low opacity, holding their layout slots. The "active" item promotes to full opacity and gets a colored glow. Hue of the glow conveys what the active item *is* (warm = hot/sun, cool = cold/water, red = alert). This generalises to alert lists, sensor strips, status grids, multi-camera presence indicators.
+
+### Text-length-aware sizing
+
+`clamp()` scales with viewport, not content. When a single canvas needs to render anything from "Door open" to a multi-paragraph LLM response, pick a size based on string length:
+
+```js
+function sizeFor(text) {
+  const len = text.length;
+  if (len < 24)   return 'calc(5.5rem * var(--cosmos-font-scale, 1))';
+  if (len < 80)   return 'calc(3rem   * var(--cosmos-font-scale, 1))';
+  if (len < 240)  return 'calc(1.5rem * var(--cosmos-font-scale, 1))';
+  return                'calc(1rem    * var(--cosmos-font-scale, 1))';
+}
+el.style.fontSize = sizeFor(message);
+```
+
+Adjust the buckets to your slot. Four buckets is usually enough; more steps make the size shifts feel skittery as content updates.
 
 ## Completion shapes
 
-### "Number card" — show one HA value with a label
+### "Hero stat" — the showpiece value
 
 ```html
-<div style="padding:1.5rem;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--cosmos-fg,#f5f5f5)">
-  <div style="opacity:0.6;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">{LABEL}</div>
-  <div style="font-size:calc(3rem * var(--cosmos-font-scale,1));font-weight:200;line-height:1.1">{{ states("{ENTITY}") }} {UNIT}</div>
+<div style="display:grid;place-items:center;width:100%;height:100%;font-family:var(--cosmos-font-family,system-ui),system-ui,sans-serif;color:var(--cosmos-fg,#f5f5f5)">
+  <div>
+    <div style="font-family:Inter,system-ui,sans-serif;font-size:calc(0.75rem * var(--cosmos-font-scale,1));font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.55;text-align:center">{LABEL}</div>
+    <div style="font-family:Inter,system-ui,sans-serif;font-weight:500;line-height:1;letter-spacing:-0.01em;color:{ACCENT}">
+      <span style="font-size:calc(7rem * var(--cosmos-font-scale,1))">{{ states("{ENTITY}") }}</span>
+      <span style="font-size:calc(2.1rem * var(--cosmos-font-scale,1));opacity:0.5">{UNIT}</span>
+    </div>
+  </div>
+</div>
+```
+
+`{ACCENT}` should be a literal hex from the active design pack's palette — see the Color rules above.
+
+### "Secondary stat" — a side number with a label
+
+```html
+<div style="padding:1.25rem;font-family:var(--cosmos-font-family,system-ui),system-ui,sans-serif;color:var(--cosmos-fg,#f5f5f5);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px">
+  <div style="font-family:Inter,system-ui,sans-serif;font-size:calc(0.75rem * var(--cosmos-font-scale,1));font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.55">{LABEL}</div>
+  <div style="font-size:calc(2.4rem * var(--cosmos-font-scale,1));font-weight:300;line-height:1.1;margin-top:0.25rem">
+    {{ states("{ENTITY}") }}<span style="font-family:Inter,system-ui,sans-serif;font-size:calc(0.9rem * var(--cosmos-font-scale,1));opacity:0.5;margin-left:0.25rem">{UNIT}</span>
+  </div>
 </div>
 ```
 
@@ -485,13 +628,38 @@ Reach for Jinja when the value should be baked-in once. Reach for JS subscribe w
 </script>
 ```
 
+### "Adaptive priority strip" — show all, promote one
+
+```html
+<div style="display:flex;gap:1rem;width:100%;height:100%;align-items:center;justify-content:space-around;padding:1rem;font-family:Inter,system-ui,sans-serif;color:var(--cosmos-fg,#f5f5f5)">
+  <div class="item" data-key="temp">
+    <div style="font-size:calc(0.75rem * var(--cosmos-font-scale,1));font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.55">Temp</div>
+    <div style="font-size:calc(2.4rem * var(--cosmos-font-scale,1));font-weight:500" id="temp-val">—</div>
+  </div>
+  <div class="item" data-key="wind">
+    <div style="font-size:calc(0.75rem * var(--cosmos-font-scale,1));font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.55">Wind</div>
+    <div style="font-size:calc(2.4rem * var(--cosmos-font-scale,1));font-weight:500" id="wind-val">—</div>
+  </div>
+</div>
+<style>
+  .item { opacity: 0.28; transition: opacity 600ms, box-shadow 600ms; padding: 0.5rem 1rem; border-radius: 14px; }
+  .item.active { opacity: 1; box-shadow: 0 0 18px rgba(255,180,90,0.6); }
+</style>
+<script>
+  cosmos.subscribe('{TEMP_ENTITY}', (e) => { document.getElementById('temp-val').textContent = e.state + '°'; });
+  cosmos.subscribe('{WIND_ENTITY}', (e) => { document.getElementById('wind-val').textContent = e.state; });
+  // Compute "most relevant right now" however your widget defines it (highest, most-changed, etc.)
+  // and toggle .active on the corresponding .item.
+</script>
+```
+
 ### "Static info card" — fixed content, no templates, no JS
 
 ```html
-<div style="padding:1rem;font-family:var(--cosmos-font-family,system-ui),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--cosmos-fg,#f5f5f5)">
+<div style="padding:1rem;font-family:var(--cosmos-font-family,system-ui),system-ui,sans-serif;color:var(--cosmos-fg,#f5f5f5);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px">
   <h2 style="margin:0;font-weight:300">{TITLE}</h2>
   <p style="margin:0.5rem 0 0;opacity:0.85;line-height:1.5">{BODY}</p>
 </div>
 ```
 
-Replace `{ENTITY}`, `{LABEL}`, `{UNIT}`, `{MAX}`, `{TITLE}`, `{BODY}` with values from the user's intent.
+Replace `{ENTITY}`, `{LABEL}`, `{UNIT}`, `{MAX}`, `{TITLE}`, `{BODY}`, `{ACCENT}` with values from the user's intent and the active design pack.
