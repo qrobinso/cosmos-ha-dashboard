@@ -8,6 +8,7 @@
   import type { TransitionDescriptor } from '$lib/transitions/types';
   import MessageOverlay from '$lib/overlay/MessageOverlay.svelte';
   import FullscreenButton from '$lib/scene/FullscreenButton.svelte';
+  import RefreshTapper from '$lib/scene/RefreshTapper.svelte';
   import type { OverlayMessage } from '$lib/types';
 
   let name: string | null = null;
@@ -106,5 +107,6 @@
 </main>
 
 {#if name}
+  <RefreshTapper />
   <FullscreenButton />
 {/if}

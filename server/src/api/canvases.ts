@@ -1,4 +1,7 @@
 import type { FastifyInstance } from 'fastify';
+import type { CalendarCache } from '../ha/calendarCache.js';
+import { mockCalendar } from '../scenes/mockData.js';
+import type { CalendarEvent } from '../scenes/types.js';
 
 /** Per-(display, widget) set of entity ids the iframe has subscribed to
  *  beyond what the rendered template depends on. The host plumbs the
@@ -71,7 +74,25 @@ export type CanvasRoutesDeps = {
   /** Called after an extras update so the host can mark the affected
    *  display dirty and re-push. */
   onExtrasChanged?: (displayName: string) => void;
+  /** Calendar cache used by `GET /api/canvases/:widgetId/calendar-events`.
+   *  Absent when HA is disabled — the route then falls back to mock fixtures
+   *  filtered to the requested window, matching the native widget's posture. */
+  calendarCache?: CalendarCache | null;
 };
+
+function isIsoLike(s: unknown): s is string {
+  if (typeof s !== 'string' || s.length < 10) return false;
+  const d = new Date(s);
+  return !Number.isNaN(d.getTime());
+}
+
+function filterEventsToWindow(events: CalendarEvent[], start: Date, end: Date): CalendarEvent[] {
+  return events.filter((e) => {
+    const evStart = new Date(e.start).getTime();
+    const evEnd = new Date(e.end).getTime();
+    return evEnd >= start.getTime() && evStart <= end.getTime();
+  });
+}
 
 export function registerCanvasRoutes(app: FastifyInstance, deps: CanvasRoutesDeps): void {
   app.post<{
@@ -89,5 +110,37 @@ export function registerCanvasRoutes(app: FastifyInstance, deps: CanvasRoutesDep
     deps.extras.add(displayName, widgetId, entityIds);
     deps.onExtrasChanged?.(displayName);
     return reply.code(204).send();
+  });
+
+  app.get<{
+    Params: { widgetId: string };
+    Querystring: { entity_id?: string; start?: string; end?: string };
+  }>('/api/canvases/:widgetId/calendar-events', async (req, reply) => {
+    const entityId = typeof req.query.entity_id === 'string' ? req.query.entity_id.trim() : '';
+    const startIso = typeof req.query.start === 'string' ? req.query.start : '';
+    const endIso = typeof req.query.end === 'string' ? req.query.end : '';
+    if (!entityId) return reply.code(400).send({ error: 'entity_id required' });
+    if (!isIsoLike(startIso)) return reply.code(400).send({ error: 'start must be an ISO datetime' });
+    if (!isIsoLike(endIso)) return reply.code(400).send({ error: 'end must be an ISO datetime' });
+    const startDate = new Date(startIso);
+    const endDate = new Date(endIso);
+    if (endDate.getTime() <= startDate.getTime()) {
+      return reply.code(400).send({ error: 'end must be after start' });
+    }
+    if (!deps.calendarCache) {
+      // HA disabled — return mock fixtures filtered to the window so canvas
+      // authoring stays usable in dev / mock mode (mirrors the assembler).
+      const events = filterEventsToWindow(mockCalendar(entityId).events, startDate, endDate);
+      return reply.send({ events });
+    }
+    try {
+      const events = await deps.calendarCache.get(entityId, startIso, endIso);
+      return reply.send({ events });
+    } catch {
+      // The HA client method already swallows + logs; this catches anything
+      // upstream of it (cache rejection, etc). Never 500 — surface an empty
+      // window the canvas can render rather than crashing the iframe.
+      return reply.send({ events: [] });
+    }
   });
 }

@@ -108,6 +108,9 @@
     if (msg.type === 'cosmos:fetch') {
       void handleBridgeFetch(msg as BridgeFetchRequest);
     }
+    if (msg.type === 'cosmos:get-calendar-events') {
+      void handleBridgeCalendar(msg as BridgeCalendarRequest);
+    }
     if (msg.type === 'cosmos:report-colors') {
       const raw = (msg as { colors?: unknown }).colors;
       if (!Array.isArray(raw)) return;
@@ -132,6 +135,44 @@
     url: string;
     init: { method?: string; headers?: Record<string, string>; body?: string } | null;
   };
+
+  type BridgeCalendarRequest = {
+    type: 'cosmos:get-calendar-events';
+    id: number;
+    entity_id: string;
+    start: string;
+    end: string;
+  };
+
+  function postCalendarResult(id: number, result: Record<string, unknown>) {
+    iframeEl?.contentWindow?.postMessage({ type: 'cosmos:get-calendar-events:result', id, ...result }, '*');
+  }
+
+  async function handleBridgeCalendar(req: BridgeCalendarRequest) {
+    const id = req.id;
+    if (!req.entity_id || !req.start || !req.end) {
+      postCalendarResult(id, { error: 'cosmos.getCalendarEvents: entity_id, start, end required' });
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const url = `/api/canvases/${encodeURIComponent(widget.id)}/calendar-events?entity_id=${encodeURIComponent(req.entity_id)}&start=${encodeURIComponent(req.start)}&end=${encodeURIComponent(req.end)}`;
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        postCalendarResult(id, { error: `cosmos.getCalendarEvents: ${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}` });
+        return;
+      }
+      const body = (await res.json()) as { events?: unknown };
+      postCalendarResult(id, { events: Array.isArray(body.events) ? body.events : [] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      postCalendarResult(id, { error: `cosmos.getCalendarEvents: ${msg}` });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   function postFetchResult(id: number, result: Record<string, unknown>) {
     iframeEl?.contentWindow?.postMessage({ type: 'cosmos:fetch:result', id, ...result }, '*');

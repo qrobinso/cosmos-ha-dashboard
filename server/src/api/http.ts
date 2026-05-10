@@ -85,6 +85,10 @@ export type HttpDeps = {
   onDisplayDeleted?: (displayId: string, name: string) => void;
   canvasExtras?: CanvasExtrasStore;
   onCanvasExtrasChanged?: (displayName: string) => void;
+  /** Calendar event cache, used by the canvas-side `cosmos.getCalendarEvents`
+   *  bridge. Built in `index.ts` from the live HA client; null when HA is
+   *  disabled (the route falls back to mock fixtures). */
+  calendarCache?: import('../ha/calendarCache.js').CalendarCache | null;
   /** Server-side alert timer manager. When provided, the scene-alert endpoint
    *  is registered. Manual scene activations also cancel any active alert. */
   alerts?: AlertManager;
@@ -220,6 +224,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     registerCanvasRoutes(app, {
       extras: deps.canvasExtras,
       onExtrasChanged: deps.onCanvasExtrasChanged,
+      calendarCache: deps.calendarCache ?? null,
     });
   }
 
