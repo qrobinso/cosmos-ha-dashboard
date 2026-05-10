@@ -56,9 +56,10 @@ Inside the iframe, `window.cosmos` exposes a small read-only API.
 | `cosmos.entity(id)` | `(id: string) => EntityState \| null` | One-shot read of a cached entity. Returns null if the entity isn't being tracked yet. |
 | `cosmos.subscribe(id, cb)` | `(id: string, cb: (e: EntityState) => void) => () => void` | Calls `cb(entity)` on every state change. The first call also seeds `cb` with the current value if known. Returns an unsubscribe. Subscribing to an entity not already in your templates triggers a server-side subscription request automatically. |
 | `cosmos.fetch(url, init?)` | `(url, init?) => Promise<CosmosResponse>` | Outbound HTTP(S) on the iframe's behalf, gated by an admin-managed allowlist. Default policy is deny. See **Outbound fetches** below. |
+| `cosmos.getCalendarEvents(entityId, start, end)` | `(string, string, string) => Promise<CalendarEvent[]>` | Read events from a HA `calendar.*` entity in an ISO-datetime window. Proxies through Cosmos's authenticated HA connection — no allowlist needed. Cached server-side for 5 minutes per `(entity, day-aligned window)`. |
 | `cosmos.reportColors(colors)` | `(colors: string[]) => void` | Contribute up to 5 dominant `#rrggbb` colors to the scene's adaptive gradient. Pass `[]` to clear. Visual effect requires the scene's gradient to have **Adapt to widget colors** enabled; the colors are always recorded server-side regardless. |
 
-The API is intentionally read-only in v1 (no HA service calls). Outbound HTTP via `cosmos.fetch` is the one network primitive available, and only against hosts the user has explicitly allowed.
+The API is intentionally read-only in v1 — no general HA service-call primitive. `cosmos.getCalendarEvents` is a focused exception because Cosmos's native calendar widget already needs the same server-side path; reusing it for canvas authors is free. If you want a different HA service callable from a canvas, file a feature request rather than reaching for `cosmos.fetch` against your HA URL.
 
 ## Scene tokens (CSS variables)
 
@@ -104,6 +105,25 @@ if (res.ok) {
 **Limits.** Schemes other than `http(s)` are rejected. No cookies or `Authorization` from the parent are forwarded. Responses larger than ~2 MB are dropped. A single request times out after 15 seconds. Polling with `setInterval` is the expected pattern.
 
 **Errors.** Rejections from `cosmos.fetch` carry a message starting with `cosmos.fetch:` — surface it in your UI rather than swallow it, since the user might need to add a host to the allowlist or change the mode.
+
+## Calendar events
+
+Use `cosmos.getCalendarEvents(entityId, startIso, endIso)` to read a windowed list of events from any HA `calendar.*` entity. Unlike `cosmos.fetch`, this **does not** require allowlist setup — Cosmos is already authenticated to HA on behalf of the display, so the same trusted server-side path the native calendar widget uses is reused for canvases.
+
+```js
+const now = new Date();
+const horizon = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+const events = await cosmos.getCalendarEvents(
+  'calendar.family',
+  now.toISOString(),
+  horizon.toISOString(),
+);
+// events: [{ summary, start, end, all_day, description?, location? }, …]
+```
+
+- `start` / `end` are ISO datetime strings; `end` must be after `start`.
+- Server caches per `(entity, day-aligned window)` for 5 minutes. Calling on a tick is safe.
+- Resolves with `[]` if the entity has no events in that window. Only invalid input or transport failure rejects.
 
 ## Sandbox
 

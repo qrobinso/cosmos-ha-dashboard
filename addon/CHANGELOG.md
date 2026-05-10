@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.7
+
+- Feat: **Canvas calendar bridge** — `cosmos.getCalendarEvents(entityId, startIso, endIso)` reads a windowed list from any HA `calendar.*` entity through Cosmos's already-authenticated server connection. No allowlist setup required (unlike `cosmos.fetch` to the user's own HA URL). Closes a frustrating UX gap where the native calendar widget could pull a 60-day window via `calendar.get_events` but a canvas widget had no equivalent. Server caches per `(entity, day-aligned window)` for 5 minutes with concurrent-call coalescing — same shape as the weather-forecast cache shipped in 0.6.1, so a canvas calling on a tick is safe. Agent + user docs explicitly steer canvas authors here for `calendar.*` entities and call out that no other HA service-call bridges exist today.
+
 ## 0.6.6
 
 - Feat: Canvas widgets now receive the scene's resolved text color as `--cosmos-fg` (and `cosmos.tokens.fg`). Priority matches `SceneCanvas`: `typography.color` override > background auto-contrast pick > kiosk default. The bridge also sets a `body { color: var(--cosmos-fg, #f5f5f5) }` default so canvases inherit the right color without changes. Agent + user docs updated to instruct authors to use `color: var(--cosmos-fg, #f5f5f5)` rather than hardcoding white.

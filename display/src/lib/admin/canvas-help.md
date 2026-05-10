@@ -23,6 +23,7 @@ Inside the iframe, `window.cosmos` exposes:
 | `cosmos.font = { family, scale }` | The scene's chosen typography. |
 | `cosmos.entity('sensor.foo')` | Returns the cached `EntityState` or `null`. |
 | `cosmos.subscribe('sensor.foo', cb)` | Calls `cb(entity)` on every state change. Returns an `unsubscribe()`. |
+| `cosmos.getCalendarEvents(id, start, end)` | Reads events from a `calendar.*` entity over an ISO datetime window. No allowlist needed; cached for 5 min. |
 
 The API is **read-only**. Service calls are not yet supported.
 

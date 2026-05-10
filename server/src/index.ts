@@ -17,6 +17,7 @@ import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
+import { createCalendarCache } from './ha/calendarCache.js';
 import { createInterestSet, sceneAmbientEntityIds } from './scenes/interest.js';
 import { createDisplayPaletteStore } from './store/displayPalette.js';
 import { fileURLToPath } from 'node:url';
@@ -110,6 +111,9 @@ async function main() {
 
   const canvasExtras = createCanvasExtrasStore();
   const displayPalette = createDisplayPaletteStore();
+  const calendarCache = resolveCalendarEvents
+    ? createCalendarCache(resolveCalendarEvents)
+    : null;
   const interest = createInterestSet({ displays, scenes, canvasExtras });
   interest.recompute();
 
@@ -211,6 +215,7 @@ async function main() {
     },
     onDisplayDeleted,
     canvasExtras,
+    calendarCache,
     onCanvasExtrasChanged: (displayName) => {
       const d = displays.getByName(displayName);
       if (d) markDisplayDirty(d.id);

@@ -23,6 +23,9 @@ export const CANVAS_BRIDGE_SCRIPT = `
   var fetchSeq = 0;
   var fetchPending = {};
 
+  var calSeq = 0;
+  var calPending = {};
+
   var cosmos = {
     size: { w: 0, h: 0 },
     scene: { id: '', name: '' },
@@ -70,6 +73,27 @@ export const CANVAS_BRIDGE_SCRIPT = `
         } catch (e) {
           delete fetchPending[id];
           reject(new Error('cosmos.fetch: parent unreachable'));
+        }
+      });
+    },
+    /** Read calendar events for the given HA \`calendar.*\` entity in the
+     *  [start, end) ISO datetime window. Server proxies through Cosmos's
+     *  authenticated HA connection — no allowlist required (unlike
+     *  \`cosmos.fetch\`). Results are cached for 5 minutes per (entity,
+     *  day-aligned window). Resolves with a CalendarEvent[]; rejects on
+     *  invalid input or transport failure. */
+    getCalendarEvents: function (entityId, start, end) {
+      var id = ++calSeq;
+      return new Promise(function (resolve, reject) {
+        calPending[id] = { resolve: resolve, reject: reject };
+        try {
+          window.parent.postMessage(
+            { type: 'cosmos:get-calendar-events', id: id, entity_id: String(entityId), start: String(start), end: String(end) },
+            '*'
+          );
+        } catch (e) {
+          delete calPending[id];
+          reject(new Error('cosmos.getCalendarEvents: parent unreachable'));
         }
       });
     },
@@ -132,6 +156,15 @@ export const CANVAS_BRIDGE_SCRIPT = `
     } else if (msg.type === 'cosmos:context') {
       applyContext(msg.context || {});
       try { window.dispatchEvent(new CustomEvent('cosmos:resize')); } catch (e) {}
+    } else if (msg.type === 'cosmos:get-calendar-events:result') {
+      var pendingCal = calPending[msg.id];
+      if (!pendingCal) return;
+      delete calPending[msg.id];
+      if (msg.error) {
+        pendingCal.reject(new Error(msg.error));
+      } else {
+        pendingCal.resolve(Array.isArray(msg.events) ? msg.events : []);
+      }
     } else if (msg.type === 'cosmos:fetch:result') {
       var pending = fetchPending[msg.id];
       if (!pending) return;

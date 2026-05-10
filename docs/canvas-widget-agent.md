@@ -56,9 +56,18 @@ cosmos.entity(id: string): EntityState | null
 cosmos.subscribe(id: string, cb: (e: EntityState) => void): () => void
 
 cosmos.fetch(url: string, init?: { method?: string; headers?: Record<string,string>; body?: string }): Promise<CosmosResponse>
+cosmos.getCalendarEvents(entityId: string, startIso: string, endIso: string): Promise<CalendarEvent[]>
 cosmos.reportColors(colors: string[]): void
 
 type EntityState = { entity_id: string; state: string; attributes: Record<string, unknown> }
+type CalendarEvent = {
+  summary: string;
+  description?: string;
+  location?: string;
+  start: string; // ISO datetime; for all-day events, a date
+  end: string;
+  all_day: boolean;
+}
 type CosmosResponse = {
   ok: boolean;
   status: number;
@@ -100,6 +109,40 @@ setInterval(loadFeed, 5 * 60 * 1000);
 ```
 
 If the user hasn't added the host to the allowlist, the promise rejects with a message that names the missing host. Surface that error in the UI rather than silently retrying — the user needs to act.
+
+### Calendar events (`cosmos.getCalendarEvents`)
+
+For HA `calendar.*` entities, **prefer `cosmos.getCalendarEvents` over `cosmos.fetch` to the user's HA URL**. Cosmos is already authenticated to HA on behalf of the display, so this bridge proxies through the same trusted server-side path the native calendar widget uses — no allowlist, no token exposure, no user setup step.
+
+```js
+const events = await cosmos.getCalendarEvents(
+  'calendar.home',
+  new Date().toISOString(),
+  new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+);
+// events: [{ summary, start, end, all_day, description?, location? }, …]
+```
+
+- All three arguments are required. `start` and `end` must be ISO datetime strings; `end` must be after `start`.
+- Results are cached server-side for 5 minutes per `(entity, day-aligned window)`. Calling on a tick is safe — the upstream HA RPC fires at most once per 5 minutes per bucket.
+- Returns the same `CalendarEvent[]` shape native calendar widgets receive.
+- Resolves with `[]` (not rejects) when the upstream returns no events or hiccups; only invalid inputs and transport failures reject.
+- This is the **only HA service-call bridge today**. There is no `cosmos.callService(...)`. If you need a different HA service, surface that to the user as a feature request rather than reaching for `cosmos.fetch` against the HA URL.
+
+```js
+// Render the next four upcoming events over a 60-day window
+window.cosmos.ready.then(async () => {
+  const now = new Date();
+  const end = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const events = await cosmos.getCalendarEvents('calendar.family', now.toISOString(), end.toISOString());
+  const next = events
+    .filter((e) => new Date(e.end) >= now)
+    .slice(0, 4);
+  document.getElementById('list').innerHTML = next
+    .map((e) => '<li>' + e.summary + '</li>')
+    .join('');
+});
+```
 
 ### Reporting palette colors (`cosmos.reportColors`)
 
@@ -288,7 +331,7 @@ Forecasts (`daily`, `hourly`, `twice_daily`) are not on the entity in HA 2024.4+
 | | `location` (string) | |
 | | `all_day` (boolean) | |
 
-For multiple upcoming events, use the `calendar` widget — it pulls a windowed list via `calendar.get_events` which the canvas API doesn't expose.
+For a windowed list of upcoming events, call **`cosmos.getCalendarEvents(entityId, startIso, endIso)`** — see the JS API section. This proxies through Cosmos's authenticated HA connection, so no allowlist setup is required. The native `calendar` widget uses the same underlying service.
 
 ### `light.*`
 

@@ -204,6 +204,58 @@ describe('scenes REST API', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('GET /api/canvases/:widgetId/calendar-events returns mock events when HA is disabled', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/canvases/w1/calendar-events?entity_id=calendar.home&start=2026-05-09T00:00:00Z&end=2026-05-16T00:00:00Z',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(Array.isArray(body.events)).toBe(true);
+  });
+
+  it('GET /api/canvases/:widgetId/calendar-events 400s on missing entity_id', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/canvases/w1/calendar-events?start=2026-05-09T00:00:00Z&end=2026-05-16T00:00:00Z',
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/canvases/:widgetId/calendar-events 400s on non-ISO start', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/canvases/w1/calendar-events?entity_id=calendar.home&start=tomorrow&end=2026-05-16T00:00:00Z',
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/canvases/:widgetId/calendar-events 400s when end <= start', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/canvases/w1/calendar-events?entity_id=calendar.home&start=2026-05-16T00:00:00Z&end=2026-05-09T00:00:00Z',
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/canvases/:widgetId/calendar-events uses the cache when one is wired', async () => {
+    let calls = 0;
+    const fakeFetcher = async () => {
+      calls++;
+      return [{ summary: 'evt', start: '2026-05-10T10:00:00Z', end: '2026-05-10T11:00:00Z', all_day: false }];
+    };
+    const { createCalendarCache } = await import('../src/ha/calendarCache.js');
+    const calendarCache = createCalendarCache(fakeFetcher);
+    const cached = await buildHttpApp({ ...ctx, calendarCache });
+    const url = '/api/canvases/w1/calendar-events?entity_id=calendar.home&start=2026-05-09T00:00:00Z&end=2026-05-16T00:00:00Z';
+    const a = await cached.inject({ method: 'GET', url });
+    const b = await cached.inject({ method: 'GET', url });
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    expect(calls).toBe(1);
+    expect(a.json().events).toHaveLength(1);
+  });
+
   it('accepts mood: {enabled: false} without requiring strategy', async () => {
     // Regression: validateMood used to require `strategy` even when
     // `enabled: false`, which is nonsensical (the dormant mood is
