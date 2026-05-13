@@ -44,6 +44,7 @@ REST highlights:
 - `POST /api/displays/register {name}` — register/find a display.
 - `GET /api/displays` — list displays.
 - `POST /api/scenes` / `GET /api/scenes` / `GET /api/scenes/:id` / `PUT /api/scenes/:id` / `DELETE /api/scenes/:id` — scene CRUD.
+- `GET /api/scenes/:id/preview` — assembled `SceneState` (no transition) for the admin editor's read-only scene preview. Uses the stateless data resolvers when HA is connected (mock otherwise); skips the stateful canvas resolver.
 - `POST /api/displays/:name/assign-scene {sceneId, makeDefault?}` — assign a scene to a display.
 - `GET /api/settings/safe-area` / `PUT /api/settings/safe-area {top,right,bottom,left}` — global safe-area padding.
 - `POST /api/displays/:name/scene/activate {sceneId, transitionId?}` — set the active scene with optional explicit transition override.
@@ -79,7 +80,7 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 
 - `displays.registerByName` has a SELECT-then-INSERT race — fine at single-user scale, fix when concurrent reconnections become a thing.
 - `scenes` repo `list()` and `listAssignedTo()` do N+1 widget queries — fine at < ~10 scenes.
-- Widget input is not validated at the API layer (any JSON shape is accepted). Validation belongs at the API boundary; add when an editor UI lands (Plan 5).
+- Widget input is validated at the API boundary for *shape* (kind ∈ `WIDGET_KINDS`, position is in-bounds integers, config is an object, entity-bearing kinds have a syntactically valid `entity_id`) — see `validateWidget` in `server/src/api/scenes.ts`. Per-kind `config` *contents* beyond `entity_id` are still unvalidated (any extra JSON is accepted and passed through). Tighten per-kind config if a malformed-config bug surfaces.
 - `Fastify({logger: false})` is hardcoded — wire to config when production logging matters.
 - Scene `font_family` strings are matched to CSS variables by stripping spaces (`'Space Grotesk'` → `--cosmos-font-SpaceGrotesk`). Nothing enforces consistency between DB values and CSS variable names. Plan 5's editor UI should validate against an enum (or store a canonical key + map).
 - `Weather.svelte` hardcodes `grid-template-columns: repeat(5, 1fr)` for the forecast row. The mock data is always 5 days, but `WeatherForecastDay[]` has no length constraint. Loosen to `repeat(auto-fill, minmax(...))` or pin the type when Plan 4 wires real HA data.

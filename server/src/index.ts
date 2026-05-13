@@ -6,12 +6,12 @@ import { createSettingsRepo } from './store/settings.js';
 import { createScenesRepo } from './store/scenes.js';
 import { createTransitionsRepo, createOverridesRepo } from './store/transitions.js';
 import { createDesignPacksRepo } from './store/design-packs.js';
-import { buildHttpApp, readTransitionSpeed } from './api/http.js';
+import { buildHttpApp, readTransitionSpeed, readSafeArea } from './api/http.js';
 import { attachWsHub } from './api/ws.js';
 import { registerStatic } from './static.js';
 import { makeHaClient } from './ha/client.js';
 import type { HaClient } from './ha/types.js';
-import { mockEntityResolver } from './scenes/assembler.js';
+import { mockEntityResolver, buildSceneState } from './scenes/assembler.js';
 import { resolveMoodsDir } from './moods/scan.js';
 import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
@@ -225,6 +225,21 @@ async function main() {
     onPaletteChanged: (displayId) => markDisplayDirty(displayId),
     alerts: alertManager,
     docsDir: resolvePath(__cosmos_repo_root, 'docs'),
+    // Scene-preview assembly for the admin editor's hover/tap previews. Uses
+    // the same stateless data resolvers the WS hub uses (so widgets show real
+    // HA values when connected, mock otherwise), but NOT the canvas resolver
+    // — calling it from a one-off preview would clobber a live display's
+    // template subscription for the same widget id. Canvas widgets therefore
+    // preview with their {{ }} templates unsubstituted.
+    assembleScenePreview: (scene) =>
+      buildSceneState(scene, readSafeArea(settings), {
+        resolveEntity,
+        resolveCalendarEvents,
+        resolveHistory,
+        resolveWeatherForecasts,
+        readEntitySync,
+        mediaUrlBase: config.haUrl ?? undefined,
+      }),
   });
   await registerStatic(app, config.staticDir);
   async function publishDiscovery(): Promise<void> {

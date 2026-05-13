@@ -482,7 +482,7 @@ Reach for Jinja when the value should be baked-in once. Reach for JS subscribe w
 
 ## Visual design
 
-These patterns came out of real-world kiosk authoring. Without them, a first-draft canvas tends to land in a generic "form on a page" aesthetic — anemic numerals, mismatched fonts between values and labels, no opinion on cards. With them, the first draft is closer to production-grade.
+These recipes are the *canvas-level application* of `wall-display-principles.md` — read that doc first for the full set and the *why*. They came out of real-world kiosk authoring. Without them, a first-draft canvas tends to land in a generic "form on a page" aesthetic — anemic numerals, mismatched fonts between values and labels, no opinion on cards. With them, the first draft is closer to production-grade.
 
 ### Foundations
 
@@ -494,6 +494,8 @@ These patterns came out of real-world kiosk authoring. Without them, a first-dra
 - Cosmos kiosks are typically read from across a room. Bigger numerals, more weight, less subtlety than a desktop UI.
 
 ### Hero numerals
+
+*(Principles 2 & 3: one hero per widget, sized for distance.)*
 
 A "hero" is the one value the widget exists to show — current temperature, current power draw, "12 days until trip", the showpiece. Treat it deliberately:
 
@@ -524,6 +526,8 @@ The earlier "Number card" recipe in older docs (`font-weight: 200`, `font-size: 
 
 ### Kicker labels
 
+*(Principle 3: instrument-panel text in Inter, even on a serif scene.)*
+
 Every label across well-designed Cosmos widgets converges on the same recipe:
 
 ```css
@@ -540,6 +544,8 @@ Reach for this for every section heading, axis label, sensor name, list category
 
 ### Cards & pills (glassmorphism on dark gradient)
 
+*(Principle 9: consistent grid and rhythm — pinned radii (8 cards / 14 list rows / 999px pills) and the design pack's `spacing` tokens.)*
+
 Cosmos backgrounds are usually animated gradients. Solid panel colors fight that. The pattern that holds up:
 
 ```css
@@ -553,6 +559,8 @@ The white-with-low-alpha treatment lets the underlying gradient breathe through 
 
 ### Adaptive priority — show everything, emphasize one
 
+*(Principle 2: promote one hero without reflow. Principle 6: the only motion is a slow opacity/glow shift on a *real* state change.)*
+
 When you have a small set of items where one is "most relevant right now" but you don't want layout reflow:
 
 ```css
@@ -563,6 +571,8 @@ When you have a small set of items where one is "most relevant right now" but yo
 All items are always visible at low opacity, holding their layout slots. The "active" item promotes to full opacity and gets a colored glow. Hue of the glow conveys what the active item *is* (warm = hot/sun, cool = cold/water, red = alert). This generalises to alert lists, sensor strips, status grids, multi-camera presence indicators.
 
 ### Text-length-aware sizing
+
+*(Principles 1 & 3: keep the dominant datum readable at distance whatever its length.)*
 
 `clamp()` scales with viewport, not content. When a single canvas needs to render anything from "Door open" to a multi-paragraph LLM response, pick a size based on string length:
 

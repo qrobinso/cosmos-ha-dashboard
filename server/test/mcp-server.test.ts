@@ -10,6 +10,9 @@ import { buildHttpApp } from '../src/api/http.js';
 import { createCanvasExtrasStore } from '../src/api/canvases.js';
 import { createFakeHaClient } from '../src/ha/fakeClient.js';
 import { regenerateToken, setEnabled } from '../src/store/mcp-token.js';
+import { join } from 'node:path';
+
+const docsDir = join(process.cwd(), '..', 'docs'); // monorepo: server/ → repo root → docs/
 
 function setup() {
   const db = new Database(':memory:');
@@ -59,7 +62,7 @@ describe('MCP /mcp transport', () => {
 
   beforeEach(async () => {
     ctx = setup();
-    app = await buildHttpApp({ ...ctx, haClient: createFakeHaClient([
+    app = await buildHttpApp({ ...ctx, docsDir, haClient: createFakeHaClient([
       { entity_id: 'sensor.power', state: '1247', attributes: { friendly_name: 'Power', unit_of_measurement: 'W' } },
     ]) });
   });
@@ -103,6 +106,7 @@ describe('MCP /mcp transport', () => {
       'assign_scene_to_display',
       'create_design',
       'create_scene',
+      'delete_design',
       'delete_scene',
       'delete_widget',
       'get_design',
@@ -121,13 +125,14 @@ describe('MCP /mcp transport', () => {
       'update_scene',
       'update_widget_content',
     ]);
-    // delete_scene / delete_widget are exposed but described as DESTRUCTIVE
-    // and should be gated behind the client's confirm UI. Their tool
-    // descriptions tell the model to require explicit user intent.
+    // delete_scene / delete_widget / delete_design are exposed but described
+    // as DESTRUCTIVE and should be gated behind the client's confirm UI.
+    // Their tool descriptions tell the model to require explicit user intent.
     const destructive = body.result.tools.filter(
       (t: { name: string; description: string }) =>
-        t.name === 'delete_scene' || t.name === 'delete_widget'
+        t.name === 'delete_scene' || t.name === 'delete_widget' || t.name === 'delete_design'
     );
+    expect(destructive.length).toBe(3);
     for (const t of destructive) {
       expect(t.description.toUpperCase()).toContain('DESTRUCTIVE');
     }
@@ -177,8 +182,24 @@ describe('MCP /mcp transport', () => {
     const uris = res.json().result.resources.map((r: { uri: string }) => r.uri);
     expect(uris).toContain('cosmos://docs/canvas-widget-agent');
     expect(uris).toContain('cosmos://docs/scene-agent');
+    expect(uris).toContain('cosmos://docs/wall-display-principles');
     expect(uris).toContain('cosmos://entities');
     expect(uris).toContain('cosmos://designs');
+  });
+
+  it('resources/read returns the wall-display principles doc', async () => {
+    setEnabled(ctx.settings, true);
+    const token = regenerateToken(ctx.settings);
+    const res = await rpc(app, {
+      jsonrpc: '2.0',
+      id: 8,
+      method: 'resources/read',
+      params: { uri: 'cosmos://docs/wall-display-principles' },
+    }, `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.result.contents[0].mimeType).toBe('text/markdown');
+    expect(body.result.contents[0].text).toContain('The 3-second rule');
   });
 
   it('resources/list includes per-pack URIs for seeded design packs', async () => {
@@ -202,6 +223,46 @@ describe('MCP /mcp transport', () => {
     expect(res.statusCode).toBe(200);
     const list = JSON.parse(res.json().result.content[0].text) as Array<{ slug: string }>;
     expect(list.map((p) => p.slug)).toContain('a');
+  });
+
+  it('tools/call delete_design removes a user pack but refuses a built-in', async () => {
+    setEnabled(ctx.settings, true);
+    // Seed the bundled built-in packs so `quiet-luxury` exists and is
+    // source='builtin' — the DELETE route should 403 it.
+    ctx.designs.seedBuiltinsFromDir(join(process.cwd(), 'src', 'designs', 'builtins'));
+    const token = regenerateToken(ctx.settings);
+
+    // Built-in: 403, surfaced as isError with a message about built-ins.
+    const builtin = await rpc(app, {
+      jsonrpc: '2.0', id: 60, method: 'tools/call',
+      params: { name: 'delete_design', arguments: { slug: 'quiet-luxury' } },
+    }, `Bearer ${token}`);
+    expect(builtin.statusCode).toBe(200);
+    const builtinBody = builtin.json();
+    expect(builtinBody.result.isError).toBe(true);
+    expect(builtinBody.result.content[0].text).toMatch(/built-in/i);
+    // Still present.
+    expect(ctx.designs.getBySlug('quiet-luxury')).toBeTruthy();
+
+    // Fresh user pack: created via create_design, then deleted.
+    const created = await rpc(app, {
+      jsonrpc: '2.0', id: 61, method: 'tools/call',
+      params: { name: 'create_design', arguments: {
+        slug: 'throwaway-pack', name: 'Throwaway', content: '---\nname: Throwaway\n---\nbody prose',
+      } },
+    }, `Bearer ${token}`);
+    expect(created.json().result.isError).toBeUndefined();
+    expect(ctx.designs.getBySlug('throwaway-pack')).toBeTruthy();
+
+    const del = await rpc(app, {
+      jsonrpc: '2.0', id: 62, method: 'tools/call',
+      params: { name: 'delete_design', arguments: { slug: 'throwaway-pack' } },
+    }, `Bearer ${token}`);
+    expect(del.statusCode).toBe(200);
+    const delBody = del.json();
+    expect(delBody.result.isError).toBeUndefined();
+    expect(JSON.parse(delBody.result.content[0].text)).toEqual({ ok: true, deletedSlug: 'throwaway-pack' });
+    expect(ctx.designs.getBySlug('throwaway-pack')).toBeFalsy();
   });
 
   it('resources/read returns the live entity catalog', async () => {

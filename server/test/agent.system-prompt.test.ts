@@ -43,4 +43,19 @@ describe('buildSystemPrompt', () => {
     );
     expect(out).not.toContain('DESIGN PACK');
   });
+
+  it('includes the design-system reconcile-vs-create workflow in the preamble', () => {
+    const out = buildSystemPrompt({ docsDir, haClient: null, designs });
+    expect(out).toContain('reconcile before you build');
+    expect(out).toContain('the design dropdown above');
+  });
+
+  it('bundles the wall-display principles before the scene contract', () => {
+    const out = buildSystemPrompt({ docsDir, haClient: null, designs });
+    expect(out).toContain('WALL DISPLAY PRINCIPLES');
+    expect(out).toContain('The 3-second rule');
+    expect(out.indexOf('WALL DISPLAY PRINCIPLES')).toBeLessThan(
+      out.indexOf('SCENE AUTHORING CONTRACT')
+    );
+  });
 });

@@ -266,6 +266,21 @@
   color: var(--c-fg-3);
 }
 
+/* Inline checkbox + label row (settings toggles inside a .field) */
+.check-row {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--c-fg-2);
+  cursor: pointer;
+}
+.check-row input[type='checkbox'] {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
 /* Tables — desktop ledger, become cards on mobile */
 .cosmos-admin table {
   width: 100%;

@@ -3,10 +3,18 @@ import { join } from 'node:path';
 import type { HaClient } from '../ha/types.js';
 import type { DesignPacksRepo } from '../store/design-packs.js';
 
-/** The two contract markdowns are static — read once and held in process. */
-const cache = { sceneAgent: null as string | null, canvasAgent: null as string | null };
+/** The contract markdowns are static — read once and held in process. */
+const cache = {
+  principles: null as string | null,
+  sceneAgent: null as string | null,
+  canvasAgent: null as string | null,
+};
 
-function readContract(docsDir: string, slug: string, key: 'sceneAgent' | 'canvasAgent'): string {
+function readContract(
+  docsDir: string,
+  slug: string,
+  key: 'principles' | 'sceneAgent' | 'canvasAgent'
+): string {
   if (cache[key] !== null) return cache[key]!;
   const filePath = join(docsDir, `${slug}.md`);
   if (!existsSync(filePath)) {
@@ -20,6 +28,10 @@ function readContract(docsDir: string, slug: string, key: 'sceneAgent' | 'canvas
 const PREAMBLE = `You are Cosmos's in-product agent. The user is editing their wall-display \
 dashboard and types natural-language asks; you call tools to inspect and modify scenes and \
 canvas widgets.
+
+The wall display is a screen on a wall, viewed from across a room — not a web page. The WALL \
+DISPLAY PRINCIPLES section below is the lens for every scene and canvas you produce: the API \
+contracts tell you *how*, the principles tell you *what good looks like*.
 
 Operating principles:
 
@@ -76,6 +88,23 @@ multiple domains, make multiple filtered calls rather than fetching the whole \
 catalog. Recall a previously-fetched list from earlier in the same conversation \
 instead of re-calling.
 
+Design systems — reconcile before you build:
+
+When the user describes a look (or shares a reference image) and you're about to build a \
+styled scene, first look at the existing design systems with \`list_designs\` (read the \
+1–2 closest with \`get_design\`). If one really matches what they described — same overall \
+mood, palette family, and typographic feel — ask whether they want to use it before making \
+anything new. If nothing's close, create a new design system, apply it to the scene you build \
+this turn, and tell them in plain language — they can pick it from the design dropdown above \
+the chat for next time. Don't make near-duplicates of packs that already exist.
+
+If \`designPackSlug\` is already set on this request, that's the user's current selection from \
+the design dropdown — treat it as their chosen look and don't go authoring a competing pack \
+unless they explicitly ask for a different aesthetic.
+
+Keep the user-facing language plain. Don't say "DESIGN.md", "frontmatter", or "slug" to the \
+user — those are internal mechanics. Say "design system" / "the dropdown above the chat".
+
 How to talk to the user:
 
 - The user is configuring their wall display, not debugging code. Use plain language. Avoid \
@@ -119,9 +148,13 @@ const DESIGN_PACK_PREAMBLE =
   'exact values (colors, typography, spacing) and the body prose for taste / voice. ' +
   'Token references like {colors.primary} should be resolved to the matching value ' +
   "from the pack's frontmatter when emitting scene/widget config. Never override " +
-  'scene-API rules from the contracts above.';
+  'scene-API rules from the contracts above. A design pack supplies palette / ' +
+  'typography / voice on top of the wall-display principles — it never overrides them. ' +
+  "If a pack's prose seems to invite more density or motion than the principles allow, " +
+  'the principles win.';
 
 export function buildSystemPrompt(deps: SystemPromptDeps, opts: SystemPromptOpts = {}): string {
+  const principles = readContract(deps.docsDir, 'wall-display-principles', 'principles');
   const scene = readContract(deps.docsDir, 'scene-agent', 'sceneAgent');
   const canvas = readContract(deps.docsDir, 'canvas-widget-agent', 'canvasAgent');
   // The HA entity catalog used to be embedded here as a snapshot. It was
@@ -133,6 +166,11 @@ export function buildSystemPrompt(deps: SystemPromptDeps, opts: SystemPromptOpts
 
   const sections: string[] = [
     PREAMBLE,
+    '',
+    '═════════════════════════════════════════════════════════════',
+    'WALL DISPLAY PRINCIPLES',
+    '═════════════════════════════════════════════════════════════',
+    principles || '_(wall-display-principles.md not bundled)_',
     '',
     '═════════════════════════════════════════════════════════════',
     'SCENE AUTHORING CONTRACT',
@@ -165,6 +203,7 @@ export function buildSystemPrompt(deps: SystemPromptDeps, opts: SystemPromptOpts
 
 /** Test-only: drop the cached contract reads so subsequent calls re-read from disk. */
 export function _resetSystemPromptCache(): void {
+  cache.principles = null;
   cache.sceneAgent = null;
   cache.canvasAgent = null;
 }

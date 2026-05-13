@@ -93,15 +93,23 @@ Omit or pass `null` to inherit the global default.
 
 ## Best practices
 
-The Cosmos display is a wall surface viewed from across a room. Its design language is calm, glanceable, and quiet. Apply ruthlessly:
+These apply the wall-display principles — see `wall-display-principles.md` for the full set and the *why*; below is how they shape a *scene*.
+
+### Design direction
+
+If the user gave style direction (a described aesthetic, named colors/fonts, "make it feel like X") or shared a reference asset, run the design-system reconciliation workflow *before* composing the scene: survey the existing packs, propose a close match if one captures the mood + palette family + typographic feel, and only author a new pack if nothing's close. See [`design-pack-authoring.md`](./design-pack-authoring.md) § "Reuse vs. create — the agent workflow" for the steps; that doc owns the detail.
 
 ### Focus
+
+*(Principle 5: information density — less is more. Principle 2: one hero per widget, applied at scene scale: one hero widget per scene.)*
 
 - **Pick one primary thing per scene.** A morning scene shows the time and the weather, not eight tiles. A workout scene shows heart rate; nothing else competes.
 - **Two or three widgets is plenty.** Four is the upper bound. A scene with seven widgets has failed before it rendered.
 - **One canvas can be the entire scene.** When the user's intent is a custom dashboard, the right answer is almost always: a single canvas widget at `{ col: 1, row: 1, w: 12, h: 8 }` containing the layout, with HA templates inside it.
 
 ### Centering and breathing room
+
+*(Principle 9: consistent grid and rhythm.)*
 
 - Center the primary widget. Either:
   - Make it span the full grid (`w: 12, h: 8`) and let its CSS handle alignment, or
@@ -110,6 +118,8 @@ The Cosmos display is a wall surface viewed from across a room. Its design langu
 - When you do use multiple widgets, keep them on a shared baseline — same row, same height — rather than scattering them at irregular grid offsets.
 
 ### Background
+
+*(Principle 4: high contrast, limited palette — dark grounds usually win. Principle 10: context-aware brightness — `sun_adaptive` is how a scene adapts over the day. Principle 6: the gradient + mood layers are deliberate ambient drift, not a motion violation.)*
 
 - **Solid first.** A flat, dark-ish color (`#0a0f1c`, `#0e0e0e`, `#101820`) reads cleaner than any gradient, and lets widget content carry the visual interest.
 - **Gradient when the scene IS the visual.** Reach for a gradient when there's no foreground content to look at — an ambient "now playing" or weather-only scene.
@@ -123,6 +133,8 @@ The Cosmos display is a wall surface viewed from across a room. Its design langu
 
 ### Typography
 
+*(Principle 3: distance-appropriate typography.)*
+
 - Inter, scale 1.0, for general dashboards.
 - Fraunces, scale 1.1–1.25, for display-heavy scenes (morning/news).
 - JetBrains Mono, scale 0.95, for numeric / data dashboards.
@@ -133,6 +145,8 @@ The Cosmos display is a wall surface viewed from across a room. Its design langu
 When a canvas is involved, prefer **one canvas filling the whole scene** over a canvas plus other widgets. The canvas should set its own typography via `var(--cosmos-font-family)` so it inherits the scene's choice (see `canvas-widget-agent.md`). This keeps the visual layer in one place where you can iterate and the rest of the scene is just background + safe area.
 
 ### Don'ts
+
+*(Principle 5 again, stated as anti-patterns.)*
 
 - **Don't add widgets for symmetry.** "There's empty space, I'll add a clock" is the wrong instinct. Empty space is what makes the focused widget breathe.
 - **Don't pick gaudy gradients.** Two muted stops beat four vibrant ones every time.

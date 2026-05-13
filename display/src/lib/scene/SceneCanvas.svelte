@@ -14,6 +14,7 @@
   import MoodLayer from './MoodLayer.svelte';
   import { paletteEnabled } from '$lib/scene/reportPalette';
   import { pickContrastColor } from './contrastColor';
+  import { cosmosFontVar } from './cosmosFont';
 
   export let scene: SceneState;
   export let displayName: string | null = null;
@@ -34,14 +35,11 @@
         : null;
 
   // Defensive: scenes created via the agent / MCP can land with an
-  // incomplete typography block (`{}` or missing `font_family`). Without
-  // this guard the kiosk crashes on `.replace` and stops rendering — once
-  // it's broken, every subsequent scene push hits the same error before
-  // the WebSocket client can even read the next message.
-  const fontVar = (family: string | undefined | null) => {
-    const f = typeof family === 'string' && family.trim() !== '' ? family : 'Inter';
-    return `var(--cosmos-font-${f.replace(/\s+/g, '')}, system-ui, sans-serif)`;
-  };
+  // incomplete typography block (`{}` or missing `font_family`). Passing the
+  // "Inter" fallback guarantees a non-null result so the kiosk never crashes
+  // on a missing family — once it's broken, every subsequent scene push hits
+  // the same error before the WebSocket client can read the next message.
+  const fontVar = (family: string | undefined | null) => cosmosFontVar(family, 'Inter')!;
 
   $: entitiesById = (() => {
     const map = new Map<string, import('$lib/types').EntityState>();

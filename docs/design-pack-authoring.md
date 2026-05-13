@@ -7,6 +7,13 @@ selected pack to its system prompt — the pack supplies *taste* (palette,
 typography, density, voice) on top of the API contracts that always go
 in.
 
+Whatever taste a pack encodes renders on a wall, viewed from across a
+room — see [`wall-display-principles.md`](./wall-display-principles.md). A
+pack supplies palette / typography / density / voice; it must not fight
+the wall-display principles. Over-dense or motion-heavy packs make bad
+walls regardless of how good they'd look on a laptop. When you write the
+"Don't" section, treat the principles as the floor a pack can't dip below.
+
 ## Shape
 
 ```md
@@ -92,3 +99,48 @@ Aim for:
   output.
 - An explicit "Don't" section. The agent over-indexes on positive
   guidance — telling it what to avoid is high leverage.
+
+## Reuse vs. create — the agent workflow
+
+This kicks in whenever the user's request carries design intent: an
+explicit aesthetic description, named colors or fonts, a "make it feel
+like X" comparison, or a reference asset (image, mockup). Don't jump
+straight to authoring a pack — reconcile first.
+
+**Step 1 — survey.** List the existing packs (`list_designs` /
+`GET /api/designs`). Read the 1–2 closest with `get_design` /
+`GET /api/designs/:slug` so you're comparing body prose, not just preview
+colors.
+
+**Step 2 — match.** If an existing pack captures the *mood + palette
+family + typographic feel* the user described, propose it and let them
+choose ("that's basically the Quiet Luxury system — use that, or build
+one tuned to your description?"). The bar is "would two scenes built with
+this pack look like what the user described" — not "shares one color".
+Don't propose a loose overlap.
+
+**Step 3 — no match → create and inform.** Author a DESIGN.md pack
+(frontmatter `colors` with 4–6 entries + `typography.display` /
+`typography.body` + `spacing` / `rounded`; a ~150–300 word body in the
+canonical section order with an explicit "Don't" section). `create_design`
+it with an evocative kebab-case slug derived from the description
+("warm 70s earthy" → `terracotta-seventies`). Use that visual language
+for the scene you're building this turn, and tell the user plainly that
+you made a new design system. Don't create near-duplicates of built-ins
+or existing user packs.
+
+**Step 4 — cleanup.** If the user rejects the auto-created pack,
+`delete_design` removes it (confirmation-gated; built-ins refuse
+deletion with a 403).
+
+A generated pack supplies palette / typography / voice *on top of*
+[`wall-display-principles.md`](./wall-display-principles.md) — never
+density or motion that fights glanceability; the principles are the
+floor.
+
+**In-product agent specifically:** it can't change the design dropdown
+from a tool call, so it applies the pack it just authored directly to the
+scene and points the user at the dropdown for future turns. If
+`designPackSlug` is already set on the request, that's the user's current
+pick — don't auto-create a competitor unless they explicitly ask for a
+different look.
