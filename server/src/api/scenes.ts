@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import type { ScenesRepo, SceneInput } from '../store/scenes.js';
+import type { ScenesRepo, SceneInput, Scene } from '../store/scenes.js';
 import { WIDGET_KINDS } from '../store/scenes.js';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { TransitionsRepo } from '../store/transitions.js';
 import type { AlertManager } from '../scenes/alerts.js';
+import type { SceneState } from '../scenes/types.js';
 
 const WIDGET_KINDS_SET = new Set<string>(WIDGET_KINDS);
 function validateMood(mood: unknown): string | null {
@@ -218,6 +219,14 @@ export type SceneRoutesDeps = {
   /** Server-side alert timer manager. Manual /scene/activate cancels any
    *  active alert before mutating state. */
   alerts?: AlertManager;
+  /** Assemble a scene into a full `SceneState` for the read-only preview
+   *  endpoint (`GET /api/scenes/:id/preview`), which the admin editor's
+   *  hover/tap scene preview iframes load. Wired by `buildHttpApp` — when HA
+   *  is connected it uses the live (stateless) data resolvers so widgets
+   *  show real values; otherwise it falls back to mock fixtures. It never
+   *  passes the stateful canvas resolver, so canvas widgets in the preview
+   *  render with their `{{ }}` templates unsubstituted. */
+  assembleScenePreview: (scene: Scene) => Promise<SceneState>;
 };
 
 export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps): void {
@@ -234,6 +243,17 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
   });
 
   app.get('/api/scenes', async () => deps.scenes.list());
+
+  // Read-only assembled SceneState for the admin editor's scene preview
+  // (the hover popover / mobile tap sheet on the scenes list). Same shape the
+  // WS hub pushes to displays, minus the transition. Registered before
+  // `/api/scenes/:id` is irrelevant — Fastify routes the longer path
+  // distinctly — but kept adjacent for readability.
+  app.get<{ Params: { id: string } }>('/api/scenes/:id/preview', async (req, reply) => {
+    const scene = deps.scenes.get(req.params.id);
+    if (!scene) return reply.code(404).send({ error: 'not found' });
+    return deps.assembleScenePreview(scene);
+  });
 
   app.get<{ Params: { id: string } }>('/api/scenes/:id', async (req, reply) => {
     const scene = deps.scenes.get(req.params.id);

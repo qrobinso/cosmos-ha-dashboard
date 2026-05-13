@@ -11,6 +11,7 @@ import type { ScenesRepo } from '../store/scenes.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import type { DesignPacksRepo } from '../store/design-packs.js';
 import { registerSceneRoutes } from './scenes.js';
+import { buildSceneState } from '../scenes/assembler.js';
 import { registerTransitionRoutes } from './transitions.js';
 import { registerHaEntityRoutes } from './ha-entities.js';
 import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
@@ -89,6 +90,11 @@ export type HttpDeps = {
    *  bridge. Built in `index.ts` from the live HA client; null when HA is
    *  disabled (the route falls back to mock fixtures). */
   calendarCache?: import('../ha/calendarCache.js').CalendarCache | null;
+  /** Assemble a scene → SceneState for `GET /api/scenes/:id/preview` (the
+   *  admin editor's scene preview iframes). When absent, `buildHttpApp`
+   *  installs a mock-data fallback. `index.ts` provides an HA-aware one that
+   *  reuses the stateless data resolvers (no canvas template resolution). */
+  assembleScenePreview?: (scene: import('../store/scenes.js').Scene) => Promise<import('../scenes/types.js').SceneState>;
   /** Server-side alert timer manager. When provided, the scene-alert endpoint
    *  is registered. Manual scene activations also cancel any active alert. */
   alerts?: AlertManager;
@@ -218,6 +224,10 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     onScenesMutated: deps.onScenesMutated,
     onDisplayDeleted: deps.onDisplayDeleted,
     alerts: deps.alerts,
+    // Fallback when the host didn't wire an HA-aware one: assemble with mock
+    // widget data (same as the editor's per-widget previews today).
+    assembleScenePreview:
+      deps.assembleScenePreview ?? ((scene) => buildSceneState(scene, readSafeArea(deps.settings))),
   });
 
   if (deps.canvasExtras) {

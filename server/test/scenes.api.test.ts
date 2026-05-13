@@ -93,6 +93,25 @@ describe('scenes REST API', () => {
     expect(get.statusCode).toBe(404);
   });
 
+  it('GET /api/scenes/:id/preview returns an assembled SceneState', async () => {
+    const created = (await app.inject({ method: 'POST', url: '/api/scenes', payload: sample })).json();
+    const res = await app.inject({ method: 'GET', url: `/api/scenes/${created.id}/preview` });
+    expect(res.statusCode).toBe(200);
+    const state = res.json();
+    expect(state.id).toBe(created.id);
+    expect(state.name).toBe('Morning');
+    // widgets are resolved — each carries a `data` field (mock data when HA is off)
+    expect(Array.isArray(state.widgets)).toBe(true);
+    expect(state.widgets[0]).toHaveProperty('data');
+    // safeArea is included so the kiosk renderer can pad correctly
+    expect(state.safeArea).toEqual({ top: expect.any(Number), right: expect.any(Number), bottom: expect.any(Number), left: expect.any(Number) });
+  });
+
+  it('GET /api/scenes/:id/preview returns 404 for an unknown id', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/scenes/nope/preview' });
+    expect(res.statusCode).toBe(404);
+  });
+
   it('POST /api/displays/:name/assign-scene assigns a scene as default', async () => {
     const display = (await app.inject({
       method: 'POST',

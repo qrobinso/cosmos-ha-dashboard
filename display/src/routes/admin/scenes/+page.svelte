@@ -2,12 +2,56 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { api } from '$lib/admin/api';
+  import ScenePreviewPopover from '$lib/admin/ScenePreviewPopover.svelte';
 
   let scenes: Awaited<ReturnType<typeof api.scenes.list>> = [];
   let loading = true;
   let error: string | null = null;
   let query = '';
   let creating = false;
+
+  // Live scene preview — hover popover on pointer devices, tap modal on touch.
+  type SceneRow = (typeof scenes)[number];
+  let isTouch = false;
+  let preview:
+    | { id: string; name: string; aspect: number; mode: 'popover' | 'modal'; anchor: DOMRect | null }
+    | null = null;
+  let hoverTimer: ReturnType<typeof setTimeout> | undefined;
+  const HOVER_DELAY_MS = 220;
+
+  function aspectOf(s: SceneRow): number {
+    const cols = s.layout?.cols ?? 0;
+    const rows = s.layout?.rows ?? 0;
+    return cols > 0 && rows > 0 ? cols / rows : 1.5;
+  }
+
+  function scheduleHoverPreview(s: SceneRow, el: HTMLElement) {
+    if (isTouch) return;
+    clearTimeout(hoverTimer);
+    const rect = el.getBoundingClientRect();
+    hoverTimer = setTimeout(() => {
+      preview = { id: s.id, name: s.name, aspect: aspectOf(s), mode: 'popover', anchor: rect };
+    }, HOVER_DELAY_MS);
+  }
+  function focusPreview(s: SceneRow, el: HTMLElement) {
+    if (isTouch) return;
+    clearTimeout(hoverTimer);
+    preview = { id: s.id, name: s.name, aspect: aspectOf(s), mode: 'popover', anchor: el.getBoundingClientRect() };
+  }
+  function endHoverPreview() {
+    clearTimeout(hoverTimer);
+    if (preview?.mode === 'popover') preview = null;
+  }
+  function onThumbClick(s: SceneRow, e: MouseEvent) {
+    // Touch devices have no hover — a tap on the thumbnail opens the modal
+    // preview instead of navigating. (Editing is still one tap away via the
+    // scene name and the row's Edit button.) Pointer devices keep the
+    // thumbnail as a shortcut into the editor; they get the hover popover.
+    if (!isTouch) return;
+    e.preventDefault();
+    clearTimeout(hoverTimer);
+    preview = { id: s.id, name: s.name, aspect: aspectOf(s), mode: 'modal', anchor: null };
+  }
 
   $: filtered = query.trim().length === 0
     ? scenes
@@ -47,7 +91,12 @@
     return `background: linear-gradient(135deg, ${colors.join(', ')});`;
   }
 
-  onMount(refresh);
+  onMount(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      isTouch = window.matchMedia('(hover: none)').matches;
+    }
+    refresh();
+  });
 </script>
 
 <header class="page-header reveal reveal-1">
@@ -90,7 +139,17 @@
   <ul class="scene-grid reveal reveal-3">
     {#each filtered as s (s.id)}
       <li class="scene">
-        <a href="/admin/scenes/{s.id}" class="thumb" aria-label={`Edit ${s.name}`}>
+        <a
+          href="/admin/scenes/{s.id}"
+          class="thumb"
+          aria-label={`Preview ${s.name}`}
+          title="Preview"
+          on:mouseenter={(e) => scheduleHoverPreview(s, e.currentTarget)}
+          on:mouseleave={endHoverPreview}
+          on:focus={(e) => focusPreview(s, e.currentTarget)}
+          on:blur={endHoverPreview}
+          on:click={(e) => onThumbClick(s, e)}
+        >
           <div class="thumb-bg" style={bgPreviewStyle(s)}></div>
           <span class="thumb-tag">{s.background.type}</span>
         </a>
@@ -110,6 +169,17 @@
       </li>
     {/each}
   </ul>
+{/if}
+
+{#if preview}
+  <ScenePreviewPopover
+    sceneId={preview.id}
+    sceneName={preview.name}
+    aspect={preview.aspect}
+    mode={preview.mode}
+    anchor={preview.anchor}
+    on:close={() => (preview = null)}
+  />
 {/if}
 
 <style>

@@ -44,6 +44,7 @@ REST highlights:
 - `POST /api/displays/register {name}` — register/find a display.
 - `GET /api/displays` — list displays.
 - `POST /api/scenes` / `GET /api/scenes` / `GET /api/scenes/:id` / `PUT /api/scenes/:id` / `DELETE /api/scenes/:id` — scene CRUD.
+- `GET /api/scenes/:id/preview` — assembled `SceneState` (no transition) for the admin editor's read-only scene preview. Uses the stateless data resolvers when HA is connected (mock otherwise); skips the stateful canvas resolver.
 - `POST /api/displays/:name/assign-scene {sceneId, makeDefault?}` — assign a scene to a display.
 - `GET /api/settings/safe-area` / `PUT /api/settings/safe-area {top,right,bottom,left}` — global safe-area padding.
 - `POST /api/displays/:name/scene/activate {sceneId, transitionId?}` — set the active scene with optional explicit transition override.

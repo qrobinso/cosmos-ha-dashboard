@@ -93,6 +93,10 @@
       return;
     }
     if (msg.type === 'cosmos:want-entity') {
+      // No display name => not a real wall display (e.g. the admin scene
+      // preview iframe). Skip the server-side subscription so we don't
+      // register iframe-side extras against a phantom display.
+      if (!displayName) return;
       const ids = Array.isArray(msg.entity_ids)
         ? msg.entity_ids.filter((x): x is string => typeof x === 'string')
         : [];

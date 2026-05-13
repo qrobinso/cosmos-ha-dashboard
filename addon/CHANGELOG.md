@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.12
+
+- Feat: **Live scene preview in the admin scenes list.** Hover a scene's thumbnail (pointer devices) and a floating popover renders the *actual* scene — an `<iframe>` of the read-only kiosk renderer, animated background and all, sized to the scene's grid aspect ratio. On touch devices (no hover), tapping the thumbnail opens the same preview as a centered modal with a backdrop, close button, and an "Open editor" link (the scene name + the row's Edit button still go straight to the editor). New `GET /api/scenes/:id/preview` returns an assembled `SceneState` (real HA data when connected, mock otherwise — canvas widgets render with their `{{ }}` templates unsubstituted, since the preview path deliberately skips the stateful canvas resolver to avoid clobbering a live display's subscription). New route `/admin/scenes/:id/preview` mounts `<SceneCanvas>` full-viewport outside the admin chrome; reachable directly for debugging.
+
 ## 0.6.11
 
 - Agent: reconcile design intent with existing design systems before building — proposes a close match or creates a new one; new delete_design MCP tool to clean up.
