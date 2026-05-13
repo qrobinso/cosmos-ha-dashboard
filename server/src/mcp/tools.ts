@@ -88,7 +88,7 @@ export type McpToolDeps = {
  *  in-product agent should defer to the user before running. MCP servers
  *  register full execute; the in-product agent's adapter strips execute so
  *  the chat UI can show a confirm card. Today: activate_scene, delete_scene,
- *  delete_widget.
+ *  delete_widget, delete_design.
  *
  *  `summarizeForAgent` — optional projection applied by the in-product agent
  *  ONLY (not MCP) to compact a tool result before returning it to the model.
@@ -106,7 +106,7 @@ export type McpToolDef = {
    *  should defer to the user before running. MCP servers register full
    *  execute; the in-product agent's adapter strips execute so the chat
    *  UI can show a confirm card. Today: activate_scene, delete_scene,
-   *  delete_widget. */
+   *  delete_widget, delete_design. */
   confirmRequired?: boolean;
   /** Optional projection applied by the in-product agent ONLY (not MCP)
    *  to compact a tool result before returning it to the model. Used by
@@ -452,7 +452,8 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     {
       name: 'list_designs',
       description:
-        'List every design pack available on this Cosmos. Returns slug, name, source (built-in / user), and a small preview shape (first 4 hex colors + body fontFamily). Use this to find packs before calling get_design or before referencing one in a generated scene.',
+        'List every design pack available on this Cosmos. Returns slug, name, source (built-in / user), and a small preview shape (first 4 hex colors + body fontFamily). Use this to find packs before calling get_design or before referencing one in a generated scene. ' +
+        'When the user\'s request carries design direction (a described aesthetic or a reference image), call this FIRST. If an existing pack genuinely matches the mood + palette family + typographic feel they described, propose it to the user before creating anything ("that\'s basically the Quiet Luxury system — use that, or build one tuned to your description?"). Use get_design on the 1–2 closest candidates to compare body prose, not just the preview colors.',
       inputSchema: z.object({}),
       execute: async () => {
         const r = await inject(app, { method: 'GET', url: '/api/designs' });
@@ -464,7 +465,7 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     {
       name: 'get_design',
       description:
-        'Read the full content + parsed frontmatter of a design pack by slug. Use the returned `frontmatter.colors`, `frontmatter.typography`, and `body` prose to inform the visual design of any scene or canvas you generate.',
+        'Read the full content + parsed frontmatter of a design pack by slug. Use the returned `frontmatter.colors`, `frontmatter.typography`, and `body` prose to inform the visual design of any scene or canvas you generate — also use this to read a candidate pack\'s body prose when deciding whether it matches a user\'s described aesthetic closely enough to reuse.',
       inputSchema: z.object({ slug: z.string() }),
       execute: async (raw) => {
         const args = raw as { slug: string };
@@ -477,7 +478,8 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
     {
       name: 'create_design',
       description:
-        'Create a new user design pack. The content must follow the DESIGN.md spec (https://github.com/google-labs-code/design.md): YAML frontmatter with `colors`, `typography`, optional `rounded` / `spacing` / `components`, then markdown body in canonical section order (Overview, Colors, Typography, Layout, Elevation, Shapes, Components, Do\'s and Don\'ts). Slug must be lowercase, hyphen-separated, 3-64 chars. Read cosmos://docs/scene-agent and the existing built-in packs (cosmos://designs/<slug>) for examples before writing one. A design pack supplements the wall-display principles (cosmos://docs/wall-display-principles) — it must not encode density or motion that fights glanceability. See cosmos://docs/design-pack-authoring.',
+        'Create a new user design pack. The content must follow the DESIGN.md spec (https://github.com/google-labs-code/design.md): YAML frontmatter with `colors`, `typography`, optional `rounded` / `spacing` / `components`, then markdown body in canonical section order (Overview, Colors, Typography, Layout, Elevation, Shapes, Components, Do\'s and Don\'ts). Slug must be lowercase, hyphen-separated, 3-64 chars. Read cosmos://docs/scene-agent and the existing built-in packs (cosmos://designs/<slug>) for examples before writing one. A design pack supplements the wall-display principles (cosmos://docs/wall-display-principles) — it must not encode density or motion that fights glanceability. See cosmos://docs/design-pack-authoring. ' +
+        'Only create a new pack when nothing existing is close (don\'t make near-duplicates of built-ins or existing user packs). Derive a short evocative kebab-case slug from the user\'s description. After creating, you already know the pack\'s contents — apply that visual language to the scene/canvas you build in the same turn; tell the user in plain language you made a new design system and that they can select it from the design dropdown for future requests.',
       inputSchema: z.object({
         slug: z.string(),
         name: z.string(),
@@ -510,6 +512,20 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
         });
         if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
         return jsonResult(r);
+      },
+    },
+
+    {
+      name: 'delete_design',
+      description:
+        '⚠️ DESTRUCTIVE — permanently removes a user-authored design system. Cannot be undone. Built-in packs are read-only and reject deletion. ONLY call after the user has explicitly asked to remove that pack by name. Well-behaved MCP clients should surface a confirm prompt — treat as if they will not. Useful for cleaning up a design system the agent auto-created that the user didn\'t want.',
+      inputSchema: z.object({ slug: z.string().describe('Design pack slug from list_designs.') }),
+      confirmRequired: true,
+      execute: async (raw) => {
+        const args = raw as { slug: string };
+        const r = await inject(app, { method: 'DELETE', url: '/api/designs/' + encodeURIComponent(args.slug) });
+        if (typeof r === 'object' && r !== null && 'error' in r) return errorResult((r as { error: string }).error);
+        return jsonResult({ ok: true, deletedSlug: args.slug });
       },
     },
 

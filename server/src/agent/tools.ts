@@ -25,9 +25,9 @@ export function createAgentTools(deps: AgentToolDeps): Record<string, CoreTool> 
 
 /** Convert a McpToolDef to a Vercel AI SDK tool({...}) shape.
  *
- *  Confirm-required tools (delete_scene, delete_widget, activate_scene)
- *  have no `execute` — the chat UI renders a confirm card and drives the
- *  side-effect client-side, then posts back via addToolResult.
+ *  Confirm-required tools (delete_scene, delete_widget, delete_design,
+ *  activate_scene) have no `execute` — the chat UI renders a confirm card
+ *  and drives the side-effect client-side, then posts back via addToolResult.
  *
  *  For all other tools the adapter wraps execute: it parses the JSON text
  *  from the MCP result back to a JS value, then applies summarizeForAgent
@@ -64,5 +64,5 @@ function mcpToolToAiSdk(def: McpToolDef): CoreTool {
  *  IMPORTANT: this literal must stay in sync with `confirmRequired: true`
  *  flags in mcp/tools.ts. The drift-detector test in agent-tools.test.ts
  *  asserts they match at runtime. */
-export const CONFIRM_REQUIRED_TOOLS = ['activate_scene', 'delete_scene', 'delete_widget'] as const;
+export const CONFIRM_REQUIRED_TOOLS = ['activate_scene', 'delete_design', 'delete_scene', 'delete_widget'] as const;
 export type ConfirmRequiredTool = (typeof CONFIRM_REQUIRED_TOOLS)[number];
