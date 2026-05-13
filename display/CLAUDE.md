@@ -24,14 +24,22 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
 - `src/lib/scene/TransitionStage.svelte` — wraps `SceneCanvas`. Mounts both outgoing and incoming canvases during a transition; applies CSS classes that drive the keyframe animations.
 - `src/lib/overlay/MessageOverlay.svelte` — toast/banner overlay layered above the scene canvas. Auto-dismisses on `timeout_ms`; tappable to dismiss early. Reduced-motion safe.
 - `src/lib/scene/MoodLayer.svelte` — looping `<video>` element rendered between the background and widget grid when `scene.resolvedMood` is present. Uses `mix-blend-mode: screen` so any black in the source clip drops out. Pauses on the first frame when `prefers-reduced-motion: reduce`. Mounted with `{#key scene.id}` so it remounts per scene. Source files live in `static/moods/`.
-- `src/lib/admin/` — admin-only utilities. Includes `api.ts` (typed fetch helpers), `Field.svelte` (label + slot form-field), `WidgetCanvas.svelte` (drag-and-drop grid editor for the scene editor), and `theme.css` (the admin design system).
+- `src/lib/admin/` — admin-only utilities. Includes `api.ts` (typed fetch helpers), `Field.svelte` (label + slot form-field), and `theme.css` (the admin design system).
+- **Widget editor** (`src/lib/admin/`) — the scene editor's widget surface, a self-contained three-pane (rail / canvas / inspector) module:
+  - `WidgetEditor.svelte` — layout shell + selection state + palette-drag tracking; responsive (3-pane ≥720px ↔ stacked below).
+  - `WidgetPalette.svelte` — compact grouped palette (Time & info / Home Assistant / Canvas); pointer-event drag-to-place + keyboard click-to-add; `rail` and `strip` orientations.
+  - `WidgetCanvas.svelte` — the drag/drop grid; iconic tiles (kind-colored icon chip + instance name + bound-entity / `W×H` meta, icon-only when tiny), `dropPreviewCell` ghost, exported `pointerCell`/`containsPoint`. Pointer move/resize, arrow-key nudge, Shift+arrow resize, clamping, aria-labels.
+  - `WidgetInspector.svelte` — header (icon · editable `config.name` input · kind tag · Duplicate · two-step Delete), kind `<select>` to re-type in place, the per-kind field group, a shared Surface section (transparent / corner radius), a Placement section (col/row/w/h two-way bound to `position`), and an empty-state variant.
+  - `widgets/<Kind>Config.svelte` (×9) — per-kind field groups, restructured into Source / Content / Style `.section`s via `widgets/Section.svelte` + `Field.svelte`; shared list-editing helpers in `widgets/listConfig.ts`; `widgets/index.ts` maps kind → component.
+  - `widgetKinds.ts` — the registry: `{ kind, label, category, icon, accent, blurb, defaultSize, defaultConfig(entities), instanceLabel(config) }` per kind, plus `paletteGroups()` / `centeredPositionFor()` / `positionAt()`. (Leaves room for a future `previewComponent` field for v2 live-preview tiles.) `widgetIcons.ts` — inline-SVG path data per kind, 24×24 stroke style matching the kiosk's SVGs.
+  - **`config.name` convention:** every widget kind now carries an optional `config.name` (not just `canvas`) — the editor's tile + inspector key off it; renderers ignore unknown config keys and the server stores any JSON shape verbatim, so this is purely additive.
 - `src/lib/admin/canvasExamples.ts` + `canvas-help.md` — editor's Insert-example dropdown content + How-this-works panel source.
 - `src/lib/admin/theme.css` — the admin design system. Scoped to `.cosmos-admin` ancestor class so it never leaks into the kiosk display. Defines a calm, modern dark palette (deep neutral surfaces, single warm accent `--c-accent`), system-friendly typography (Inter for UI, JetBrains Mono for data tags/IDs), 44px touch targets, hairline borders, focus rings, motion via `cubic-bezier(0.2, 0.8, 0.2, 1)`, and a `.reveal` page-load fade-up. Mobile-first; everything stacks on narrow viewports and broadens at `@media (min-width: 600px)` and `720px` breakpoints.
 - `src/routes/admin/` — admin editor pages, all wrapped in the `.cosmos-admin` shell:
   - `+layout.svelte` — sticky translucent topbar with a brand mark, **desktop pill nav** ≥720px, and a **hamburger sheet menu** below 720px. Imports `theme.css`. Centered max-width 64rem main column.
   - `+page.svelte` — Overview: hero intro, stats trio (Scenes / Displays / Settings) that wraps to one column on mobile, plus a two-column "Recent scenes" + "Displays" pair (single column on mobile) with online-status dots driven by `lastSeen`.
   - `scenes/+page.svelte` — search-filtered grid of scene rows with a thumbnail preview (live solid color or gradient swatch), name, widget count, default-transition tag, and inline edit/delete actions. Empty state has a centered call-to-action. **Live scene preview:** hovering the thumbnail (pointer devices) pops a floating `<ScenePreviewPopover>` — an `<iframe>` of the read-only kiosk render at `scenes/[id]/preview`; tapping the thumbnail on touch devices (`matchMedia('(hover: none)')`) opens it as a centered modal with backdrop + "Open editor" link instead of navigating.
-  - `scenes/[id]/+page.svelte` — full scene editor: metadata, background (solid + gradient with curated presets), typography, drag-and-drop `<WidgetCanvas>`, and per-widget detail cards. (Inherits the theme; not yet rebuilt to match the new aesthetic.)
+  - `scenes/[id]/+page.svelte` — full scene editor: metadata, background (solid + gradient with curated presets), typography, mood, and the `<WidgetEditor>` widget surface (see "Widget editor" above). The non-widget panels still carry the page's legacy ad-hoc styling; the widget editor uses theme tokens throughout.
   - `scenes/[id]/preview/+page@.svelte` — read-only full-viewport render of one scene via the kiosk's `<SceneCanvas>`. The `@` resets to the root layout so it escapes the admin chrome (same shell as the wall display). Fetches `GET /api/scenes/:id/preview` (an assembled `SceneState` — real HA data when connected, mock otherwise; canvas widgets render with `{{ }}` templates unsubstituted since the preview path skips the stateful canvas resolver). No WS, no transitions. Loaded directly for debugging and embedded by the scenes-list preview popover/modal.
   - `displays/+page.svelte` — table of displays (default/active scene, orientation toggle, rotation summary with inline editor, last-seen, assign/activate selects). Wrapped in `.table-wrap` for horizontal scroll on narrow viewports; `min-width` keeps columns readable.
   - `settings/+page.svelte` — safe-area padding form with a live SVG-style preview rectangle that updates as you type. 4-up grid on desktop, 2-up on mobile.
@@ -63,10 +71,11 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
 
 ## Adding a widget
 
-1. Add the kind to `WidgetKind` in this file's `types.ts` and the server's `scenes.ts`.
+1. Add the kind to `WidgetKind` in `types.ts` and the server's `scenes.ts`.
 2. Create `src/lib/widgets/Foo.svelte` reading `widget` (and `widget.data` if the server provides any).
 3. Wire the dispatch in `SceneCanvas.svelte`: import `Foo`, add `{:else if w.kind === 'foo'}<Foo widget={w} />`.
 4. On the server: extend `assembler.ts` `dataFor()` if the widget needs server-resolved data.
+5. Editor side: add a `widgetKinds.ts` entry (label/category/accent/blurb/defaultSize/defaultConfig/instanceLabel), a `widgetIcons.ts` path, a `lib/admin/widgets/FooConfig.svelte`, and register it in `lib/admin/widgets/index.ts`.
 
 ## Build
 
