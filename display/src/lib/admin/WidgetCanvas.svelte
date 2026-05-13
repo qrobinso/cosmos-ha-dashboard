@@ -83,6 +83,43 @@
     drag = null;
   }
 
+  /** Move a widget by whole grid cells, clamped to the layout bounds. */
+  function nudge(idx: number, dCol: number, dRow: number) {
+    const w = widgets[idx];
+    const newCol = clamp(w.position.col + dCol, 1, layout.cols - w.position.w + 1);
+    const newRow = clamp(w.position.row + dRow, 1, layout.rows - w.position.h + 1);
+    if (newCol === w.position.col && newRow === w.position.row) return;
+    w.position = { ...w.position, col: newCol, row: newRow };
+    widgets = widgets;
+  }
+
+  /** Resize a widget by whole grid cells, clamped to >= 1 and to the layout edge. */
+  function resizeBy(idx: number, dW: number, dH: number) {
+    const w = widgets[idx];
+    const newW = clamp(w.position.w + dW, 1, layout.cols - w.position.col + 1);
+    const newH = clamp(w.position.h + dH, 1, layout.rows - w.position.row + 1);
+    if (newW === w.position.w && newH === w.position.h) return;
+    w.position = { ...w.position, w: newW, h: newH };
+    widgets = widgets;
+  }
+
+  // Arrow keys move the focused widget; Shift+arrow resizes it. preventDefault
+  // so the editor pane doesn't scroll under the keypress.
+  function onWidgetKeydown(idx: number, e: KeyboardEvent) {
+    const step: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    };
+    const d = step[e.key];
+    if (!d) return;
+    e.preventDefault();
+    onSelect(idx);
+    if (e.shiftKey) resizeBy(idx, d[0], d[1]);
+    else nudge(idx, d[0], d[1]);
+  }
+
   function widgetLabel(w: WidgetState): string {
     if (w.kind === 'entity_tile') {
       const id = (w.config as { entity_id?: string }).entity_id;
@@ -111,20 +148,23 @@
         class:selected={selectedIndex === i}
         style="grid-column: {w.position.col} / span {w.position.w}; grid-row: {w.position.row} / span {w.position.h};"
         on:pointerdown={(e) => startDrag(i, 'move', e)}
+        on:keydown={(e) => onWidgetKeydown(i, e)}
+        on:focus={() => onSelect(i)}
         role="button"
         tabindex="0"
+        aria-label="{widgetLabel(w)} — {w.position.w} by {w.position.h} cells. Arrow keys move, Shift+arrow resizes."
       >
         <span class="label">{widgetLabel(w)}</span>
         <span class="dim">{w.position.w}×{w.position.h}</span>
         <span
           class="resize-handle"
           on:pointerdown={(e) => startDrag(i, 'resize', e)}
-          aria-label="Resize"
+          aria-hidden="true"
         ></span>
       </div>
     {/each}
   </div>
-  <p class="hint">Drag to move. Drag the bottom-right corner to resize. Click a widget to select it for fine-tuning below.</p>
+  <p class="hint">Drag to move. Drag the bottom-right corner to resize. Click a widget to select it for fine-tuning below — once focused, arrow keys move it and Shift+arrow resizes it.</p>
 </div>
 
 <style>
@@ -174,6 +214,10 @@
     border-color: rgba(245, 158, 11, 0.8);
     color: #ffe5b4;
   }
+  .widget-rect:focus-visible {
+    outline: 2px solid rgba(245, 158, 11, 0.9);
+    outline-offset: 2px;
+  }
   .label {
     font-weight: 500;
     text-align: center;
@@ -191,10 +235,15 @@
     position: absolute;
     right: 0;
     bottom: 0;
-    width: 14px;
-    height: 14px;
+    /* Larger hit area for touch — the visible chevron stays small via the
+       inset gradient, but the whole 24px corner is grabbable. */
+    width: 24px;
+    height: 24px;
     cursor: nwse-resize;
-    background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.6) 50%);
+    touch-action: none;
+    background:
+      linear-gradient(135deg, transparent 62%, rgba(255, 255, 255, 0.75) 62%, rgba(255, 255, 255, 0.75) 78%, transparent 78%),
+      linear-gradient(135deg, transparent 82%, rgba(255, 255, 255, 0.75) 82%);
     border-bottom-right-radius: 0.4rem;
   }
   .hint {

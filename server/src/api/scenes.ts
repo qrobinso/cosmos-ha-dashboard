@@ -1,8 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { ScenesRepo, SceneInput } from '../store/scenes.js';
+import { WIDGET_KINDS } from '../store/scenes.js';
 import type { DisplaysRepo } from '../store/displays.js';
 import type { TransitionsRepo } from '../store/transitions.js';
 import type { AlertManager } from '../scenes/alerts.js';
+
+const WIDGET_KINDS_SET = new Set<string>(WIDGET_KINDS);
 function validateMood(mood: unknown): string | null {
   if (mood === undefined) return null;
   if (typeof mood !== 'object' || mood === null) return 'mood must be an object';
@@ -122,6 +125,9 @@ function validateWidget(widget: unknown, index: number, layout: { cols: number; 
   const w = widget as Record<string, unknown>;
   if (typeof w.kind !== 'string' || w.kind.trim() === '') {
     return `widgets[${index}].kind must be a non-empty string`;
+  }
+  if (!WIDGET_KINDS_SET.has(w.kind)) {
+    return `widgets[${index}].kind "${w.kind}" is not a known widget kind (one of: ${WIDGET_KINDS.join(', ')})`;
   }
   const posErr = validatePosition(w.position, layout, `widgets[${index}].position`);
   if (posErr) return posErr;

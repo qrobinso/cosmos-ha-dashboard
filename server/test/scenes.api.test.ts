@@ -162,6 +162,37 @@ describe('scenes REST API', () => {
     expect(Array.isArray(res.json())).toBe(true);
   });
 
+  it('POST /api/scenes rejects an unknown widget kind', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [
+          { kind: 'frobnicate', position: { col: 1, row: 1, w: 2, h: 2 }, config: {} },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/not a known widget kind/i);
+  });
+
+  it('PUT /api/scenes/:id rejects an unknown widget kind', async () => {
+    const created = (await app.inject({ method: 'POST', url: '/api/scenes', payload: sample })).json();
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/scenes/${created.id}`,
+      payload: {
+        ...sample,
+        widgets: [
+          { kind: 'whatever', position: { col: 1, row: 1, w: 2, h: 2 }, config: {} },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/not a known widget kind/i);
+  });
+
   it('POST /api/scenes accepts a canvas widget and round-trips its content', async () => {
     const res = await app.inject({
       method: 'POST',

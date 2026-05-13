@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.9
+
+- Feat: Scene-editor widget grid gains **keyboard control** — focus a widget and arrow keys move it one cell at a time, Shift+arrow resizes it. The drag-to-resize corner handle is also bigger (24px hit area) so it's easier to grab on touch.
+- Fix: `POST`/`PUT /api/scenes` now **rejects an unknown widget `kind`** with a 400 instead of silently storing it (the kiosk would have rendered nothing for it). The known set is the single `WIDGET_KINDS` constant the `WidgetKind` type is derived from, so the runtime check and the type can't drift.
+- Refactor: The `var(--cosmos-font-<Name>, …)` CSS construction (slug rule + the sans-serif fallback chain that keeps an unloadable named font off Times New Roman) is now one helper, `cosmosFontVar`, shared by `SceneCanvas` and the `Clock` widget's per-widget font override.
+
 ## 0.6.8
 
 - Docs: **Canvas-widget agent contract tightened from real-world feedback.** Authoring agents previously needed 2–3 follow-up rounds to escape a generic "form on a page" aesthetic. The doc now codifies the patterns that emerged organically across production scenes: hero numerals (Inter, weight 500, ~7rem, accent color), kicker labels (Inter, 0.75rem, 600, uppercase, 0.12em tracking, 0.55 opacity), glassmorphism cards (`rgba(255,255,255,0.05)` over `rgba(255,255,255,0.08)` border), the "adaptive priority" pattern (show all at 0.28 opacity, promote one to 1.0 with a colored glow), and length-bucketed `font-size` for variable LLM content. Tightens existing rules: the never-hardcode-color rule now carves out hero numerals + status colors; the font-family rule now mandates Inter for labels/units even on serif scenes; every `font-size` should multiply by `--cosmos-font-scale`. Adds two missing forbidden items: camera images in canvases (with the `floatWidgets` overlay trick spelled out) and `weather.*` forecast attributes (gone from the entity in HA 2024.4+). Clarifies that `cosmos.subscribe` already seeds the callback with current state on attach — no `cosmos.entity()` prelude needed.

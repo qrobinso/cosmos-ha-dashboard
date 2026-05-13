@@ -34,7 +34,15 @@ export type Typography = {
    *  the kiosk's default `#f5f5f5` and the per-scene auto-contrast pick. */
   color?: string;
 };
-export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
+/** Every widget kind the kiosk knows how to render. The `WidgetKind` type is
+ *  derived from this so the runtime list and the compile-time union can't
+ *  drift — add a new kind here and TypeScript forces the assembler + display
+ *  dispatch to handle it. The API layer validates incoming `widget.kind`
+ *  against this set. */
+export const WIDGET_KINDS = [
+  'clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text', 'camera', 'canvas',
+] as const;
+export type WidgetKind = (typeof WIDGET_KINDS)[number];
 
 export type Widget = {
   id: string;

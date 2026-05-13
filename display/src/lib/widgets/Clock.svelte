@@ -3,6 +3,7 @@
   import { cubicOut } from 'svelte/easing';
   import type { WidgetState } from '$lib/types';
   import FitContent from '$lib/scene/FitContent.svelte';
+  import { cosmosFontVar } from '$lib/scene/cosmosFont';
 
   export let widget: WidgetState;
 
@@ -21,9 +22,7 @@
   // values fall back to inheritance (the scene's choice).
   $: fontFamily = (widget.config as { font_family?: string }).font_family;
   $: fontWeight = (widget.config as { font_weight?: string | number }).font_weight;
-  $: fontFamilyCss = fontFamily
-    ? `var(--cosmos-font-${fontFamily.replace(/\s+/g, '')}, system-ui, sans-serif)`
-    : null;
+  $: fontFamilyCss = cosmosFontVar(fontFamily);
   $: clockStyle = [
     fontFamilyCss ? `font-family: ${fontFamilyCss};` : '',
     // Drive the time-digit weight via a CSS variable so the override beats
