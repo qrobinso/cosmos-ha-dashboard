@@ -49,13 +49,10 @@ function str(config: Record<string, unknown>, key: string): string {
 }
 
 /** `config.name` (a soft convention shared by every kind, not just canvas) →
- *  else the entity_id if the config binds one → else the kind label. */
+ *  else the kind label. The bound entity_id, when present, surfaces separately
+ *  as the canvas tile's meta line, so we don't fold it in here. */
 function labelFrom(config: Record<string, unknown>, fallback: string): string {
-  const name = str(config, 'name');
-  if (name) return name;
-  const entityId = str(config, 'entity_id');
-  if (entityId) return entityId;
-  return fallback;
+  return str(config, 'name') || fallback;
 }
 
 export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
@@ -186,10 +183,7 @@ export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
       title: '',
       color: '',
     }),
-    instanceLabel: (c) => {
-      const name = str(c, 'name') || str(c, 'title');
-      return name || str(c, 'entity_id') || 'Statistics';
-    },
+    instanceLabel: (c) => str(c, 'name') || str(c, 'title') || 'Statistics',
   },
   camera: {
     kind: 'camera',

@@ -180,6 +180,7 @@
       bind:widgets
       {selectedIndex}
       onSelect={(i) => (selectedIndex = i)}
+      onDeselect={() => (selectedIndex = null)}
       dropPreviewCell={dropPreview}
     />
   </div>
@@ -205,15 +206,19 @@
     display: grid;
     gap: 1rem;
     /* Narrow: single column — strip, canvas, inspector. The rail is hidden. */
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'strip'
       'canvas'
       'inspector';
   }
+  /* Grid items default to min-width:auto; force 0 so the strip's wide content
+     scrolls (overflow-x) instead of stretching the column, and the canvas
+     shrinks to fit narrow viewports. */
+  .widget-editor > * { min-width: 0; }
   .rail { display: none; }
   .strip { grid-area: strip; }
-  .canvas-col { grid-area: canvas; min-width: 0; }
+  .canvas-col { grid-area: canvas; }
   .inspector-col {
     grid-area: inspector;
     background: var(--c-surface);

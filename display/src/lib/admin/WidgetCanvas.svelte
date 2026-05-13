@@ -7,6 +7,8 @@
   export let widgets: WidgetState[];
   export let selectedIndex: number | null = null;
   export let onSelect: (idx: number) => void = () => {};
+  /** Called when empty canvas space is pressed → deselect. */
+  export let onDeselect: () => void = () => {};
   /** Driven by the editor while a palette item is being dragged over the
    *  canvas: the cell + size its default-size widget would land on, or null. */
   export let dropPreviewCell: { col: number; row: number; w: number; h: number } | null = null;
@@ -102,6 +104,15 @@
     drag = null;
   }
 
+  // Pressing empty canvas space (tiles call stopPropagation, so anything that
+  // reaches here is the grid background) clears the selection.
+  function onCanvasPointerDown(e: PointerEvent) {
+    if (drag) return;
+    if (e.target === canvasEl || (e.target as HTMLElement)?.classList?.contains('cell')) {
+      onDeselect();
+    }
+  }
+
   /** Move a widget by whole grid cells, clamped to the layout bounds. */
   function nudge(idx: number, dCol: number, dRow: number) {
     const w = widgets[idx];
@@ -159,6 +170,7 @@
     class="canvas"
     bind:this={canvasEl}
     style="grid-template-columns: repeat({layout.cols}, 1fr); grid-template-rows: repeat({layout.rows}, 1fr); aspect-ratio: {layout.cols} / {layout.rows};"
+    on:pointerdown={onCanvasPointerDown}
     on:pointermove={onPointerMove}
     on:pointerup={endDrag}
     on:pointercancel={endDrag}
