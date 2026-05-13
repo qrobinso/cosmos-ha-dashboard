@@ -7,6 +7,13 @@ selected pack to its system prompt — the pack supplies *taste* (palette,
 typography, density, voice) on top of the API contracts that always go
 in.
 
+Whatever taste a pack encodes renders on a wall, viewed from across a
+room — see [`wall-display-principles.md`](./wall-display-principles.md). A
+pack supplies palette / typography / density / voice; it must not fight
+the wall-display principles. Over-dense or motion-heavy packs make bad
+walls regardless of how good they'd look on a laptop. When you write the
+"Don't" section, treat the principles as the floor a pack can't dip below.
+
 ## Shape
 
 ```md
