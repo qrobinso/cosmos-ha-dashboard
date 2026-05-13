@@ -19,3 +19,4 @@ display/static/moods/*.tmp.mp4
 # GitHub's 100 MB hard limit.
 display/static/moods/*.mov
 .claude/
+.superpowers/
