@@ -3,10 +3,18 @@ import { join } from 'node:path';
 import type { HaClient } from '../ha/types.js';
 import type { DesignPacksRepo } from '../store/design-packs.js';
 
-/** The two contract markdowns are static — read once and held in process. */
-const cache = { sceneAgent: null as string | null, canvasAgent: null as string | null };
+/** The contract markdowns are static — read once and held in process. */
+const cache = {
+  principles: null as string | null,
+  sceneAgent: null as string | null,
+  canvasAgent: null as string | null,
+};
 
-function readContract(docsDir: string, slug: string, key: 'sceneAgent' | 'canvasAgent'): string {
+function readContract(
+  docsDir: string,
+  slug: string,
+  key: 'principles' | 'sceneAgent' | 'canvasAgent'
+): string {
   if (cache[key] !== null) return cache[key]!;
   const filePath = join(docsDir, `${slug}.md`);
   if (!existsSync(filePath)) {
@@ -20,6 +28,10 @@ function readContract(docsDir: string, slug: string, key: 'sceneAgent' | 'canvas
 const PREAMBLE = `You are Cosmos's in-product agent. The user is editing their wall-display \
 dashboard and types natural-language asks; you call tools to inspect and modify scenes and \
 canvas widgets.
+
+The wall display is a screen on a wall, viewed from across a room — not a web page. The WALL \
+DISPLAY PRINCIPLES section below is the lens for every scene and canvas you produce: the API \
+contracts tell you *how*, the principles tell you *what good looks like*.
 
 Operating principles:
 
@@ -119,9 +131,13 @@ const DESIGN_PACK_PREAMBLE =
   'exact values (colors, typography, spacing) and the body prose for taste / voice. ' +
   'Token references like {colors.primary} should be resolved to the matching value ' +
   "from the pack's frontmatter when emitting scene/widget config. Never override " +
-  'scene-API rules from the contracts above.';
+  'scene-API rules from the contracts above. A design pack supplies palette / ' +
+  'typography / voice on top of the wall-display principles — it never overrides them. ' +
+  "If a pack's prose seems to invite more density or motion than the principles allow, " +
+  'the principles win.';
 
 export function buildSystemPrompt(deps: SystemPromptDeps, opts: SystemPromptOpts = {}): string {
+  const principles = readContract(deps.docsDir, 'wall-display-principles', 'principles');
   const scene = readContract(deps.docsDir, 'scene-agent', 'sceneAgent');
   const canvas = readContract(deps.docsDir, 'canvas-widget-agent', 'canvasAgent');
   // The HA entity catalog used to be embedded here as a snapshot. It was
@@ -133,6 +149,11 @@ export function buildSystemPrompt(deps: SystemPromptDeps, opts: SystemPromptOpts
 
   const sections: string[] = [
     PREAMBLE,
+    '',
+    '═════════════════════════════════════════════════════════════',
+    'WALL DISPLAY PRINCIPLES',
+    '═════════════════════════════════════════════════════════════',
+    principles || '_(wall-display-principles.md not bundled)_',
     '',
     '═════════════════════════════════════════════════════════════',
     'SCENE AUTHORING CONTRACT',
@@ -165,6 +186,7 @@ export function buildSystemPrompt(deps: SystemPromptDeps, opts: SystemPromptOpts
 
 /** Test-only: drop the cached contract reads so subsequent calls re-read from disk. */
 export function _resetSystemPromptCache(): void {
+  cache.principles = null;
   cache.sceneAgent = null;
   cache.canvasAgent = null;
 }

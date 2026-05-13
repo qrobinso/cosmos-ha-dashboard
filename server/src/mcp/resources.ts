@@ -25,6 +25,7 @@ export type McpResourceContents = {
   text: string;
 };
 
+const URI_PRINCIPLES = 'cosmos://docs/wall-display-principles';
 const URI_SCENE_AGENT = 'cosmos://docs/scene-agent';
 const URI_CANVAS_AGENT = 'cosmos://docs/canvas-widget-agent';
 const URI_ENTITIES = 'cosmos://entities';
@@ -33,6 +34,13 @@ const URI_DESIGNS_INDEX = 'cosmos://designs';
 /** The catalog the MCP server advertises in `resources/list`. */
 export function listMcpResources(deps: McpResourceDeps): McpResourceListEntry[] {
   const base: McpResourceListEntry[] = [
+    {
+      uri: URI_PRINCIPLES,
+      name: 'Wall display design principles',
+      description:
+        'The 11 principles for glanceable wall-mounted dashboards — read alongside the scene and canvas contracts before building anything.',
+      mimeType: 'text/markdown',
+    },
     {
       uri: URI_SCENE_AGENT,
       name: 'Scene authoring contract',
@@ -73,10 +81,18 @@ export function listMcpResources(deps: McpResourceDeps): McpResourceListEntry[] 
   return base;
 }
 
-/** Cache the two file-backed contracts since they don't change at runtime. */
-const cache = { sceneAgent: null as string | null, canvasAgent: null as string | null };
+/** Cache the file-backed contracts since they don't change at runtime. */
+const cache = {
+  principles: null as string | null,
+  sceneAgent: null as string | null,
+  canvasAgent: null as string | null,
+};
 
-async function readContract(docsDir: string, slug: string, key: 'sceneAgent' | 'canvasAgent'): Promise<string> {
+async function readContract(
+  docsDir: string,
+  slug: string,
+  key: 'principles' | 'sceneAgent' | 'canvasAgent'
+): Promise<string> {
   if (cache[key] !== null) return cache[key]!;
   const filePath = join(docsDir, `${slug}.md`);
   if (!existsSync(filePath)) {
@@ -92,6 +108,9 @@ export async function readMcpResource(
   uri: string,
   deps: McpResourceDeps
 ): Promise<McpResourceContents | null> {
+  if (uri === URI_PRINCIPLES) {
+    return { uri, mimeType: 'text/markdown', text: await readContract(deps.docsDir, 'wall-display-principles', 'principles') };
+  }
   if (uri === URI_SCENE_AGENT) {
     return { uri, mimeType: 'text/markdown', text: await readContract(deps.docsDir, 'scene-agent', 'sceneAgent') };
   }
@@ -119,6 +138,7 @@ export async function readMcpResource(
 
 /** Test-only: drop the doc cache so subsequent reads hit disk again. */
 export function _resetMcpResourceCache(): void {
+  cache.principles = null;
   cache.sceneAgent = null;
   cache.canvasAgent = null;
 }

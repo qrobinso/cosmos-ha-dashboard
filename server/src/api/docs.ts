@@ -28,6 +28,7 @@ function extractTitle(markdown: string, slug: string): string {
 
 /** Curated order so agent-facing contracts surface first. */
 const ORDER: string[] = [
+  'wall-display-principles',
   'scene-agent',
   'canvas-widget-agent',
   'canvas-widget',

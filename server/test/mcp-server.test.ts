@@ -10,6 +10,9 @@ import { buildHttpApp } from '../src/api/http.js';
 import { createCanvasExtrasStore } from '../src/api/canvases.js';
 import { createFakeHaClient } from '../src/ha/fakeClient.js';
 import { regenerateToken, setEnabled } from '../src/store/mcp-token.js';
+import { join } from 'node:path';
+
+const docsDir = join(process.cwd(), '..', 'docs'); // monorepo: server/ → repo root → docs/
 
 function setup() {
   const db = new Database(':memory:');
@@ -59,7 +62,7 @@ describe('MCP /mcp transport', () => {
 
   beforeEach(async () => {
     ctx = setup();
-    app = await buildHttpApp({ ...ctx, haClient: createFakeHaClient([
+    app = await buildHttpApp({ ...ctx, docsDir, haClient: createFakeHaClient([
       { entity_id: 'sensor.power', state: '1247', attributes: { friendly_name: 'Power', unit_of_measurement: 'W' } },
     ]) });
   });
@@ -177,8 +180,24 @@ describe('MCP /mcp transport', () => {
     const uris = res.json().result.resources.map((r: { uri: string }) => r.uri);
     expect(uris).toContain('cosmos://docs/canvas-widget-agent');
     expect(uris).toContain('cosmos://docs/scene-agent');
+    expect(uris).toContain('cosmos://docs/wall-display-principles');
     expect(uris).toContain('cosmos://entities');
     expect(uris).toContain('cosmos://designs');
+  });
+
+  it('resources/read returns the wall-display principles doc', async () => {
+    setEnabled(ctx.settings, true);
+    const token = regenerateToken(ctx.settings);
+    const res = await rpc(app, {
+      jsonrpc: '2.0',
+      id: 8,
+      method: 'resources/read',
+      params: { uri: 'cosmos://docs/wall-display-principles' },
+    }, `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.result.contents[0].mimeType).toBe('text/markdown');
+    expect(body.result.contents[0].text).toContain('The 3-second rule');
   });
 
   it('resources/list includes per-pack URIs for seeded design packs', async () => {

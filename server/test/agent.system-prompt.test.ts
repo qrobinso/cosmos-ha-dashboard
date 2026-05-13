@@ -43,4 +43,13 @@ describe('buildSystemPrompt', () => {
     );
     expect(out).not.toContain('DESIGN PACK');
   });
+
+  it('bundles the wall-display principles before the scene contract', () => {
+    const out = buildSystemPrompt({ docsDir, haClient: null, designs });
+    expect(out).toContain('WALL DISPLAY PRINCIPLES');
+    expect(out).toContain('The 3-second rule');
+    expect(out.indexOf('WALL DISPLAY PRINCIPLES')).toBeLessThan(
+      out.indexOf('SCENE AUTHORING CONTRACT')
+    );
+  });
 });
