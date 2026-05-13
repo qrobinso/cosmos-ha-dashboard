@@ -95,6 +95,10 @@ Omit or pass `null` to inherit the global default.
 
 These apply the wall-display principles — see `wall-display-principles.md` for the full set and the *why*; below is how they shape a *scene*.
 
+### Design direction
+
+If the user gave style direction (a described aesthetic, named colors/fonts, "make it feel like X") or shared a reference asset, run the design-system reconciliation workflow *before* composing the scene: survey the existing packs, propose a close match if one captures the mood + palette family + typographic feel, and only author a new pack if nothing's close. See [`design-pack-authoring.md`](./design-pack-authoring.md) § "Reuse vs. create — the agent workflow" for the steps; that doc owns the detail.
+
 ### Focus
 
 *(Principle 5: information density — less is more. Principle 2: one hero per widget, applied at scene scale: one hero widget per scene.)*
