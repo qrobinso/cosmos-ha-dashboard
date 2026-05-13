@@ -44,6 +44,12 @@ describe('buildSystemPrompt', () => {
     expect(out).not.toContain('DESIGN PACK');
   });
 
+  it('includes the design-system reconcile-vs-create workflow in the preamble', () => {
+    const out = buildSystemPrompt({ docsDir, haClient: null, designs });
+    expect(out).toContain('reconcile before you build');
+    expect(out).toContain('the design dropdown above');
+  });
+
   it('bundles the wall-display principles before the scene contract', () => {
     const out = buildSystemPrompt({ docsDir, haClient: null, designs });
     expect(out).toContain('WALL DISPLAY PRINCIPLES');
