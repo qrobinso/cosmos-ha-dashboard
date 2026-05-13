@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.11
+
+- Agent: reconcile design intent with existing design systems before building — proposes a close match or creates a new one; new delete_design MCP tool to clean up.
+
 ## 0.6.10
 
 - Agent: bundled a wall-display design-principles guide into the in-product and MCP agents so generated scenes and canvases are glanceable by construction. New `docs/wall-display-principles.md` — the 11 first-principles for glanceable wall-mounted dashboards (3-second rule, one hero per widget, distance-appropriate type, ambient-not-demanding, graceful degradation, etc.) plus a pre-ship self-check. The in-product agent's system prompt now leads with it (before the scene + canvas contracts); MCP exposes it as `cosmos://docs/wall-display-principles` and the scene/canvas/design tool descriptions point at it. The existing scene and canvas contracts are re-anchored on the principles (their best-practices sections now cross-reference principle numbers instead of re-deriving them). Surfaced in the admin Docs tab.
