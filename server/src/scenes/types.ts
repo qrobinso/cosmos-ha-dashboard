@@ -149,6 +149,8 @@ export type CameraData = {
   snapshot_url: string;
   /** MJPEG stream via HA's `camera_proxy_stream` endpoint. */
   stream_url: string;
+  /** HA frontend stream types, e.g. `web_rtc` and/or `hls`. */
+  stream_types?: string[];
   /** False when the camera entity isn't in HA's cache (e.g. unavailable). */
   available: boolean;
 };

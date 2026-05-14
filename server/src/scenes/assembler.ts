@@ -43,6 +43,8 @@ export type DataResolvers = {
   resolveHistory?: (entityId: string, opts: { start: Date; end: Date }) => Promise<StatisticsPoint[]>;
   /** Weather forecast (daily / hourly / twice_daily) for a `weather.*` entity. */
   resolveWeatherForecasts?: (entityId: string, type: WeatherForecastType) => Promise<WeatherForecastItem[]>;
+  /** HA frontend camera stream types (`web_rtc`, `hls`) for live playback. */
+  resolveCameraCapabilities?: (entityId: string) => Promise<{ frontend_stream_types: string[] }>;
   /** Synchronous read of a cached entity, used by the mood resolver
    *  (sun.sun, weather entity). Returns null when not present. */
   readEntitySync?: (entityId: string) => EntityState | null;
@@ -327,7 +329,8 @@ async function statisticsData(
   };
 }
 
-async function cameraData(widget: Widget, resolver: EntityResolver): Promise<CameraData> {
+async function cameraData(widget: Widget, deps: DataResolvers): Promise<CameraData> {
+  const resolver = deps.resolveEntity ?? mockEntityResolver;
   const cfg = widget.config as Record<string, unknown>;
   const entityId = readString(cfg, 'entity_id');
   const humanized = entityId.replace(/^camera\./, '').replace(/_/g, ' ') || 'Camera';
@@ -352,12 +355,16 @@ async function cameraData(widget: Widget, resolver: EntityResolver): Promise<Cam
   // HA's signed `entity_picture` paths.
   const snapshot_url = `/api/ha-media/api/camera_proxy/${entityId}`;
   const stream_url = `/api/ha-media/api/camera_proxy_stream/${entityId}`;
+  const capabilities = deps.resolveCameraCapabilities
+    ? await deps.resolveCameraCapabilities(entityId)
+    : { frontend_stream_types: [] };
   return {
     entity_id: entityId,
     friendly_name: friendly,
     state: entity?.state ?? 'unknown',
     snapshot_url,
     stream_url,
+    stream_types: capabilities.frontend_stream_types,
     available: !!entity && entity.state !== 'unavailable',
   };
 }
@@ -382,7 +389,7 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
     case 'text':
       return null;
     case 'camera':
-      return await cameraData(widget, resolver);
+      return await cameraData(widget, deps);
     case 'canvas': {
       const cfg = widget.config as { content?: unknown };
       const content = typeof cfg.content === 'string' ? cfg.content : '';
@@ -505,6 +512,7 @@ export type AssemblePushArgs = {
   resolveCalendarEvents?: DataResolvers['resolveCalendarEvents'];
   resolveHistory?: DataResolvers['resolveHistory'];
   resolveWeatherForecasts?: DataResolvers['resolveWeatherForecasts'];
+  resolveCameraCapabilities?: DataResolvers['resolveCameraCapabilities'];
   /** Synchronous entity reader for the mood engine (sun.sun, weather.*). */
   readEntitySync?: DataResolvers['readEntitySync'];
   /** Base URL of the HA instance for absolutizing media art paths. */
@@ -553,6 +561,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
       resolveCalendarEvents: args.resolveCalendarEvents,
       resolveHistory: args.resolveHistory,
       resolveWeatherForecasts: args.resolveWeatherForecasts,
+      resolveCameraCapabilities: args.resolveCameraCapabilities,
       readEntitySync: args.readEntitySync,
       mediaUrlBase: args.mediaUrlBase,
       canvasResolver: args.canvasResolver,

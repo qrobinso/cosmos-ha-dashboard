@@ -112,6 +112,7 @@ export type CameraData = {
   state: string;
   snapshot_url: string;
   stream_url: string;
+  stream_types?: string[];
   available: boolean;
 };
 

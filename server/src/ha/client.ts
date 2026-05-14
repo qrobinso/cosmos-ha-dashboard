@@ -210,6 +210,82 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
     return promise;
   }
 
+  async function getCameraCapabilities(entityId: string): Promise<{ frontend_stream_types: string[] }> {
+    if (!connection) return { frontend_stream_types: [] };
+    try {
+      const result = (await connection.sendMessagePromise({
+        type: 'camera/capabilities',
+        entity_id: entityId,
+      })) as { frontend_stream_types?: unknown } | undefined;
+      const raw = result?.frontend_stream_types;
+      return {
+        frontend_stream_types: Array.isArray(raw)
+          ? raw.filter((v): v is string => typeof v === 'string')
+          : [],
+      };
+    } catch (err) {
+      console.error(`HA camera/capabilities failed for ${entityId}`, err);
+      return { frontend_stream_types: [] };
+    }
+  }
+
+  async function getCameraStream(entityId: string, format?: 'hls'): Promise<{ url: string }> {
+    if (!connection) return { url: '' };
+    const msg: { type: 'camera/stream'; entity_id: string; format?: 'hls' } = {
+      type: 'camera/stream',
+      entity_id: entityId,
+    };
+    if (format) msg.format = format;
+    try {
+      const result = (await connection.sendMessagePromise(msg)) as { url?: unknown } | undefined;
+      return { url: typeof result?.url === 'string' ? result.url : '' };
+    } catch (err) {
+      console.error(`HA camera/stream failed for ${entityId}`, err);
+      return { url: '' };
+    }
+  }
+
+  async function getCameraWebRtcClientConfig(entityId: string): Promise<Record<string, unknown>> {
+    if (!connection) return { configuration: {} };
+    try {
+      const result = (await connection.sendMessagePromise({
+        type: 'camera/webrtc/get_client_config',
+        entity_id: entityId,
+      })) as Record<string, unknown> | undefined;
+      return result ?? { configuration: {} };
+    } catch (err) {
+      console.error(`HA camera/webrtc/get_client_config failed for ${entityId}`, err);
+      return { configuration: {} };
+    }
+  }
+
+  async function addCameraWebRtcCandidate(
+    entityId: string,
+    sessionId: string,
+    candidate: Record<string, unknown>
+  ): Promise<void> {
+    if (!connection) return;
+    await connection.sendMessagePromise({
+      type: 'camera/webrtc/candidate',
+      entity_id: entityId,
+      session_id: sessionId,
+      candidate,
+    });
+  }
+
+  async function subscribeCameraWebRtcOffer(
+    entityId: string,
+    offer: string,
+    handler: (event: unknown) => void
+  ): Promise<() => void> {
+    if (!connection) return () => {};
+    return await connection.subscribeMessage(handler, {
+      type: 'camera/webrtc/offer',
+      entity_id: entityId,
+      offer,
+    });
+  }
+
   return {
     connection,
     ready: () => readyPromise,
@@ -219,6 +295,11 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
     getCalendarEvents,
     getHistory,
     getWeatherForecasts,
+    getCameraCapabilities,
+    getCameraStream,
+    getCameraWebRtcClientConfig,
+    addCameraWebRtcCandidate,
+    subscribeCameraWebRtcOffer,
     close: async () => {
       unsubscribe();
       connection?.close();

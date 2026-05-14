@@ -191,11 +191,12 @@ export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
     category: 'ha',
     icon: widgetIcons.camera,
     accent: '#7fb2f0', // lens blue
-    blurb: 'A camera snapshot or live MJPEG stream.',
+    blurb: 'A camera snapshot or live WebRTC/HLS/MJPEG stream.',
     defaultSize: { w: 4, h: 3 },
     defaultConfig: (entities) => ({
       entity_id: firstEntityOfDomain(entities, 'camera') || 'camera.front_door',
       view: 'auto',
+      protocol: 'auto',
       refresh_interval_s: 10,
       fit: 'cover',
       aspect_ratio: '',

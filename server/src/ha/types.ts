@@ -38,6 +38,24 @@ export type HaClient = {
     entityId: string,
     type: WeatherForecastType
   ): Promise<WeatherForecastItem[]>;
+  /** Fetch frontend stream types HA supports for a camera entity. */
+  getCameraCapabilities(entityId: string): Promise<{ frontend_stream_types: string[] }>;
+  /** Fetch a short-lived HLS stream URL for a camera entity. */
+  getCameraStream(entityId: string, format?: 'hls'): Promise<{ url: string }>;
+  /** Fetch WebRTC peer connection settings for a camera entity. */
+  getCameraWebRtcClientConfig(entityId: string): Promise<Record<string, unknown>>;
+  /** Send a local ICE candidate to HA for an active WebRTC camera session. */
+  addCameraWebRtcCandidate(
+    entityId: string,
+    sessionId: string,
+    candidate: Record<string, unknown>
+  ): Promise<void>;
+  /** Subscribe to HA's WebRTC offer event stream. */
+  subscribeCameraWebRtcOffer(
+    entityId: string,
+    offer: string,
+    handler: (event: unknown) => void
+  ): Promise<() => void>;
   /** Disconnect cleanly. */
   close(): Promise<void>;
 };
