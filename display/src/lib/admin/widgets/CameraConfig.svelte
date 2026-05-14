@@ -17,6 +17,7 @@
 
   $: cameras = entities.filter((e) => e.entity_id.startsWith('camera.'));
   $: view = str('view', 'auto');
+  $: protocol = str('protocol', 'auto');
 </script>
 
 <Section label="Source">
@@ -32,9 +33,19 @@
     <Field label="View" hint="Auto polls a still snapshot; Live streams MJPEG continuously.">
       <select value={view} on:change={(e) => set('view', e.currentTarget.value)}>
         <option value="auto">Auto (snapshot)</option>
-        <option value="live">Live (MJPEG)</option>
+        <option value="live">Live</option>
       </select>
     </Field>
+    {#if view === 'live'}
+      <Field label="Live protocol" hint="Auto prefers WebRTC, then HLS, then MJPEG.">
+        <select value={protocol} on:change={(e) => set('protocol', e.currentTarget.value)}>
+          <option value="auto">Auto</option>
+          <option value="webrtc">WebRTC</option>
+          <option value="hls">HLS</option>
+          <option value="mjpeg">MJPEG</option>
+        </select>
+      </Field>
+    {/if}
     {#if view === 'auto'}
       <Field label="Refresh (s)" hint="How often to refetch the snapshot">
         <input type="number" min="1" max="3600" value={typeof config.refresh_interval_s === 'number' ? config.refresh_interval_s : 10} on:input={(e) => set('refresh_interval_s', Math.max(1, Number(e.currentTarget.value) || 10))} />

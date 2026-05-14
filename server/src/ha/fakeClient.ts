@@ -16,6 +16,7 @@ export type FakeHaClient = HaClient & {
   setCalendarEvents(entityId: string, events: CalendarEvent[]): void;
   setHistory(entityId: string, points: StatisticsPoint[]): void;
   setWeatherForecasts(entityId: string, type: WeatherForecastType, forecast: WeatherForecastItem[]): void;
+  setCameraCapabilities(entityId: string, streamTypes: string[]): void;
 };
 
 export function createFakeHaClient(initial: EntityState[] = []): FakeHaClient {
@@ -24,6 +25,7 @@ export function createFakeHaClient(initial: EntityState[] = []): FakeHaClient {
   const calendars = new Map<string, CalendarEvent[]>();
   const histories = new Map<string, StatisticsPoint[]>();
   const forecasts = new Map<string, WeatherForecastItem[]>(); // key: `${entityId}:${type}`
+  const cameraCapabilities = new Map<string, string[]>();
   return {
     // Fake clients don't need a real Connection; tests that use TemplatesClient
     // should supply their own fake. Cast to satisfy the HaClient interface.
@@ -35,6 +37,11 @@ export function createFakeHaClient(initial: EntityState[] = []): FakeHaClient {
     getCalendarEvents: async (id) => calendars.get(id) ?? [],
     getHistory: async (id) => histories.get(id) ?? [],
     getWeatherForecasts: async (id, type) => forecasts.get(`${id}:${type}`) ?? [],
+    getCameraCapabilities: async (id) => ({ frontend_stream_types: cameraCapabilities.get(id) ?? [] }),
+    getCameraStream: async (id) => ({ url: `/api/hls/fake-${encodeURIComponent(id)}/playlist.m3u8` }),
+    getCameraWebRtcClientConfig: async () => ({ configuration: {} }),
+    addCameraWebRtcCandidate: async () => {},
+    subscribeCameraWebRtcOffer: async () => () => {},
     close: async () => {},
     set: (e) => cache.set(e),
     setMany: (es) => cache.setMany(es),
@@ -42,5 +49,6 @@ export function createFakeHaClient(initial: EntityState[] = []): FakeHaClient {
     setCalendarEvents: (id, events) => calendars.set(id, events),
     setHistory: (id, points) => histories.set(id, points),
     setWeatherForecasts: (id, type, f) => forecasts.set(`${id}:${type}`, f),
+    setCameraCapabilities: (id, streamTypes) => cameraCapabilities.set(id, streamTypes),
   };
 }

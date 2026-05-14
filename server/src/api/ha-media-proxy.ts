@@ -34,9 +34,11 @@ export function registerHaMediaProxyRoutes(app: FastifyInstance, deps: HaMediaPr
     const target = `${deps.haUrl.replace(/\/+$/, '')}/${path}${queryStr}`;
 
     try {
-      const upstream = await fetch(target, {
-        headers: deps.haToken ? { Authorization: `Bearer ${deps.haToken}` } : {},
-      });
+      const headers: Record<string, string> = {};
+      if (deps.haToken) headers.Authorization = `Bearer ${deps.haToken}`;
+      const range = req.headers.range;
+      if (typeof range === 'string') headers.Range = range;
+      const upstream = await fetch(target, { headers });
       if (!upstream.ok) {
         return reply.code(upstream.status).send();
       }
@@ -46,6 +48,10 @@ export function registerHaMediaProxyRoutes(app: FastifyInstance, deps: HaMediaPr
       if (ct) reply.header('content-type', ct);
       const cl = upstream.headers.get('content-length');
       if (cl) reply.header('content-length', cl);
+      const acceptRanges = upstream.headers.get('accept-ranges');
+      if (acceptRanges) reply.header('accept-ranges', acceptRanges);
+      const contentRange = upstream.headers.get('content-range');
+      if (contentRange) reply.header('content-range', contentRange);
 
       // MJPEG / multipart streams have no content-length and must never be
       // buffered — `arrayBuffer()` would hang forever on the infinite stream.
@@ -55,7 +61,8 @@ export function registerHaMediaProxyRoutes(app: FastifyInstance, deps: HaMediaPr
       const isStream =
         !cl ||
         (ct ? ct.toLowerCase().includes('multipart/') : false) ||
-        path.startsWith('api/camera_proxy');
+        path.startsWith('api/camera_proxy') ||
+        path.startsWith('api/hls/');
       reply.header('cache-control', isStream ? 'no-store' : 'private, max-age=300');
 
       if (!upstream.body) {

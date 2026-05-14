@@ -15,6 +15,7 @@ import { buildSceneState } from '../scenes/assembler.js';
 import { registerTransitionRoutes } from './transitions.js';
 import { registerHaEntityRoutes } from './ha-entities.js';
 import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
+import { registerCameraRoutes } from './cameras.js';
 import { registerMoodRoutes } from './moods.js';
 import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
 import { registerDocsRoutes } from './docs.js';
@@ -23,6 +24,11 @@ import { registerMcpRoutes } from './mcp.js';
 import { registerDesignRoutes } from './designs.js';
 import type { AlertManager } from '../scenes/alerts.js';
 import type { DisplayPaletteStore } from '../store/displayPalette.js';
+import {
+  readHaSettingsPayload,
+  writeStoredHaConfig,
+  type HaRuntimeInfo,
+} from '../store/ha-settings.js';
 
 export type SafeArea = { top: number; right: number; bottom: number; left: number };
 export const DEFAULT_SAFE_AREA: SafeArea = { top: 16, right: 16, bottom: 16, left: 16 };
@@ -107,6 +113,9 @@ export type HttpDeps = {
    *  changed for a display. The host wires this to a per-display scene
    *  re-push so the new gradient.colors land on the wall. */
   onPaletteChanged?: (displayId: string) => void;
+  /** Runtime HA connection status. Manual URL/token edits are persisted from
+   *  the settings API, then used on the next server start. */
+  homeAssistant?: HaRuntimeInfo;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -175,6 +184,41 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     return stored;
   });
 
+  const haRuntime = (): HaRuntimeInfo =>
+    deps.homeAssistant ?? {
+      source: 'mock',
+      activeUrl: null,
+      connected: false,
+      envConfigured: false,
+      supervisorAvailable: false,
+    };
+
+  app.get('/api/settings/home-assistant', async () =>
+    readHaSettingsPayload(deps.settings, haRuntime())
+  );
+
+  app.put<{ Body: { url?: unknown; token?: unknown } }>(
+    '/api/settings/home-assistant',
+    async (req, reply) => {
+      const body = req.body ?? {};
+      const patch: { url?: string; token?: string } = {};
+      if (body.url !== undefined) {
+        if (typeof body.url !== 'string') return reply.code(400).send({ error: 'url must be a string' });
+        patch.url = body.url;
+      }
+      if (body.token !== undefined) {
+        if (typeof body.token !== 'string') return reply.code(400).send({ error: 'token must be a string' });
+        patch.token = body.token;
+      }
+      try {
+        writeStoredHaConfig(deps.settings, patch);
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : 'invalid Home Assistant settings' });
+      }
+      return readHaSettingsPayload(deps.settings, haRuntime());
+    }
+  );
+
   app.get<{ Params: { name: string } }>('/api/displays/:name/palette', async (req, reply) => {
     const display = deps.displays.getByName(req.params.name);
     if (!display) return reply.code(404).send({ error: 'display not found' });
@@ -211,6 +255,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
 
   registerHaEntityRoutes(app, { haClient: deps.haClient ?? null });
   registerHaMediaProxyRoutes(app, { haUrl: deps.haUrl ?? null, haToken: deps.haToken ?? null });
+  registerCameraRoutes(app, { haClient: deps.haClient ?? null });
   registerMoodRoutes(app, { moodsDir: () => deps.moodsDir?.() ?? null });
 
   registerSceneRoutes(app, {

@@ -61,4 +61,35 @@ describe('HTTP API', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().map((d: { name: string }) => d.name).sort()).toEqual(['A', 'B']);
   });
+
+  it('stores Home Assistant standalone connection settings without returning the token', async () => {
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/settings/home-assistant',
+      payload: { url: 'http://homeassistant.local:8123/', token: 'abc123' },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toMatchObject({
+      url: 'http://homeassistant.local:8123',
+      hasToken: true,
+    });
+    expect(put.body).not.toContain('abc123');
+
+    const get = await app.inject({ method: 'GET', url: '/api/settings/home-assistant' });
+    expect(get.statusCode).toBe(200);
+    expect(get.json()).toMatchObject({
+      url: 'http://homeassistant.local:8123',
+      hasToken: true,
+    });
+    expect(get.body).not.toContain('abc123');
+  });
+
+  it('rejects invalid Home Assistant URLs', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/settings/home-assistant',
+      payload: { url: 'ftp://homeassistant.local', token: 'abc123' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
 });

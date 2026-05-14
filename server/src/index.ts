@@ -20,6 +20,7 @@ import { createCanvasExtrasStore } from './api/canvases.js';
 import { createCalendarCache } from './ha/calendarCache.js';
 import { createInterestSet, sceneAmbientEntityIds } from './scenes/interest.js';
 import { createDisplayPaletteStore } from './store/displayPalette.js';
+import { resolveEffectiveHaConfig } from './store/ha-settings.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 
@@ -52,8 +53,15 @@ async function main() {
 
   // Resolve effective HA + MQTT settings, falling back to Supervisor when running as an add-on.
   const { fetchMqttFromSupervisor, SUPERVISOR_HA_URL, SUPERVISOR_BASE } = await import('./ha/supervisor.js');
-  const effectiveHaUrl = config.haUrl ?? (config.supervisorToken ? SUPERVISOR_HA_URL : null);
-  const effectiveHaToken = config.haToken ?? config.supervisorToken;
+  const effectiveHa = resolveEffectiveHaConfig({
+    settings,
+    envUrl: config.haUrl,
+    envToken: config.haToken,
+    supervisorToken: config.supervisorToken,
+    supervisorUrl: SUPERVISOR_HA_URL,
+  });
+  const effectiveHaUrl = effectiveHa.url;
+  const effectiveHaToken = effectiveHa.token;
   let effectiveMqttUrl = config.mqttUrl;
   if (!effectiveMqttUrl && config.supervisorToken) {
     const result = await fetchMqttFromSupervisor(SUPERVISOR_BASE, config.supervisorToken);
@@ -68,7 +76,7 @@ async function main() {
   let haClient: HaClient | null = null;
   if (effectiveHaUrl && effectiveHaToken) {
     try {
-      console.log(`connecting to Home Assistant at ${effectiveHaUrl}`);
+      console.log(`connecting to Home Assistant at ${effectiveHaUrl} (${effectiveHa.source})`);
       haClient = await makeHaClient({ url: effectiveHaUrl, token: effectiveHaToken });
       await haClient.ready();
       console.log('Home Assistant connected; entity cache populated');
@@ -77,7 +85,7 @@ async function main() {
       haClient = null;
     }
   } else {
-    console.log('HA_URL/HA_TOKEN not set and no Supervisor token; using mock entity data');
+    console.log('Home Assistant not configured; using mock entity data');
   }
 
   const resolveEntity = haClient
@@ -92,6 +100,9 @@ async function main() {
   const resolveWeatherForecasts = haClient
     ? (entityId: string, type: import('./scenes/types.js').WeatherForecastType) =>
         haClient!.getWeatherForecasts(entityId, type)
+    : undefined;
+  const resolveCameraCapabilities = haClient
+    ? (entityId: string) => haClient!.getCameraCapabilities(entityId)
     : undefined;
   const readEntitySync = haClient ? (id: string) => haClient!.getEntity(id) : undefined;
 
@@ -225,6 +236,13 @@ async function main() {
     onPaletteChanged: (displayId) => markDisplayDirty(displayId),
     alerts: alertManager,
     docsDir: resolvePath(__cosmos_repo_root, 'docs'),
+    homeAssistant: {
+      source: effectiveHa.source,
+      activeUrl: effectiveHaUrl,
+      connected: haClient !== null,
+      envConfigured: !!(config.haUrl && config.haToken),
+      supervisorAvailable: !!config.supervisorToken,
+    },
     // Scene-preview assembly for the admin editor's hover/tap previews. Uses
     // the same stateless data resolvers the WS hub uses (so widgets show real
     // HA values when connected, mock otherwise), but NOT the canvas resolver
@@ -237,8 +255,11 @@ async function main() {
         resolveCalendarEvents,
         resolveHistory,
         resolveWeatherForecasts,
+        resolveCameraCapabilities,
         readEntitySync,
-        mediaUrlBase: config.haUrl ?? undefined,
+        mediaUrlBase: effectiveHa.source === 'environment' || effectiveHa.source === 'manual'
+          ? effectiveHaUrl ?? undefined
+          : undefined,
       }),
   });
   await registerStatic(app, config.staticDir);
@@ -298,7 +319,10 @@ async function main() {
   // HA was configured directly (not via Supervisor) — `http://supervisor/core`
   // is server-side only and unreachable from a tablet's browser. In add-on
   // setups we'd need a Cosmos-side proxy endpoint instead.
-  const browserMediaBase = config.haUrl ?? null;
+  const browserMediaBase =
+    effectiveHa.source === 'environment' || effectiveHa.source === 'manual'
+      ? effectiveHaUrl
+      : null;
 
   // Debounce reactive scene pushes: many HA entities can change in one tick.
   // We coalesce per-display dirty flags and flush them ~50ms later in one batch.
@@ -366,6 +390,7 @@ async function main() {
     resolveCalendarEvents,
     resolveHistory,
     resolveWeatherForecasts,
+    resolveCameraCapabilities,
     readEntitySync,
     mediaUrlBase: browserMediaBase ?? undefined,
     onDisplayOnline: publishOnline,

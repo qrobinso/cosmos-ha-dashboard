@@ -140,6 +140,59 @@ export const api = {
       await ensureOk(res);
       return (await res.json()) as { mode: 'off' | 'allowlist' | 'any'; allowlist: string[] };
     },
+    async getHomeAssistant(): Promise<{
+      url: string | null;
+      hasToken: boolean;
+      runtime: {
+        source: 'environment' | 'manual' | 'supervisor' | 'mock';
+        activeUrl: string | null;
+        connected: boolean;
+        envConfigured: boolean;
+        supervisorAvailable: boolean;
+      };
+    }> {
+      const res = await fetch('/api/settings/home-assistant');
+      return (await res.json()) as {
+        url: string | null;
+        hasToken: boolean;
+        runtime: {
+          source: 'environment' | 'manual' | 'supervisor' | 'mock';
+          activeUrl: string | null;
+          connected: boolean;
+          envConfigured: boolean;
+          supervisorAvailable: boolean;
+        };
+      };
+    },
+    async updateHomeAssistant(payload: { url?: string; token?: string }): Promise<{
+      url: string | null;
+      hasToken: boolean;
+      runtime: {
+        source: 'environment' | 'manual' | 'supervisor' | 'mock';
+        activeUrl: string | null;
+        connected: boolean;
+        envConfigured: boolean;
+        supervisorAvailable: boolean;
+      };
+    }> {
+      const res = await fetch('/api/settings/home-assistant', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      await ensureOk(res);
+      return (await res.json()) as {
+        url: string | null;
+        hasToken: boolean;
+        runtime: {
+          source: 'environment' | 'manual' | 'supervisor' | 'mock';
+          activeUrl: string | null;
+          connected: boolean;
+          envConfigured: boolean;
+          supervisorAvailable: boolean;
+        };
+      };
+    },
   },
   ha: {
     async listEntities(domain?: string): Promise<{ entity_id: string; state: string; attributes: Record<string, unknown> }[]> {

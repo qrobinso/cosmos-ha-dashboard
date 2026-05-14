@@ -23,6 +23,7 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/space-grotesk": "^5.2.10",
+    "hls.js": "^1.6.16",
     "marked": "^18.0.3"
   }
 }
