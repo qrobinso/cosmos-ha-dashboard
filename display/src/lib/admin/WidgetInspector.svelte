@@ -3,9 +3,9 @@
   import Field from '$lib/admin/Field.svelte';
   import Section from '$lib/admin/widgets/Section.svelte';
   import { widgetIconSvg } from '$lib/admin/widgetIcons';
-  import { widgetKinds, widgetKindOrder } from '$lib/admin/widgetKinds';
+  import { widgetKinds } from '$lib/admin/widgetKinds';
   import { configComponents } from '$lib/admin/widgets';
-  import type { EntityState, Layout, WidgetKind, WidgetState } from '$lib/types';
+  import type { EntityState, Layout, WidgetState } from '$lib/types';
 
   /** The selected widget, or null for the empty state. Two-way bound so
    *  config / position edits flow straight back to the editor's array.
@@ -16,7 +16,6 @@
   export let entities: EntityState[] = [];
 
   const dispatch = createEventDispatcher<{
-    retype: { kind: WidgetKind };
     duplicate: void;
     delete: void;
   }>();
@@ -53,11 +52,6 @@
     p.col = clamp(p.col, 1, layout.cols - p.w + 1);
     p.row = clamp(p.row, 1, layout.rows - p.h + 1);
     widget = { ...widget, position: p };
-  }
-
-  function onRetype(e: Event) {
-    const kind = (e.currentTarget as HTMLSelectElement).value as WidgetKind;
-    dispatch('retype', { kind });
   }
 
   function reqDelete() {
@@ -116,14 +110,6 @@
     </div>
 
     <div class="body">
-      <Section label="Type">
-        <Field label="Widget kind" hint="Changing this resets the config to that kind's defaults.">
-          <select value={widget.kind} on:change={onRetype}>
-            {#each widgetKindOrder as k (k)}<option value={k}>{widgetKinds[k].label}</option>{/each}
-          </select>
-        </Field>
-      </Section>
-
       <div class="kind-fields">
         {#key widget.id + widget.kind}
           <svelte:component this={configComponents[widget.kind]} bind:config={widget.config} {entities} />

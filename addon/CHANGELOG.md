@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.14
+
+- Refactor: dropped the widget-kind `<select>` from the inspector. Re-typing a widget in place was odd — it reset the config to the kind's defaults and lost everything you'd tuned. The palette is the entry point for kinds; if you want a different kind, delete and add it. Smaller inspector header on mobile too.
+
 ## 0.6.13
 
 - Fix: **Mobile scene editor — palette no longer adds widgets when you try to scroll it.** Two compounding bugs: (1) the horizontal palette strip's chips had `touch-action: none`, so the browser never claimed a finger pan as a scroll — every horizontal swipe was hijacked as a drag-to-canvas gesture; (2) any pointer release that *didn't* end on the canvas fell through to "add the widget centered," so a scroll attempt that brushed past a chip ended in "release off-canvas → widget added." Fix: strip chips now use `touch-action: pan-x` (the browser handles horizontal scrolling; vertical movement still falls through as drag intent), and touch releases that don't end over the canvas no longer add. Mouse tap-to-add and keyboard Enter/Space-to-add (the accessible "just add it anywhere" path) are unchanged.

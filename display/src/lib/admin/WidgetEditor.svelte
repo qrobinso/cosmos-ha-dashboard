@@ -66,18 +66,6 @@
     selectedIndex = widgets.length ? Math.min(idx, widgets.length - 1) : null;
   }
 
-  function retype(kind: WidgetKind) {
-    if (selectedIndex === null) return;
-    const cur = widgets[selectedIndex];
-    const next: WidgetState = {
-      ...cur,
-      kind,
-      config: widgetKinds[kind].defaultConfig(entities),
-    };
-    widgets[selectedIndex] = next;
-    widgets = widgets;
-  }
-
   // ── Palette drag tracking ───────────────────────────────────────────────
   // Pointer-event based (not HTML5 dnd) so touch works. Listeners are added on
   // dragstart and torn down on every exit path (pointerup, pointercancel,
@@ -198,7 +186,6 @@
         bind:widget={widgets[selectedIndex]}
         {layout}
         {entities}
-        on:retype={(e) => retype(e.detail.kind)}
         on:duplicate={duplicate}
         on:delete={remove}
       />
