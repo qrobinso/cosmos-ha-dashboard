@@ -111,6 +111,10 @@
   .palette.strip .item {
     width: auto;
     white-space: nowrap;
+    /* On mobile, horizontal finger pans should scroll the strip (the browser
+       handles pan-x), not be hijacked as a drag-to-canvas gesture. Vertical
+       movement still falls through to our pointer handlers as drag intent. */
+    touch-action: pan-x;
   }
   .item:hover {
     background: var(--c-surface-2);

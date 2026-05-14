@@ -141,7 +141,14 @@
       const cell = canvas?.pointerCell?.(e.clientX, e.clientY);
       if (cell) { addAt(kind, cell.col, cell.row); return; }
     }
-    // A tap that didn't move (or released off-canvas) → add centered.
+    // On touch, require a deliberate drag onto the canvas — an off-canvas
+    // release (a tap on a chip while trying to scroll the strip, a chip
+    // brushed by accident) does nothing. Otherwise the user can't scroll
+    // the palette without accidentally placing widgets. Mouse releases still
+    // fall through to add-centered, and the keyboard add path (Enter/Space
+    // on a focused chip → WidgetPalette's `add` event) keeps "just add it
+    // anywhere" reachable from any input.
+    if (e.pointerType === 'touch') return;
     if (!moved || !overCanvas) addCentered(kind);
   }
   function onPaletteCancel(e: PointerEvent) {

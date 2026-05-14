@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.13
+
+- Fix: **Mobile scene editor — palette no longer adds widgets when you try to scroll it.** Two compounding bugs: (1) the horizontal palette strip's chips had `touch-action: none`, so the browser never claimed a finger pan as a scroll — every horizontal swipe was hijacked as a drag-to-canvas gesture; (2) any pointer release that *didn't* end on the canvas fell through to "add the widget centered," so a scroll attempt that brushed past a chip ended in "release off-canvas → widget added." Fix: strip chips now use `touch-action: pan-x` (the browser handles horizontal scrolling; vertical movement still falls through as drag intent), and touch releases that don't end over the canvas no longer add. Mouse tap-to-add and keyboard Enter/Space-to-add (the accessible "just add it anywhere" path) are unchanged.
+
 ## 0.6.12
 
 - Feat: **Live scene preview in the admin scenes list.** Hover a scene's thumbnail (pointer devices) and a floating popover renders the *actual* scene — an `<iframe>` of the read-only kiosk renderer, animated background and all, sized to the scene's grid aspect ratio. On touch devices (no hover), tapping the thumbnail opens the same preview as a centered modal with a backdrop, close button, and an "Open editor" link (the scene name + the row's Edit button still go straight to the editor). New `GET /api/scenes/:id/preview` returns an assembled `SceneState` (real HA data when connected, mock otherwise — canvas widgets render with their `{{ }}` templates unsubstituted, since the preview path deliberately skips the stateful canvas resolver to avoid clobbering a live display's subscription). New route `/admin/scenes/:id/preview` mounts `<SceneCanvas>` full-viewport outside the admin chrome; reachable directly for debugging.
