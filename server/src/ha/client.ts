@@ -88,6 +88,10 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
     opts: { start: Date; end: Date }
   ): Promise<CalendarEvent[]> {
     if (!connection) return [];
+    // Skip the service call when the entity isn't in HA's cache — calling
+    // `calendar.get_events` with an unknown or empty id produces a noisy
+    // error log on every scene push for stale/placeholder configs.
+    if (!entityId || !cache.get(entityId)) return [];
     try {
       // HA's `calendar.get_events` service returns events in `response.<entity_id>.events`.
       const result = (await callService(
@@ -212,6 +216,10 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
 
   async function getCameraCapabilities(entityId: string): Promise<{ frontend_stream_types: string[] }> {
     if (!connection) return { frontend_stream_types: [] };
+    // Skip the service call when the entity isn't in HA's cache — see
+    // getCalendarEvents for the same rationale (stale/placeholder configs
+    // would otherwise log "Camera not found" on every scene push).
+    if (!entityId || !cache.get(entityId)) return { frontend_stream_types: [] };
     try {
       const result = (await connection.sendMessagePromise({
         type: 'camera/capabilities',
@@ -231,6 +239,7 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
 
   async function getCameraStream(entityId: string, format?: 'hls'): Promise<{ url: string }> {
     if (!connection) return { url: '' };
+    if (!entityId || !cache.get(entityId)) return { url: '' };
     const msg: { type: 'camera/stream'; entity_id: string; format?: 'hls' } = {
       type: 'camera/stream',
       entity_id: entityId,
@@ -247,6 +256,7 @@ export async function makeHaClient(config: HaConfig): Promise<HaClient> {
 
   async function getCameraWebRtcClientConfig(entityId: string): Promise<Record<string, unknown>> {
     if (!connection) return { configuration: {} };
+    if (!entityId || !cache.get(entityId)) return { configuration: {} };
     try {
       const result = (await connection.sendMessagePromise({
         type: 'camera/webrtc/get_client_config',
