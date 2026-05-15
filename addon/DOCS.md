@@ -16,18 +16,19 @@ Find your HA host's LAN IP. On the tablet's browser, open `http://<HA_IP>:8099/`
 
 ## Use Cosmos in HA automations
 
-Cosmos publishes MQTT discovery payloads, so each display shows up as a HA **device** with five entities you can drop straight into automations — no MQTT-publish boilerplate required:
+Cosmos publishes MQTT discovery payloads, so each display shows up as a HA **device** with these entities you can drop straight into automations — no MQTT-publish boilerplate required:
 
 | Entity                                    | Type           | Use in automations                                   |
 |-------------------------------------------|----------------|------------------------------------------------------|
 | `select.<display>_active_scene`           | Select         | **Action: Select option** → pick a scene to switch.  |
-| `notify.<display>_show_message`           | Notify service | **Action: Notification** → push a banner with title + message. |
+| `notify.<display>_show_message`           | Notify service | **Action: Notification** → push a banner. Title + message. |
+| `notify.<display>_show_alert`             | Notify service | **Action: Notification** → flash a scene for N seconds then revert. **Message** = scene name; **Title** = dwell in seconds (default 5). |
 | `button.<display>_dismiss_message`        | Button         | **Action: Press button** → clear any visible banner. |
 | `button.<display>_last_scene`             | Button         | **Action: Press button** → switch back to the previously-active scene. |
 | `sensor.<display>_scene`                  | Sensor         | Trigger / condition on the current scene name.       |
 | `binary_sensor.<display>_online`          | Connectivity   | Trigger / condition on display online state.         |
 
-Example automation: switch the Kitchen display to a "Cooking" scene when the oven turns on:
+Example — switch the Kitchen display to a "Cooking" scene when the oven turns on:
 
 ```yaml
 trigger:
@@ -41,6 +42,22 @@ action:
   data:
     option: Cooking
 ```
+
+Example — flash the "Doorbell" scene on the Living Room display for 8 seconds when someone presses the bell:
+
+```yaml
+trigger:
+  platform: state
+  entity_id: binary_sensor.doorbell
+  to: 'on'
+action:
+  service: notify.cosmos_living_room_show_alert
+  data:
+    message: Doorbell   # the scene to flash
+    title: "8"          # dwell in seconds (default 5 when blank)
+```
+
+One action, three pieces of information (display + scene + time). Earlier Cosmos versions exposed a three-action variant (a select for the scene, a number for the dwell, and a button to fire); that was removed — automations using the old `select.<display>_alert_scene`, `number.<display>_alert_dwell`, or `button.<display>_alert_fire` entities need to migrate to the single `notify` action above.
 
 ### Direct MQTT (advanced)
 
@@ -58,6 +75,12 @@ service: mqtt.publish
 data:
   topic: cosmos/Living Room/scene/set
   payload: '{"scene_name":"Cooking"}'
+
+# Flash a scene for N milliseconds, then auto-revert
+service: mqtt.publish
+data:
+  topic: cosmos/Living Room/scene/alert
+  payload: '{"scene_name":"Doorbell","dwell_ms":8000}'
 
 # Dismiss any visible message
 service: mqtt.publish

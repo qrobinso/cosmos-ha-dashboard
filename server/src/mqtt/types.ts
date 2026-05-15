@@ -14,24 +14,13 @@ export type ShowSceneAlertCommand = {
   dwellMs: number;
   transitionId?: string;
 };
-/** HA writes the picked scene name to `alert/scene/set`; server stores it
- *  and republishes on `alert/scene` (retained) for the select to display. */
-export type SetAlertSceneCommand = { kind: 'set_alert_scene'; target: CommandTarget; sceneName: string };
-/** HA writes the picked dwell (seconds) to `alert/dwell/set`; server stores it
- *  and republishes on `alert/dwell` (retained). */
-export type SetAlertDwellCommand = { kind: 'set_alert_dwell'; target: CommandTarget; dwellSec: number };
-/** Button press — fires the stored {sceneName, dwellSec} pair. */
-export type FireAlertCommand = { kind: 'fire_alert'; target: CommandTarget };
 
 export type ParsedCommand =
   | ShowMessageCommand
   | DismissMessageCommand
   | ShowSceneCommand
   | LastSceneCommand
-  | ShowSceneAlertCommand
-  | SetAlertSceneCommand
-  | SetAlertDwellCommand
-  | FireAlertCommand;
+  | ShowSceneAlertCommand;
 
 export type MqttClient = {
   /** Publish a JSON payload (will be JSON.stringified) to a topic, with optional retain. */
