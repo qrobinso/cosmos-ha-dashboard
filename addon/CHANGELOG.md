@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.15
+
+- **Breaking (HA automations):** the scene-alert UI in Home Assistant is now a **single device action** instead of three. The discrete `select.<display>_alert_scene`, `number.<display>_alert_dwell`, and `button.<display>_alert_fire` entities — which together took three automation steps to flash one scene — are gone. Use **`notify.<display>_show_alert`** instead: pass the scene name in the *Message* field and the dwell (seconds, default 5) in the *Title* field. Anyone using the trio needs to migrate their automations to that one notify call; the raw MQTT topic `cosmos/<display>/scene/alert` (with `{"scene_name", "dwell_ms"}` JSON payload) also still works for direct-MQTT users.
+
 ## 0.6.14
 
 - Refactor: dropped the widget-kind `<select>` from the inspector. Re-typing a widget in place was odd — it reset the config to the kind's defaults and lost everything you'd tuned. The palette is the entry point for kinds; if you want a different kind, delete and add it. Smaller inspector header on mobile too.
