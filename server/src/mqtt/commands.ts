@@ -1,6 +1,6 @@
 import type { ParsedCommand } from './types.js';
 
-const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set|scene\/last|scene\/alert)$/;
+const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set|scene\/last|scene\/alert|alert\/scene\/set)$/;
 
 export function parseCommandTopic(topic: string, payload: string): ParsedCommand | null {
   const m = TOPIC_RE.exec(topic);
@@ -46,6 +46,12 @@ export function parseCommandTopic(topic: string, payload: string): ParsedCommand
       // No payload required — switches to whichever scene was active before
       // the current one. Useful as an HA automation action ("go back").
       return { kind: 'last_scene', target };
+    case 'alert/scene/set': {
+      // Plain string payload (HA select sends the picked option as-is).
+      const sceneName = payload.trim();
+      if (!sceneName) return null;
+      return { kind: 'set_alert_scene', target, sceneName };
+    }
     case 'scene/alert': {
       let body: unknown;
       try {
@@ -55,12 +61,16 @@ export function parseCommandTopic(topic: string, payload: string): ParsedCommand
       }
       if (typeof body !== 'object' || body === null) return null;
       const b = body as Record<string, unknown>;
-      if (typeof b.scene_name !== 'string' || b.scene_name.trim() === '') return null;
+      // sceneName may be blank — the dispatcher falls back to the per-display
+      // picked alert scene (set via `alert/scene/set` from the select entity)
+      // when the notify's Message field is left empty. Non-string still fails.
+      const sceneName = typeof b.scene_name === 'string' ? b.scene_name.trim() : '';
+      if (b.scene_name !== undefined && typeof b.scene_name !== 'string') return null;
       if (typeof b.dwell_ms !== 'number' || !isFinite(b.dwell_ms)) return null;
       return {
         kind: 'show_scene_alert',
         target,
-        sceneName: b.scene_name,
+        sceneName,
         dwellMs: b.dwell_ms,
         transitionId: typeof b.transition_id === 'string' ? b.transition_id : undefined,
       };

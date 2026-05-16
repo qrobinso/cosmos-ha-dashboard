@@ -167,7 +167,8 @@ When MQTT is connected, Cosmos publishes HA discovery payloads, so each display 
 |---|---|---|
 | `select.<display>_active_scene` | Select | **Select option** → switch the display to that scene |
 | `notify.<display>_show_message` | Notify | **Notification** → push a banner (title + message) |
-| `notify.<display>_show_alert` | Notify | **Notification** → flash a scene for N seconds, then revert. Message = scene name; Title = dwell in seconds (default 5) |
+| `select.<display>_alert_scene` | Select | **Select option** → pick which scene the alert flashes (dropdown of all scenes) |
+| `notify.<display>_show_alert` | Notify | **Notification** → fire the alert. Message = scene name (blank → use the scene picked in the select above); Title = dwell in seconds (default 5) |
 | `button.<display>_dismiss_message` | Button | **Press** → clear any visible banner |
 | `button.<display>_last_scene` | Button | **Press** → switch back to the previously-active scene |
 | `sensor.<display>_scene` | Sensor | Trigger / condition on the current scene name |

@@ -482,13 +482,47 @@ async function main() {
     dwellMs: number,
     transitionId?: string
   ) {
-    const scene = scenes.getByName(sceneName);
-    if (!scene) {
-      console.warn(`alert: scene "${sceneName}" not found`);
-      return;
-    }
     for (const d of resolveTargetDisplays(target)) {
+      // When the notify left Message blank, fall back to the scene the user
+      // picked in the per-display select (the dropdown UX). Resolved per-display
+      // so a broadcast target still respects each display's choice.
+      const resolvedName = sceneName.trim() || readAlertScene(d.id) || '';
+      if (!resolvedName) {
+        console.warn(`alert: no scene specified and none picked for ${d.name}`);
+        continue;
+      }
+      const scene = scenes.getByName(resolvedName);
+      if (!scene) {
+        console.warn(`alert: scene "${resolvedName}" not found for ${d.name}`);
+        continue;
+      }
       alertManager.fire(d.id, scene.id, dwellMs, { explicitTransitionId: transitionId ?? null });
+    }
+  }
+
+  // ── Per-display picked alert scene (the select entity's state) ──────────
+  // Persisted in `settings` so the HA select shows the right value after a
+  // server restart; republished retained on `alert/scene` so HA renders the
+  // dropdown's current selection.
+  const ALERT_SCENE_PREFIX = 'alert_scene_';
+  function readAlertScene(displayId: string): string | null {
+    const raw = settings.get(ALERT_SCENE_PREFIX + displayId);
+    return typeof raw === 'string' && raw.trim() !== '' ? raw : null;
+  }
+  function writeAlertScene(displayId: string, sceneName: string) {
+    settings.set(ALERT_SCENE_PREFIX + displayId, sceneName);
+  }
+  function publishAlertScene(displayId: string) {
+    if (!mqttClient) return;
+    const sceneName = readAlertScene(displayId);
+    if (sceneName) {
+      mqttClient.publish(`cosmos/${displayId}/alert/scene`, sceneName, { retain: true });
+    }
+  }
+  function dispatchSetAlertScene(target: string, sceneName: string) {
+    for (const d of resolveTargetDisplays(target)) {
+      writeAlertScene(d.id, sceneName);
+      publishAlertScene(d.id);
     }
   }
 
@@ -536,6 +570,15 @@ async function main() {
         if (cmd?.kind !== 'show_scene_alert') return;
         dispatchShowSceneAlert(cmd.target, cmd.sceneName, cmd.dwellMs, cmd.transitionId);
       });
+      mqttClient.subscribe('cosmos/+/alert/scene/set', (topic, payload) => {
+        const cmd = parseCommandTopic(topic, payload);
+        if (cmd?.kind !== 'set_alert_scene') return;
+        dispatchSetAlertScene(cmd.target, cmd.sceneName);
+      });
+
+      // Republish each display's persisted alert-scene pick so the select
+      // entity renders the right current value right after discovery.
+      for (const d of displays.list()) publishAlertScene(d.id);
     } catch (err) {
       console.error('MQTT connection failed; overlay/scene commands unavailable', err);
       mqttClient = null;
