@@ -1,6 +1,6 @@
 import type { ParsedCommand } from './types.js';
 
-const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set|scene\/last|scene\/alert|alert\/scene\/set)$/;
+const TOPIC_RE = /^cosmos\/([^/]+)\/(message\/set|message\/dismiss|scene\/set|scene\/last|scene\/alert|alert\/scene\/set|alert\/dwell\/set|alert\/fire)$/;
 
 export function parseCommandTopic(topic: string, payload: string): ParsedCommand | null {
   const m = TOPIC_RE.exec(topic);
@@ -52,6 +52,15 @@ export function parseCommandTopic(topic: string, payload: string): ParsedCommand
       if (!sceneName) return null;
       return { kind: 'set_alert_scene', target, sceneName };
     }
+    case 'alert/dwell/set': {
+      // Plain numeric string payload (HA number sends e.g. "8" or "8.0").
+      const n = Number(payload);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      return { kind: 'set_alert_dwell', target, dwellSec: n };
+    }
+    case 'alert/fire':
+      // No payload required.
+      return { kind: 'fire_alert', target };
     case 'scene/alert': {
       let body: unknown;
       try {
@@ -61,16 +70,12 @@ export function parseCommandTopic(topic: string, payload: string): ParsedCommand
       }
       if (typeof body !== 'object' || body === null) return null;
       const b = body as Record<string, unknown>;
-      // sceneName may be blank — the dispatcher falls back to the per-display
-      // picked alert scene (set via `alert/scene/set` from the select entity)
-      // when the notify's Message field is left empty. Non-string still fails.
-      const sceneName = typeof b.scene_name === 'string' ? b.scene_name.trim() : '';
-      if (b.scene_name !== undefined && typeof b.scene_name !== 'string') return null;
+      if (typeof b.scene_name !== 'string' || b.scene_name.trim() === '') return null;
       if (typeof b.dwell_ms !== 'number' || !isFinite(b.dwell_ms)) return null;
       return {
         kind: 'show_scene_alert',
         target,
-        sceneName,
+        sceneName: b.scene_name,
         dwellMs: b.dwell_ms,
         transitionId: typeof b.transition_id === 'string' ? b.transition_id : undefined,
       };

@@ -16,20 +16,18 @@ Find your HA host's LAN IP. On the tablet's browser, open `http://<HA_IP>:8099/`
 
 ## Use Cosmos in HA automations
 
-Cosmos publishes MQTT discovery payloads, so each display shows up as a HA **device** with these entities you can drop straight into automations — no MQTT-publish boilerplate required:
+Cosmos publishes MQTT discovery payloads, so each display shows up as a HA **device** with five entities you can drop straight into automations — no MQTT-publish boilerplate required:
 
 | Entity                                    | Type           | Use in automations                                   |
 |-------------------------------------------|----------------|------------------------------------------------------|
 | `select.<display>_active_scene`           | Select         | **Action: Select option** → pick a scene to switch.  |
-| `notify.<display>_show_message`           | Notify service | **Action: Notification** → push a banner. Title + message. |
-| `select.<display>_alert_scene`            | Select         | **Action: Select option** → pick which scene the alert flashes (dropdown of all scene names). The server remembers the choice; the notify below uses it as the default. |
-| `notify.<display>_show_alert`             | Notify service | **Action: Notification** → fires the alert. **Message** = scene name (leave blank to use the scene picked in the select above); **Title** = dwell in seconds (default 5). |
+| `notify.<display>_show_message`           | Notify service | **Action: Notification** → push a banner with title + message. |
 | `button.<display>_dismiss_message`        | Button         | **Action: Press button** → clear any visible banner. |
 | `button.<display>_last_scene`             | Button         | **Action: Press button** → switch back to the previously-active scene. |
 | `sensor.<display>_scene`                  | Sensor         | Trigger / condition on the current scene name.       |
 | `binary_sensor.<display>_online`          | Connectivity   | Trigger / condition on display online state.         |
 
-Example — switch the Kitchen display to a "Cooking" scene when the oven turns on:
+Example automation: switch the Kitchen display to a "Cooking" scene when the oven turns on:
 
 ```yaml
 trigger:
@@ -43,47 +41,6 @@ action:
   data:
     option: Cooking
 ```
-
-Example — flash the "Doorbell" scene on the Living Room display for 8 seconds when someone presses the bell. Two equivalent patterns:
-
-**(a) Dropdown UX — pick the scene from a select, fire the notify:**
-
-```yaml
-trigger:
-  platform: state
-  entity_id: binary_sensor.doorbell
-  to: 'on'
-action:
-  - service: select.select_option   # ← dropdown of scene names
-    target:
-      entity_id: select.living_room_alert_scene
-    data:
-      option: Doorbell
-  - service: notify.cosmos_living_room_show_alert
-    data:
-      message: ""    # blank → use the scene picked above
-      title: "8"     # dwell in seconds (default 5 when blank)
-```
-
-The select remembers its choice across restarts, so once you've picked "Doorbell" you don't have to repeat it — subsequent automations can just call the notify with `message: ""`.
-
-**(b) One-action freeform — put the scene name directly in the notify:**
-
-```yaml
-trigger:
-  platform: state
-  entity_id: binary_sensor.doorbell
-  to: 'on'
-action:
-  service: notify.cosmos_living_room_show_alert
-  data:
-    message: Doorbell   # the scene to flash
-    title: "8"          # dwell in seconds (default 5 when blank)
-```
-
-Slightly shorter, but the scene name is free-text — typo at your own risk. Use (a) when you want HA to show you a dropdown of valid scenes; (b) when you want one terse step.
-
-> Earlier Cosmos versions also exposed a `number.<display>_alert_dwell` entity and a `button.<display>_alert_fire`; both are gone. Dwell now travels in the notify's title field; the notify itself is the fire path.
 
 ### Direct MQTT (advanced)
 
@@ -101,12 +58,6 @@ service: mqtt.publish
 data:
   topic: cosmos/Living Room/scene/set
   payload: '{"scene_name":"Cooking"}'
-
-# Flash a scene for N milliseconds, then auto-revert
-service: mqtt.publish
-data:
-  topic: cosmos/Living Room/scene/alert
-  payload: '{"scene_name":"Doorbell","dwell_ms":8000}'
 
 # Dismiss any visible message
 service: mqtt.publish

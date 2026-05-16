@@ -1,12 +1,8 @@
 # Changelog
 
-## 0.6.16
+## 0.6.17
 
-- Feat: brought back **`select.<display>_alert_scene`** — the per-display alert scene picker, with a real dropdown of all scene names in HA's automation builder. (HA's notify-service field schema has no way to declare a custom selector, so a free-text Message field was the only option without it; the select gives users typo-proof scene picking.) The server persists the choice and republishes the retained state so the dropdown shows the right current value across restarts. The dwell `number` entity and `button.<display>_alert_fire` remain gone — dwell still travels in the notify's Title field, and the notify itself is still the fire path. Two equivalent patterns now: (a) pick scene in the select → fire notify with blank message + title=seconds; (b) notify with message=scene + title=seconds (one-action freeform). Both documented in `addon/DOCS.md`.
-
-## 0.6.15
-
-- **Breaking (HA automations):** the scene-alert UI in Home Assistant is now a **single device action** instead of three. The discrete `select.<display>_alert_scene`, `number.<display>_alert_dwell`, and `button.<display>_alert_fire` entities — which together took three automation steps to flash one scene — are gone. Use **`notify.<display>_show_alert`** instead: pass the scene name in the *Message* field and the dwell (seconds, default 5) in the *Title* field. Anyone using the trio needs to migrate their automations to that one notify call; the raw MQTT topic `cosmos/<display>/scene/alert` (with `{"scene_name", "dwell_ms"}` JSON payload) also still works for direct-MQTT users.
+- Revert: the alert UI is back to the original **three-action** pattern from 0.6.14 — `select.<display>_alert_scene` (dropdown of scene names), `number.<display>_alert_dwell` (seconds), and `button.<display>_alert_fire` (trigger). 0.6.15 tried consolidating to a single notify (typo-prone Message field, no scene dropdown) and 0.6.16 brought the select back as a hybrid; neither felt as good in HA's automation builder as three labeled, typed entities. Three actions, three real form fields, no JSON-stuffing the notify's title — back where we started. If you set up automations on 0.6.15 or 0.6.16, switch them back to the trio. Anyone who picked a scene on 0.6.16 will need to re-pick it (0.6.16 used a different settings key); installs on 0.6.14 or earlier keep their original pick, since that storage key was never removed.
 
 ## 0.6.14
 

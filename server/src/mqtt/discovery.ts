@@ -18,18 +18,10 @@ const COSMOS_DEVICE = {
  *
  *   - notify.cosmos_<display>_show_message   — push a banner
  *   - button.cosmos_<display>_dismiss_message — clear the banner
- *   - select.cosmos_<display>_alert_scene    — picks the scene to flash on alert
- *                                              (dropdown of scene names; the server
- *                                              persists the choice per-display)
- *   - notify.cosmos_<display>_show_alert     — fires the alert. Message = scene name
- *                                              (or blank to use the picked alert_scene);
- *                                              Title = dwell in seconds, default 5.
- *                                              Two equivalent automation patterns:
- *                                                (a) Select alert_scene → Notify with
- *                                                    blank message + title (=seconds)
- *                                                    — the dropdown UX.
- *                                                (b) Notify with message=scene name +
- *                                                    title=seconds — one-action freeform.
+ *   - notify.cosmos_<display>_show_alert     — single-shot alert (advanced)
+ *   - select.cosmos_<display>_alert_scene    — which scene the alert flashes
+ *   - number.cosmos_<display>_alert_dwell    — how long (seconds) the alert holds
+ *   - button.cosmos_<display>_alert_fire     — fire the alert with above config
  *   - button.cosmos_<display>_last_scene     — switch back to the previous scene
  *   - select.cosmos_<display>_active_scene   — switch the active scene
  *
@@ -97,12 +89,11 @@ export function buildDiscoveryPayloads(
       retain: true,
     });
 
-    // ── Alert scene picker (dropdown) ────────────────────────────────
-    // A select entity gives HA's automation builder a real dropdown of
-    // scene names (typo-proof) for the alert. The server persists the
-    // chosen scene per-display; the notify below uses it as the default
-    // when its Message field is blank. Users who'd rather skip the select
-    // can pass the scene name directly in the notify's Message field.
+    // ── Alert UI: select (which scene) + number (how long) + button (fire) ──
+    // Three entities together give the HA automation builder a real form
+    // experience: pick scene from a dropdown, set dwell with a number widget,
+    // press the button to fire. The server tracks the latest picked
+    // scene/dwell per display, then uses them when the button is pressed.
     out.push({
       topic: `homeassistant/select/cosmos_${d.id}_alert_scene/config`,
       payload: JSON.stringify({
@@ -115,12 +106,35 @@ export function buildDiscoveryPayloads(
       }),
       retain: true,
     });
+    out.push({
+      topic: `homeassistant/number/cosmos_${d.id}_alert_dwell/config`,
+      payload: JSON.stringify({
+        name: `${d.name} Alert Dwell`,
+        unique_id: `cosmos_${d.id}_alert_dwell`,
+        command_topic: `cosmos/${d.id}/alert/dwell/set`,
+        state_topic: `cosmos/${d.id}/alert/dwell`,
+        min: 1,
+        max: 600,
+        step: 1,
+        unit_of_measurement: 's',
+        mode: 'box',
+        device: COSMOS_DEVICE,
+      }),
+      retain: true,
+    });
+    out.push({
+      topic: `homeassistant/button/cosmos_${d.id}_alert_fire/config`,
+      payload: JSON.stringify({
+        name: `${d.name} Fire Alert`,
+        unique_id: `cosmos_${d.id}_alert_fire`,
+        command_topic: `cosmos/${d.id}/alert/fire`,
+        payload_press: '',
+        device: COSMOS_DEVICE,
+      }),
+      retain: true,
+    });
 
-    // ── Notify: fire the alert ───────────────────────────────────────
-    // One HA action that flashes a scene for N seconds, then reverts.
-    //   - Message = scene name. Leave blank to use the scene picked in the
-    //     select above (the dropdown UX).
-    //   - Title   = dwell in seconds (defaults to 5 when blank).
+    // ── Notify: legacy single-shot alert (kept for direct mqtt/notify users) ──
     out.push({
       topic: `homeassistant/notify/cosmos_${d.id}_show_alert/config`,
       payload: JSON.stringify({
