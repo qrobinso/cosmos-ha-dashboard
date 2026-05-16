@@ -11,7 +11,7 @@ describe('buildDiscoveryPayloads', () => {
       ['Morning', 'Evening']
     );
 
-    expect(out.length).toBe(14); // 2 displays * 7 entities
+    expect(out.length).toBe(16); // 2 displays * 8 entities
 
     expect(out.filter((p) => p.topic.includes('/sensor/')).length).toBe(2);
     expect(out.filter((p) => p.topic.includes('/binary_sensor/')).length).toBe(2);
@@ -19,8 +19,8 @@ describe('buildDiscoveryPayloads', () => {
     expect(out.filter((p) => p.topic.includes('/notify/')).length).toBe(4);
     // dismiss_message + last_scene = 2 buttons per display
     expect(out.filter((p) => p.topic.includes('/button/')).length).toBe(4);
-    // active_scene = 1 select per display
-    expect(out.filter((p) => p.topic.includes('/select/')).length).toBe(2);
+    // active_scene + alert_scene = 2 selects per display
+    expect(out.filter((p) => p.topic.includes('/select/')).length).toBe(4);
     // No number entities: the alert dwell now travels in the notify's title field.
     expect(out.filter((p) => p.topic.includes('/number/')).length).toBe(0);
 
@@ -62,13 +62,22 @@ describe('buildDiscoveryPayloads', () => {
     expect(cfg.payload_press).toBe('');
   });
 
-  it('does not emit the legacy select+number+button alert trio', () => {
-    // Replaced by the single notify.<display>_show_alert below.
+  it('emits a select entity for picking the alert scene (dropdown)', () => {
     const out = buildDiscoveryPayloads(
       [{ id: 'd1', name: 'A' }],
       ['Morning', 'Evening']
     );
-    expect(out.find((p) => p.topic.endsWith('cosmos_d1_alert_scene/config'))).toBeUndefined();
+    const select = JSON.parse(
+      out.find((p) => p.topic.endsWith('cosmos_d1_alert_scene/config'))!.payload
+    );
+    expect(select.command_topic).toBe('cosmos/d1/alert/scene/set');
+    expect(select.state_topic).toBe('cosmos/d1/alert/scene');
+    expect(select.options).toEqual(['Morning', 'Evening']);
+  });
+
+  it('no longer emits the removed alert dwell number or fire button', () => {
+    // Dwell rides in the notify's title field; the notify is the fire path.
+    const out = buildDiscoveryPayloads([{ id: 'd1', name: 'A' }], ['Morning']);
     expect(out.find((p) => p.topic.endsWith('cosmos_d1_alert_dwell/config'))).toBeUndefined();
     expect(out.find((p) => p.topic.endsWith('cosmos_d1_alert_fire/config'))).toBeUndefined();
   });

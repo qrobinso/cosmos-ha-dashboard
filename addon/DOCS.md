@@ -22,7 +22,8 @@ Cosmos publishes MQTT discovery payloads, so each display shows up as a HA **dev
 |-------------------------------------------|----------------|------------------------------------------------------|
 | `select.<display>_active_scene`           | Select         | **Action: Select option** → pick a scene to switch.  |
 | `notify.<display>_show_message`           | Notify service | **Action: Notification** → push a banner. Title + message. |
-| `notify.<display>_show_alert`             | Notify service | **Action: Notification** → flash a scene for N seconds then revert. **Message** = scene name; **Title** = dwell in seconds (default 5). |
+| `select.<display>_alert_scene`            | Select         | **Action: Select option** → pick which scene the alert flashes (dropdown of all scene names). The server remembers the choice; the notify below uses it as the default. |
+| `notify.<display>_show_alert`             | Notify service | **Action: Notification** → fires the alert. **Message** = scene name (leave blank to use the scene picked in the select above); **Title** = dwell in seconds (default 5). |
 | `button.<display>_dismiss_message`        | Button         | **Action: Press button** → clear any visible banner. |
 | `button.<display>_last_scene`             | Button         | **Action: Press button** → switch back to the previously-active scene. |
 | `sensor.<display>_scene`                  | Sensor         | Trigger / condition on the current scene name.       |
@@ -43,7 +44,30 @@ action:
     option: Cooking
 ```
 
-Example — flash the "Doorbell" scene on the Living Room display for 8 seconds when someone presses the bell:
+Example — flash the "Doorbell" scene on the Living Room display for 8 seconds when someone presses the bell. Two equivalent patterns:
+
+**(a) Dropdown UX — pick the scene from a select, fire the notify:**
+
+```yaml
+trigger:
+  platform: state
+  entity_id: binary_sensor.doorbell
+  to: 'on'
+action:
+  - service: select.select_option   # ← dropdown of scene names
+    target:
+      entity_id: select.living_room_alert_scene
+    data:
+      option: Doorbell
+  - service: notify.cosmos_living_room_show_alert
+    data:
+      message: ""    # blank → use the scene picked above
+      title: "8"     # dwell in seconds (default 5 when blank)
+```
+
+The select remembers its choice across restarts, so once you've picked "Doorbell" you don't have to repeat it — subsequent automations can just call the notify with `message: ""`.
+
+**(b) One-action freeform — put the scene name directly in the notify:**
 
 ```yaml
 trigger:
@@ -57,7 +81,9 @@ action:
     title: "8"          # dwell in seconds (default 5 when blank)
 ```
 
-One action, three pieces of information (display + scene + time). Earlier Cosmos versions exposed a three-action variant (a select for the scene, a number for the dwell, and a button to fire); that was removed — automations using the old `select.<display>_alert_scene`, `number.<display>_alert_dwell`, or `button.<display>_alert_fire` entities need to migrate to the single `notify` action above.
+Slightly shorter, but the scene name is free-text — typo at your own risk. Use (a) when you want HA to show you a dropdown of valid scenes; (b) when you want one terse step.
+
+> Earlier Cosmos versions also exposed a `number.<display>_alert_dwell` entity and a `button.<display>_alert_fire`; both are gone. Dwell now travels in the notify's title field; the notify itself is the fire path.
 
 ### Direct MQTT (advanced)
 

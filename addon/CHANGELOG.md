@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.16
+
+- Feat: brought back **`select.<display>_alert_scene`** — the per-display alert scene picker, with a real dropdown of all scene names in HA's automation builder. (HA's notify-service field schema has no way to declare a custom selector, so a free-text Message field was the only option without it; the select gives users typo-proof scene picking.) The server persists the choice and republishes the retained state so the dropdown shows the right current value across restarts. The dwell `number` entity and `button.<display>_alert_fire` remain gone — dwell still travels in the notify's Title field, and the notify itself is still the fire path. Two equivalent patterns now: (a) pick scene in the select → fire notify with blank message + title=seconds; (b) notify with message=scene + title=seconds (one-action freeform). Both documented in `addon/DOCS.md`.
+
 ## 0.6.15
 
 - **Breaking (HA automations):** the scene-alert UI in Home Assistant is now a **single device action** instead of three. The discrete `select.<display>_alert_scene`, `number.<display>_alert_dwell`, and `button.<display>_alert_fire` entities — which together took three automation steps to flash one scene — are gone. Use **`notify.<display>_show_alert`** instead: pass the scene name in the *Message* field and the dwell (seconds, default 5) in the *Title* field. Anyone using the trio needs to migrate their automations to that one notify call; the raw MQTT topic `cosmos/<display>/scene/alert` (with `{"scene_name", "dwell_ms"}` JSON payload) also still works for direct-MQTT users.

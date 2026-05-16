@@ -18,9 +18,18 @@ const COSMOS_DEVICE = {
  *
  *   - notify.cosmos_<display>_show_message   — push a banner
  *   - button.cosmos_<display>_dismiss_message — clear the banner
- *   - notify.cosmos_<display>_show_alert     — flash a scene for N seconds, then revert
- *                                              (Message field = scene name; Title field
- *                                              = dwell in seconds, default 5)
+ *   - select.cosmos_<display>_alert_scene    — picks the scene to flash on alert
+ *                                              (dropdown of scene names; the server
+ *                                              persists the choice per-display)
+ *   - notify.cosmos_<display>_show_alert     — fires the alert. Message = scene name
+ *                                              (or blank to use the picked alert_scene);
+ *                                              Title = dwell in seconds, default 5.
+ *                                              Two equivalent automation patterns:
+ *                                                (a) Select alert_scene → Notify with
+ *                                                    blank message + title (=seconds)
+ *                                                    — the dropdown UX.
+ *                                                (b) Notify with message=scene name +
+ *                                                    title=seconds — one-action freeform.
  *   - button.cosmos_<display>_last_scene     — switch back to the previous scene
  *   - select.cosmos_<display>_active_scene   — switch the active scene
  *
@@ -88,13 +97,30 @@ export function buildDiscoveryPayloads(
       retain: true,
     });
 
-    // ── Notify: single-shot scene alert ──────────────────────────────
-    // One HA action that flashes a scene for N seconds, then reverts. Both
-    // parameters travel in the notify call:
-    //   - Message field = scene name (the primary input HA renders)
-    //   - Title field   = dwell in seconds (defaults to 5 when blank)
-    // Earlier versions of Cosmos also exposed a select+number+button trio
-    // for the same job; that was three actions to do one thing and is gone.
+    // ── Alert scene picker (dropdown) ────────────────────────────────
+    // A select entity gives HA's automation builder a real dropdown of
+    // scene names (typo-proof) for the alert. The server persists the
+    // chosen scene per-display; the notify below uses it as the default
+    // when its Message field is blank. Users who'd rather skip the select
+    // can pass the scene name directly in the notify's Message field.
+    out.push({
+      topic: `homeassistant/select/cosmos_${d.id}_alert_scene/config`,
+      payload: JSON.stringify({
+        name: `${d.name} Alert Scene`,
+        unique_id: `cosmos_${d.id}_alert_scene`,
+        command_topic: `cosmos/${d.id}/alert/scene/set`,
+        state_topic: `cosmos/${d.id}/alert/scene`,
+        options: sceneNames,
+        device: COSMOS_DEVICE,
+      }),
+      retain: true,
+    });
+
+    // ── Notify: fire the alert ───────────────────────────────────────
+    // One HA action that flashes a scene for N seconds, then reverts.
+    //   - Message = scene name. Leave blank to use the scene picked in the
+    //     select above (the dropdown UX).
+    //   - Title   = dwell in seconds (defaults to 5 when blank).
     out.push({
       topic: `homeassistant/notify/cosmos_${d.id}_show_alert/config`,
       payload: JSON.stringify({
