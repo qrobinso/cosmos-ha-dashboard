@@ -140,6 +140,40 @@ function validateWidget(widget: unknown, index: number, layout: { cols: number; 
   if (typeof w.config !== 'object' || Array.isArray(w.config)) {
     return `widgets[${index}].config must be an object`;
   }
+  // Calendar widgets can use either a `sources` array (multi-source) or a
+  // legacy single `entity_id`. Validate whichever shape is present so a
+  // malformed config can't reach the assembler.
+  if (w.kind === 'calendar') {
+    const cfg = w.config as Record<string, unknown>;
+    if (Array.isArray(cfg.sources)) {
+      for (let si = 0; si < cfg.sources.length; si++) {
+        const s = cfg.sources[si];
+        if (typeof s !== 'object' || s === null || Array.isArray(s)) {
+          return `widgets[${index}].config.sources[${si}] must be an object`;
+        }
+        const src = s as Record<string, unknown>;
+        if (typeof src.entity_id !== 'string' || !/^calendar\.[a-z0-9_]+$/.test(src.entity_id)) {
+          return `widgets[${index}].config.sources[${si}].entity_id must match calendar.<object_id>`;
+        }
+        if (src.color !== undefined && (typeof src.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(src.color))) {
+          return `widgets[${index}].config.sources[${si}].color must be #RRGGBB`;
+        }
+      }
+    } else {
+      const eid = cfg.entity_id;
+      if (typeof eid !== 'string' || eid.trim() === '') {
+        return `widgets[${index}].config.entity_id is required for kind "${w.kind}"`;
+      }
+      if (!ENTITY_ID_RE.test(eid)) {
+        return `widgets[${index}].config.entity_id "${eid}" is not a valid HA entity id (expected "domain.object_id")`;
+      }
+    }
+    const validViews = new Set(['agenda', 'month', 'week', 'day', 'lanes']);
+    if (cfg.view !== undefined && (typeof cfg.view !== 'string' || !validViews.has(cfg.view))) {
+      return `widgets[${index}].config.view must be one of agenda | month | week | day | lanes`;
+    }
+    return null;
+  }
   // Entity-bearing kinds need a syntactically-valid entity_id. Empty / bad
   // formats used to slip through and silently render a blank tile.
   if (ENTITY_BEARING_KINDS.has(w.kind)) {
