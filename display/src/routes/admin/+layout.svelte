@@ -6,6 +6,7 @@
     { href: '/admin', label: 'Overview' },
     { href: '/admin/agent', label: 'Agent' },
     { href: '/admin/scenes', label: 'Scenes' },
+    { href: '/admin/designs', label: 'Designs' },
     { href: '/admin/displays', label: 'Displays' },
     { href: '/admin/docs', label: 'Docs' },
     { href: '/admin/settings', label: 'Settings' },
