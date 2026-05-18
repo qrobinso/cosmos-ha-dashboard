@@ -65,11 +65,20 @@ export type CalendarEvent = {
   start: string;
   end: string;
   all_day: boolean;
+  source_id?: string;
+  color?: string;
+};
+export type CalendarSource = {
+  id: string;
+  entity_id: string;
+  label: string;
+  color: string;
 };
 export type CalendarData = {
   entity_id: string;
   friendly_name?: string;
   events: CalendarEvent[];
+  sources?: CalendarSource[];
 };
 
 export type MediaPlayerData = {
