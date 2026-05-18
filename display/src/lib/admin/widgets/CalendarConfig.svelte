@@ -23,16 +23,21 @@
   function readSources(c: Record<string, unknown>): Source[] {
     if (Array.isArray(c.sources)) {
       return (c.sources as Array<Record<string, unknown>>)
-        .filter((s) => typeof s.entity_id === 'string' && s.entity_id)
-        .map((s, i) => ({
-          id: typeof s.id === 'string' && s.id ? s.id : (s.entity_id as string),
-          entity_id: s.entity_id as string,
-          label:
-            typeof s.label === 'string' && s.label
-              ? (s.label as string)
-              : (s.entity_id as string).replace(/^calendar\./, '').replace(/_/g, ' '),
-          color: typeof s.color === 'string' ? (s.color as string) : PALETTE[i % PALETTE.length],
-        }));
+        .filter((s) => typeof s.entity_id === 'string')
+        .map((s, i) => {
+          const entityId = s.entity_id as string;
+          return {
+            id: typeof s.id === 'string' && s.id ? s.id : entityId || `src-${i}`,
+            entity_id: entityId,
+            label:
+              typeof s.label === 'string' && s.label
+                ? (s.label as string)
+                : entityId
+                  ? entityId.replace(/^calendar\./, '').replace(/_/g, ' ')
+                  : 'New calendar',
+            color: typeof s.color === 'string' ? (s.color as string) : PALETTE[i % PALETTE.length],
+          };
+        });
     }
     if (typeof c.entity_id === 'string' && c.entity_id) {
       return [
