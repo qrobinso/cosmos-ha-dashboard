@@ -1,6 +1,5 @@
 <script lang="ts">
   import { widgetKinds } from '$lib/admin/widgetKinds';
-  import { widgetIconSvg } from '$lib/admin/widgetIcons';
   import type { Layout, WidgetKind, WidgetState } from '$lib/types';
 
   export let layout: Layout;
@@ -202,7 +201,6 @@
         tabindex="0"
         aria-label={ariaFor(w)}
       >
-        <span class="tile-ic" aria-hidden="true">{@html widgetIconSvg(w.kind, 18)}</span>
         {#if !small}
           <span class="tile-name">{tileLabel(w)}</span>
           <span class="tile-meta">{tileMeta(w)}</span>
@@ -289,22 +287,18 @@
     outline: 2px solid var(--c-accent);
     outline-offset: 2px;
   }
-  .tile-ic {
-    display: grid;
-    place-items: center;
-    color: var(--tile-accent);
-    flex-shrink: 0;
-  }
-  .tile.selected .tile-ic { color: var(--c-accent-hot); }
   .tile-name {
     font-size: 0.8rem;
     font-weight: 500;
-    line-height: 1.15;
+    line-height: 1.2;
     color: var(--c-fg);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     max-width: 100%;
+    word-break: break-word;
   }
   .tile-meta {
     font-family: var(--f-mono);

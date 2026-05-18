@@ -4,10 +4,14 @@
   "version": "0.0.0",
   "workspaces": ["server", "display"],
   "scripts": {
+    "dev": "concurrently -k -n server,display -c blue,green \"npm:dev:server\" \"npm:dev:display\"",
     "dev:server": "npm --workspace server run dev",
     "dev:display": "npm --workspace display run dev",
     "build": "npm --workspace display run build && npm --workspace server run build",
     "test": "npm --workspace server run test",
     "moods:seamless": "node scripts/seamless-moods.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
   }
 }
