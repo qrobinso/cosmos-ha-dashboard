@@ -8,7 +8,7 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - `src/store/` — pure persistence. One file per concern: `db.ts` (connection), `migrations.ts` (versioned, transactional), `displays.ts`, `settings.ts`, `scenes.ts`.
 - `src/api/` — pure transport. `http.ts` builds the Fastify app and registers routes; `scenes.ts` registers scene-related routes; `ws.ts` attaches the WebSocket hub on the Fastify HTTP server.
 - `src/scenes/` — domain logic for assembling scene state. `types.ts` defines `SceneState`/`WidgetState`; `mockData.ts` holds fixtures used until Plan 4 wires HA; `assembler.ts` builds a `SceneState` from a `Scene` + safe area.
-- `src/static.ts` — serves the SvelteKit build via `@fastify/static`. Skips silently if the build dir is missing.
+- `src/static.ts` — serves the SvelteKit build via `@fastify/static`. Skips silently if the build dir is missing. **In dev** (`COSMOS_DEV_VITE_URL` env var set by the `dev:server` script), skips static serving entirely and 307-redirects all non-`/api`, non-`/ws` GETs to the Vite dev server — keeps users out of stale-prebuilt-bundle limbo when chunk hashes change.
 - `src/index.ts` — entrypoint. Opens DB, runs migrations, builds repos, builds Fastify, attaches WS, listens. Has SIGTERM/SIGINT graceful shutdown.
 - `src/transitions/` — transition descriptor types + builtins.
 - `src/store/transitions.ts` — read-only repo for built-in transitions + a small overrides repo for per-scene-pair custom transitions.
