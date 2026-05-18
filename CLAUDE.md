@@ -7,10 +7,11 @@ Wall dashboard for Home Assistant. Two-package npm workspace: a Node/TypeScript 
 ```bash
 npm install
 npm test                                       # run server test suite
-npm run dev:server                             # http://localhost:8099
-npm run dev:display                            # http://localhost:5173 (proxies /api + /ws to 8099)
+npm run dev                                    # both server + display with HMR — open http://localhost:5173
 npm run build                                  # build display + server for production
 ```
+
+`npm run dev` spawns the Fastify server (`tsx watch`, :8099) and Vite (:5173) under `concurrently`. Develop against `:5173` (Vite proxies `/api` and `/ws` to `:8099`) for Svelte HMR; server-side TS changes auto-restart Node and the kiosk's WS reconnect re-syncs without a full reload. The legacy `npm run dev:server` / `npm run dev:display` scripts still work for split-terminal use.
 
 To run the production server (bundles the built display via @fastify/static):
 
