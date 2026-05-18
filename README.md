@@ -156,6 +156,8 @@ npm run dev              # ← both server + display, with HMR. Open http://loca
 
 `npm run dev` runs the Fastify server (`tsx watch`, port 8099) and the Vite dev server (port 5173) concurrently. **Develop against `:5173`** — Vite proxies `/api` and `/ws` to `:8099`, so the kiosk + admin both work, and Svelte components hot-reload without a full page refresh. Server-side TypeScript changes auto-restart the Node process, and the kiosk's WS reconnect logic re-syncs without a reload.
 
+If you accidentally hit `:8099` in dev, the server **redirects you to `:5173`** (the Fastify static handler would otherwise serve a stale prebuilt bundle whose chunk hashes don't match the current source — the canonical "404 on `_app/immutable/...` after a rebuild" failure mode). The redirect only fires when `COSMOS_DEV_VITE_URL` is set, which the `dev:server` script does for you.
+
 If you want to run the two pieces separately (e.g. for log inspection), `npm run dev:server` and `npm run dev:display` still work in independent terminals.
 
 Architecture and conventions: [`CLAUDE.md`](CLAUDE.md), [`server/CLAUDE.md`](server/CLAUDE.md), [`display/CLAUDE.md`](display/CLAUDE.md).

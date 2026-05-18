@@ -302,6 +302,51 @@ export const api = {
         parseErrors: string[];
       };
     },
+    /** POST /api/designs — create a user pack. Server validates slug + parses content; rejects duplicates with 400. */
+    async create(payload: { slug: string; name: string; content: string }): Promise<{
+      id: string;
+      slug: string;
+      name: string;
+      source: 'builtin' | 'user';
+      content: string;
+    }> {
+      const res = await fetch('/api/designs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      await ensureOk(res);
+      return (await res.json()) as {
+        id: string;
+        slug: string;
+        name: string;
+        source: 'builtin' | 'user';
+        content: string;
+      };
+    },
+    /** PATCH /api/designs/:slug — update name/content of a user pack. 403 on built-ins; slug is immutable. */
+    async update(
+      slug: string,
+      patch: { name?: string; content?: string }
+    ): Promise<{ id: string; slug: string; name: string; source: 'builtin' | 'user'; content: string }> {
+      const res = await fetch(`/api/designs/${encodeURIComponent(slug)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      await ensureOk(res);
+      return (await res.json()) as {
+        id: string;
+        slug: string;
+        name: string;
+        source: 'builtin' | 'user';
+        content: string;
+      };
+    },
+    /** DELETE /api/designs/:slug — remove a user pack. 403 on built-ins. */
+    async remove(slug: string): Promise<void> {
+      await ensureOk(await fetch(`/api/designs/${encodeURIComponent(slug)}`, { method: 'DELETE' }));
+    },
   },
 };
 

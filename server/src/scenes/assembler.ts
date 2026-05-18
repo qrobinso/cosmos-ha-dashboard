@@ -6,6 +6,7 @@ import type {
   ScenePushPayload,
   CalendarData,
   CalendarEvent,
+  CalendarSource,
   CameraData,
   CanvasData,
   MediaPlayerData,
@@ -193,31 +194,77 @@ async function weatherData(widget: Widget, deps: DataResolvers): Promise<Weather
   };
 }
 
+type RawCalendarSource = { id?: unknown; entity_id?: unknown; label?: unknown; color?: unknown };
+
+function normalizeCalendarSources(cfg: Record<string, unknown>): CalendarSource[] {
+  const raw = cfg.sources;
+  if (Array.isArray(raw)) {
+    const out: CalendarSource[] = [];
+    for (const s of raw as RawCalendarSource[]) {
+      if (typeof s?.entity_id !== 'string' || !s.entity_id) continue;
+      out.push({
+        id: typeof s.id === 'string' && s.id ? s.id : s.entity_id,
+        entity_id: s.entity_id,
+        label:
+          typeof s.label === 'string' && s.label
+            ? s.label
+            : s.entity_id.replace(/^calendar\./, '').replace(/_/g, ' '),
+        color: typeof s.color === 'string' ? s.color : '#888888',
+      });
+    }
+    if (out.length > 0) return out;
+  }
+  const entityId = readString(cfg, 'entity_id', 'calendar.home');
+  return [
+    {
+      id: entityId,
+      entity_id: entityId,
+      label: entityId.replace(/^calendar\./, '').replace(/_/g, ' '),
+      color: '#888888',
+    },
+  ];
+}
+
 async function calendarData(widget: Widget, deps: DataResolvers): Promise<CalendarData> {
   const cfg = widget.config as Record<string, unknown>;
-  const entityId = readString(cfg, 'entity_id', 'calendar.home');
+  const sources = normalizeCalendarSources(cfg);
   const daysAhead = readNumber(cfg, 'days_ahead', 2);
   const now = new Date();
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
-  end.setDate(end.getDate() + Math.max(1, Math.min(30, daysAhead)));
+  end.setDate(end.getDate() + Math.max(1, Math.min(60, daysAhead)));
 
-  let events: CalendarEvent[];
-  if (deps.resolveCalendarEvents) {
-    try {
-      events = await deps.resolveCalendarEvents(entityId, { start, end });
-    } catch {
-      events = mockCalendar(entityId).events;
-    }
-  } else {
-    events = mockCalendar(entityId).events;
-  }
+  const perSource = await Promise.all(
+    sources.map(async (src): Promise<CalendarEvent[]> => {
+      if (!deps.resolveCalendarEvents) {
+        return mockCalendar(src.entity_id).events.map((e) => ({
+          ...e,
+          source_id: src.id,
+          color: src.color,
+        }));
+      }
+      try {
+        const events = await deps.resolveCalendarEvents(src.entity_id, { start, end });
+        return events.map((e) => ({ ...e, source_id: src.id, color: src.color }));
+      } catch (err) {
+        console.error(`[calendar] failed to resolve events for ${src.entity_id}`, err);
+        return [];
+      }
+    })
+  );
+
+  // ISO-8601 strings sort correctly under plain lexicographic comparison.
+  const events = perSource.flat().sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 
   return {
-    entity_id: entityId,
-    friendly_name: entityId.replace(/^calendar\./, '').replace(/_/g, ' '),
+    entity_id: sources[0].entity_id,
+    friendly_name:
+      sources.length === 1
+        ? sources[0].label
+        : 'Calendar',
     events,
+    sources,
   };
 }
 

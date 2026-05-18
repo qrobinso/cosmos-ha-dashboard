@@ -83,12 +83,24 @@ export type CalendarEvent = {
   /** ISO-8601 datetime. For all-day events, exclusive end-of-day. */
   end: string;
   all_day: boolean;
+  /** Id of the originating `CalendarSource` (set by the assembler in multi-source mode). */
+  source_id?: string;
+  /** Resolved per-event color (typically inherited from the source). */
+  color?: string;
+};
+export type CalendarSource = {
+  id: string;
+  entity_id: string;
+  label: string;
+  color: string;
 };
 export type CalendarData = {
   /** entity_id of the source calendar (for friendly-name lookups). */
   entity_id: string;
   friendly_name?: string;
   events: CalendarEvent[];
+  /** Populated by the assembler — always present, may be empty in mock fixtures. */
+  sources: CalendarSource[];
 };
 
 /** Media player — mirrors HA `media_player.*` attributes. */

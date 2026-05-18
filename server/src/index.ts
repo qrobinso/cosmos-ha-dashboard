@@ -262,7 +262,9 @@ async function main() {
           : undefined,
       }),
   });
-  await registerStatic(app, config.staticDir);
+  await registerStatic(app, config.staticDir, {
+    devProxyTo: process.env.COSMOS_DEV_VITE_URL,
+  });
   async function publishDiscovery(): Promise<void> {
     if (!mqttClient) return;
     const { buildDiscoveryPayloads } = await import('./mqtt/discovery.js');

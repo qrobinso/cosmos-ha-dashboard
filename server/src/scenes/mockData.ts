@@ -232,6 +232,7 @@ export function mockCalendar(entity_id: string): CalendarData {
     entity_id,
     friendly_name: entity_id.replace(/^calendar\./, '').replace(/_/g, ' ') || 'Calendar',
     events: EVENTS,
+    sources: [],
   };
 }
 

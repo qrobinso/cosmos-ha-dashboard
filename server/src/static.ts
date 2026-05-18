@@ -17,7 +17,33 @@ function rewriteForIngress(html: string, prefix: string): string {
   return html.replace(/((?:href|src)=")\/(?!\/)/g, `$1${prefix}/`);
 }
 
-export async function registerStatic(app: FastifyInstance, dir: string): Promise<void> {
+export async function registerStatic(
+  app: FastifyInstance,
+  dir: string,
+  opts?: { devProxyTo?: string }
+): Promise<void> {
+  // Dev mode: when COSMOS_DEV_VITE_URL is set (the `npm run dev` script does
+  // this), don't try to serve the static build at all — redirect everything
+  // that isn't /api or /ws to the Vite dev server. This avoids the classic
+  // "I have a stale browser tab at :8099 and Vite changed the chunk hashes
+  // out from under me, now I get 404s on /_app/immutable/..." foot-gun: in
+  // dev there should only be one source of display assets, and that's Vite.
+  const devProxyTo = opts?.devProxyTo?.replace(/\/$/, '');
+  if (devProxyTo) {
+    app.log?.info?.(`dev mode: redirecting display traffic to ${devProxyTo}`);
+    function redirect(req: FastifyRequest, reply: FastifyReply) {
+      return reply.code(307).redirect(`${devProxyTo}${req.url}`);
+    }
+    app.get('/', redirect);
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method !== 'GET' || req.url.startsWith('/api') || req.url.startsWith('/ws')) {
+        return reply.code(404).send({ error: 'not found' });
+      }
+      return redirect(req, reply);
+    });
+    return;
+  }
+
   const root = resolve(dir);
   if (!existsSync(root)) {
     app.log?.warn?.(`static dir ${root} does not exist; skipping static serving`);

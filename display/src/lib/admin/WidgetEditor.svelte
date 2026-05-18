@@ -226,7 +226,7 @@
 
   @media (min-width: 720px) {
     .widget-editor {
-      grid-template-columns: 200px minmax(0, 1fr) 300px;
+      grid-template-columns: 176px minmax(0, 1fr) 280px;
       grid-template-areas: 'rail canvas inspector';
       align-items: start;
     }
