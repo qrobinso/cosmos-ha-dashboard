@@ -61,11 +61,14 @@ export const WEATHER_TO_MOOD: Record<string, string> = {
   'windy-variant':   'clouds2',
   exceptional:       'clouds2',
 
-  // Wet weather → rain.
-  rainy:             'rain',
+  // Wet weather. The mapping leans on the *intensity* + *character* of the
+  // HA condition: light rain reads as gentle drops, pouring as heavier rain,
+  // lightning and lightning-rainy get the proper storm clip, hail keeps the
+  // heavy-rain clip as the closest match (no dedicated hail loop yet).
+  rainy:             'water-droplets',
   pouring:           'rain',
-  lightning:         'rain',
-  'lightning-rainy': 'rain',
+  lightning:         'lightning',
+  'lightning-rainy': 'lightning',
   hail:              'rain',
 
   // Snowy weather → snow.

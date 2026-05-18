@@ -233,6 +233,65 @@ describe('scenes REST API', () => {
     expect(body.widgets[0].config.content).toBe('<h1>Hello {{ states("sensor.power") }}</h1>');
   });
 
+  it('POST /api/scenes accepts a calendar widget with sources array', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{
+          kind: 'calendar',
+          position: { col: 1, row: 1, w: 4, h: 4 },
+          config: {
+            sources: [
+              { id: 's1', entity_id: 'calendar.alex', label: 'Alex', color: '#ff8855' },
+            ],
+            view: 'agenda',
+          },
+        }],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.widgets[0].kind).toBe('calendar');
+    expect(body.widgets[0].config.sources[0].entity_id).toBe('calendar.alex');
+    expect(body.widgets[0].config.view).toBe('agenda');
+  });
+
+  it('POST /api/scenes rejects calendar sources with invalid entity_id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{
+          kind: 'calendar',
+          position: { col: 1, row: 1, w: 4, h: 4 },
+          config: { sources: [{ entity_id: 'not-a-calendar.entity' }] },
+        }],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/sources\[0\]\.entity_id must match calendar/i);
+  });
+
+  it('POST /api/scenes rejects unknown calendar view value', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [{
+          kind: 'calendar',
+          position: { col: 1, row: 1, w: 4, h: 4 },
+          config: { entity_id: 'calendar.home', view: 'galactic' },
+        }],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/view must be one of agenda \| month \| week \| day \| lanes/i);
+  });
+
   it('POST /api/canvases/:widgetId/subscribe records extras and returns 204', async () => {
     const res = await app.inject({
       method: 'POST',

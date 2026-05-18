@@ -7,14 +7,16 @@ content shows through.
 
 ## Filenames the v1 catalog expects
 
-| File           | Used for                                    |
-|----------------|---------------------------------------------|
-| `clouds.mp4`   | day, sunny, partlycloudy, cloudy weather    |
-| `rain.mp4`     | rainy / pouring weather                     |
-| `snow.mp4`     | snowy weather                               |
-| `stars.mp4`    | night, clear-night                          |
-| `sunrise.mp4`  | within ±45min of sunrise                    |
-| `embers.mp4`   | within ±45min of sunset                     |
+| File                  | Used for                                          |
+|-----------------------|---------------------------------------------------|
+| `clouds2.mp4`         | day, sunny, partlycloudy, cloudy weather          |
+| `water-droplets.mp4`  | rainy (gentle rain)                               |
+| `rain.mp4`            | pouring, hail (heavier rain)                      |
+| `lightning.mp4`       | lightning, lightning-rainy (storm conditions)     |
+| `snow.mp4`            | snowy, snowy-rainy                                |
+| `stars.mp4`           | night, clear-night                                |
+| `sunrise.mp4`         | within ±45min of sunrise                          |
+| `embers.mp4`          | within ±45min of sunset                           |
 
 The mapping lives in `server/src/moods/catalog.ts` — add new ids there if
 you want to extend the library.

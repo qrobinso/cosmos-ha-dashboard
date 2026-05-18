@@ -38,6 +38,7 @@ export type WidgetKindMeta = {
 };
 
 import { widgetIcons } from './widgetIcons';
+import { CALENDAR_SOURCE_PALETTE } from './widgets/calendarPalette';
 
 function firstEntityOfDomain(entities: EntityState[], domain: string): string {
   return entities.find((e) => e.entity_id.startsWith(`${domain}.`))?.entity_id ?? '';
@@ -126,16 +127,25 @@ export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
     blurb: 'Upcoming events from a calendar entity.',
     defaultSize: { w: 4, h: 4 },
     defaultConfig: (entities) => ({
-      entity_id: firstEntityOfDomain(entities, 'calendar') || 'calendar.home',
-      days_ahead: 2,
-      max_events: 5,
+      view: 'agenda',
+      sources: entities
+        .filter((e) => e.entity_id.startsWith('calendar.'))
+        .slice(0, 1)
+        .map((e, i) => ({
+          id: e.entity_id,
+          entity_id: e.entity_id,
+          label: e.entity_id.replace(/^calendar\./, '').replace(/_/g, ' '),
+          color: CALENDAR_SOURCE_PALETTE[i % CALENDAR_SOURCE_PALETTE.length],
+        })),
+      days_ahead: 7,
+      max_events: 8,
+      show_header: true,
       show_all_day: true,
       show_location: true,
       show_description: false,
-      show_header: true,
-      time_format: '24h',
       group_by_day: true,
       hide_past: true,
+      time_format: '24h',
     }),
     instanceLabel: (c) => labelFrom(c, 'Calendar agenda'),
   },
