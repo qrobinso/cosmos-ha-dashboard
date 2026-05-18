@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.18
+
+- Feat: **Auto-by-weather mood strategy** now uses the recently-added clips. `rainy` → `water-droplets` (gentle drops), `pouring` and `hail` → `rain` (heavier), `lightning` and `lightning-rainy` → the new `lightning.mp4` storm clip. Sunny / cloudy / snowy / clear-night mappings unchanged. Documented in `display/static/moods/README.md`.
+
 ## 0.6.17
 
 - Revert: the alert UI is back to the original **three-action** pattern from 0.6.14 — `select.<display>_alert_scene` (dropdown of scene names), `number.<display>_alert_dwell` (seconds), and `button.<display>_alert_fire` (trigger). 0.6.15 tried consolidating to a single notify (typo-prone Message field, no scene dropdown) and 0.6.16 brought the select back as a hybrid; neither felt as good in HA's automation builder as three labeled, typed entities. Three actions, three real form fields, no JSON-stuffing the notify's title — back where we started. If you set up automations on 0.6.15 or 0.6.16, switch them back to the trio. Anyone who picked a scene on 0.6.16 will need to re-pick it (0.6.16 used a different settings key); installs on 0.6.14 or earlier keep their original pick, since that storage key was never removed.

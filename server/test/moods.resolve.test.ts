@@ -131,8 +131,13 @@ describe('resolveMood', () => {
       ['sunny', '/moods/clouds2.mp4'],
       ['partlycloudy', '/moods/clouds2.mp4'],
       ['cloudy', '/moods/clouds2.mp4'],
-      ['rainy', '/moods/rain.mp4'],
+      // Light rain → gentle water-droplets clip; heavy rain → the rain clip.
+      ['rainy', '/moods/water-droplets.mp4'],
       ['pouring', '/moods/rain.mp4'],
+      ['hail', '/moods/rain.mp4'],
+      // Storm conditions → the dedicated lightning clip.
+      ['lightning', '/moods/lightning.mp4'],
+      ['lightning-rainy', '/moods/lightning.mp4'],
       ['snowy', '/moods/snow.mp4'],
       ['clear-night', '/moods/stars.mp4'],
     ])('maps weather state %s to %s', (state, expected) => {

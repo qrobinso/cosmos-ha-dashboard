@@ -89,7 +89,9 @@ describe('buildSceneState', () => {
           ? { entity_id: id, state: 'rainy', attributes: {} }
           : null,
     });
-    expect(state.resolvedMood?.url).toBe('/moods/rain.mp4');
+    // `rainy` (gentle rain) routes to the water-droplets clip per the
+    // weather→mood table; `pouring` would route to rain.mp4 instead.
+    expect(state.resolvedMood?.url).toBe('/moods/water-droplets.mp4');
   });
 
   it('returns CanvasData with literal template marks when no canvasResolver is wired', async () => {
