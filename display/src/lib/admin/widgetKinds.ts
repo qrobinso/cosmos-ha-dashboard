@@ -38,6 +38,7 @@ export type WidgetKindMeta = {
 };
 
 import { widgetIcons } from './widgetIcons';
+import { CALENDAR_SOURCE_PALETTE } from './widgets/calendarPalette';
 
 function firstEntityOfDomain(entities: EntityState[], domain: string): string {
   return entities.find((e) => e.entity_id.startsWith(`${domain}.`))?.entity_id ?? '';
@@ -134,7 +135,7 @@ export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
           id: e.entity_id,
           entity_id: e.entity_id,
           label: e.entity_id.replace(/^calendar\./, '').replace(/_/g, ' '),
-          color: ['#ff8855', '#0099ff', '#7ec46b', '#d96bf0', '#ffd166'][i % 5],
+          color: CALENDAR_SOURCE_PALETTE[i % CALENDAR_SOURCE_PALETTE.length],
         })),
       days_ahead: 7,
       max_events: 8,

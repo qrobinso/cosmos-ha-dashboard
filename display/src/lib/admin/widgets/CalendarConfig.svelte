@@ -2,12 +2,13 @@
   import Field from '$lib/admin/Field.svelte';
   import EntityPicker from '$lib/admin/EntityPicker.svelte';
   import Section from './Section.svelte';
+  import { CALENDAR_SOURCE_PALETTE } from './calendarPalette';
   import type { EntityState } from '$lib/types';
 
   export let config: Record<string, unknown>;
   export let entities: EntityState[] = [];
 
-  const PALETTE = ['#ff8855', '#0099ff', '#7ec46b', '#d96bf0', '#ffd166', '#5fb8ff', '#ff6b9a', '#ffae5b'];
+  const PALETTE = CALENDAR_SOURCE_PALETTE;
 
   type Source = { id: string; entity_id: string; label: string; color: string };
 
@@ -112,6 +113,7 @@
           class="lbl"
           value={src.label}
           placeholder="Label"
+          aria-label="Label for {src.label}"
           on:change={(e) => updateSource(i, { label: e.currentTarget.value })}
         />
         <button type="button" class="remove" on:click={() => removeSource(i)} aria-label="Remove">×</button>
