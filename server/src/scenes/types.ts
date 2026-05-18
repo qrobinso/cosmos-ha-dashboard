@@ -99,8 +99,8 @@ export type CalendarData = {
   entity_id: string;
   friendly_name?: string;
   events: CalendarEvent[];
-  /** Populated by the assembler in multi-source mode; absent on legacy single-entity payloads. */
-  sources?: CalendarSource[];
+  /** Populated by the assembler — always present, may be empty in mock fixtures. */
+  sources: CalendarSource[];
 };
 
 /** Media player — mirrors HA `media_player.*` attributes. */

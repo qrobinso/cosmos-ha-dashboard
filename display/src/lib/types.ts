@@ -78,7 +78,7 @@ export type CalendarData = {
   entity_id: string;
   friendly_name?: string;
   events: CalendarEvent[];
-  sources?: CalendarSource[];
+  sources: CalendarSource[];
 };
 
 export type MediaPlayerData = {

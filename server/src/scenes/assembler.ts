@@ -247,13 +247,15 @@ async function calendarData(widget: Widget, deps: DataResolvers): Promise<Calend
       try {
         const events = await deps.resolveCalendarEvents(src.entity_id, { start, end });
         return events.map((e) => ({ ...e, source_id: src.id, color: src.color }));
-      } catch {
+      } catch (err) {
+        console.error(`[calendar] failed to resolve events for ${src.entity_id}`, err);
         return [];
       }
     })
   );
 
-  const events = perSource.flat().sort((a, b) => a.start.localeCompare(b.start));
+  // ISO-8601 strings sort correctly under plain lexicographic comparison.
+  const events = perSource.flat().sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 
   return {
     entity_id: sources[0].entity_id,
