@@ -284,11 +284,15 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
           })
         );
 
-        // Send the display's current config (orientation, etc.) right after welcome.
+        // Send the display's current config (orientation, voice, etc.) right after welcome.
         socket.send(
           JSON.stringify({
             type: 'display_config',
-            config: { orientation: display.orientation },
+            config: {
+              orientation: display.orientation,
+              voiceEnabled: display.voiceEnabled,
+              voicePipelineId: display.voicePipelineId,
+            },
           })
         );
 
@@ -380,7 +384,11 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     if (!display) return;
     sendToDisplay(displayId, {
       type: 'display_config',
-      config: { orientation: display.orientation },
+      config: {
+        orientation: display.orientation,
+        voiceEnabled: display.voiceEnabled,
+        voicePipelineId: display.voicePipelineId,
+      },
     });
   };
 
