@@ -38,4 +38,23 @@ describe('createVoiceRelay', () => {
     await relay.runUtterance(null, chunks(), (r) => received.push(r));
     expect(received).toEqual(results);
   });
+
+  it('catches errors thrown by the client pipeline and reports them via onResult', async () => {
+    function fakeClientWithError(): VoiceHaClient {
+      return {
+        async listPipelines() {
+          return [];
+        },
+        async *runPipeline() {
+          throw new Error('boom');
+        },
+        close() {},
+      };
+    }
+
+    const relay = createVoiceRelay(fakeClientWithError());
+    const received: VoiceResult[] = [];
+    await relay.runUtterance(null, chunks(), (r) => received.push(r));
+    expect(received).toEqual([{ stage: 'error', error: 'boom' }]);
+  });
 });
