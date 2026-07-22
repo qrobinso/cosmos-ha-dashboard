@@ -1,5 +1,6 @@
 import type { CosmosConnection, ServerMessage } from '../ws';
 import type { VoiceOverlayState } from './types';
+import type { WakeWordDetector } from './wakeword';
 
 export type VoiceBootstrapHandle = {
   /** Forwards an inbound `voice_result` server message into the voice assistant pipeline. */
@@ -41,67 +42,88 @@ export async function startVoiceBootstrap(
     return null;
   }
 
-  const [{ createUtteranceCapture }, { createWakeWordDetector }, { startVoiceAssistant }] = await Promise.all([
-    import('./capture'),
-    import('./wakeword'),
-    import('./index'),
-  ]);
-
-  const audioCtx = new AudioContext({ sampleRate: 16000 });
-  const source = audioCtx.createMediaStreamSource(micStream);
-
-  const capture = createUtteranceCapture({
-    onChunk: (seq, chunk, final) => connection.sendVoiceAudio(seq, chunk, final),
-  });
-
-  const detector = createWakeWordDetector({
-    onWake: () => onOverlayState('listening'),
-  });
+  // From here on the mic is hot: any thrown error in this region (a transient
+  // network failure fetching the ~26MB wakeword WASM chunk, an unsupported
+  // fixed sampleRate, etc.) must still release micStream and report health —
+  // otherwise the mic keeps running with no server-side visibility at all.
+  // audioCtx/source/detector are declared outside the try so a failure that
+  // happens before one of them is created still lets teardown() no-op safely
+  // on the ones that never got made.
+  let audioCtx: AudioContext | undefined;
+  let source: MediaStreamAudioSourceNode | undefined;
+  let detector: WakeWordDetector | undefined;
 
   async function teardown(): Promise<void> {
-    source.disconnect();
+    source?.disconnect();
     for (const track of micStream.getTracks()) track.stop();
-    await audioCtx.close();
-    await detector.dispose();
+    if (audioCtx) await audioCtx.close();
+    if (detector) await detector.dispose();
   }
 
   try {
-    await detector.load();
+    const [{ createUtteranceCapture }, { createWakeWordDetector }, { startVoiceAssistant }] = await Promise.all([
+      import('./capture'),
+      import('./wakeword'),
+      import('./index'),
+    ]);
+
+    audioCtx = new AudioContext({ sampleRate: 16000 });
+    source = audioCtx.createMediaStreamSource(micStream);
+
+    const capture = createUtteranceCapture({
+      onChunk: (seq, chunk, final) => connection.sendVoiceAudio(seq, chunk, final),
+    });
+
+    detector = createWakeWordDetector({
+      onWake: () => onOverlayState('listening'),
+    });
+
+    try {
+      await detector.load();
+    } catch {
+      connection.sendVoiceHealth('model_load_failed');
+      await teardown();
+      return null;
+    }
+
+    // ScriptProcessorNode is deprecated in favor of AudioWorklet, but it's
+    // universally supported and adequate for this frame rate — not worth the
+    // extra worklet-module-loading complexity for this task.
+    const processor = audioCtx.createScriptProcessor(1280, 1, 1);
+    const activeDetector = detector;
+    processor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      // Guards against a mismatched ONNX tensor-name assumption (see
+      // wakeword.ts) throwing on every single frame (~12.5x/sec) and
+      // spamming an unhandled-rejection storm.
+      void activeDetector.processFrame(input).catch(() => {});
+      capture.pushFrame(floatTo16BitPCM(input));
+    };
+    source.connect(processor);
+    processor.connect(audioCtx.destination);
+
+    connection.sendVoiceHealth('ok');
+
+    let forward: ((msg: ServerMessage) => void) | null = null;
+    const assistant = startVoiceAssistant(connection, onOverlayState, {
+      onServerMessage: (fn) => {
+        forward = fn;
+      },
+    });
+
+    return {
+      handleServerMessage(msg) {
+        forward?.(msg);
+      },
+      async stop() {
+        processor.disconnect();
+        assistant.stop();
+        await teardown();
+      },
+    };
   } catch {
     connection.sendVoiceHealth('model_load_failed');
     await teardown();
     return null;
   }
-
-  // ScriptProcessorNode is deprecated in favor of AudioWorklet, but it's
-  // universally supported and adequate for this frame rate — not worth the
-  // extra worklet-module-loading complexity for this task.
-  const processor = audioCtx.createScriptProcessor(1280, 1, 1);
-  processor.onaudioprocess = (e) => {
-    const input = e.inputBuffer.getChannelData(0);
-    void detector.processFrame(input);
-    capture.pushFrame(floatTo16BitPCM(input));
-  };
-  source.connect(processor);
-  processor.connect(audioCtx.destination);
-
-  connection.sendVoiceHealth('ok');
-
-  let forward: ((msg: ServerMessage) => void) | null = null;
-  const assistant = startVoiceAssistant(connection, onOverlayState, {
-    onServerMessage: (fn) => {
-      forward = fn;
-    },
-  });
-
-  return {
-    handleServerMessage(msg) {
-      forward?.(msg);
-    },
-    async stop() {
-      processor.disconnect();
-      assistant.stop();
-      await teardown();
-    },
-  };
 }

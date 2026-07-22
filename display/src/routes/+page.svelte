@@ -23,8 +23,14 @@
   let overlay: OverlayMessage | null = null;
   let orientation: Orientation = 'landscape';
   // Voice bootstrap is armed at most once per session, lazily, only for
-  // displays with voiceEnabled — see armVoice(). null until (if ever) armed.
+  // displays with voiceEnabled — see armVoice(). null until (if ever) armed,
+  // and set back to null after stop() so a later display_config can re-arm.
   let voiceHandle: VoiceBootstrapHandle | null = null;
+  // Synchronous re-entrancy guard: armVoice's async chain (first WASM fetch)
+  // can take seconds, and voiceHandle itself isn't set until it settles. A
+  // second display_config arriving in that window must not double-arm the
+  // mic — this flag closes that gap.
+  let voiceArming = false;
 
   $: if (typeof document !== 'undefined') {
     document.body.dataset.orientation = orientation;
@@ -58,9 +64,14 @@
   // in onnxruntime-web's ~26MB WASM runtime. A static top-level import here
   // would bloat every kiosk boot, including displays with voice disabled.
   async function armVoice(connection: CosmosConnection) {
-    if (voiceHandle) return; // already armed this session
-    const { startVoiceBootstrap } = await import('$lib/voice/bootstrap');
-    voiceHandle = await startVoiceBootstrap(connection, onVoiceOverlayState);
+    if (voiceHandle || voiceArming) return; // already armed, or an arm is already in flight
+    voiceArming = true;
+    try {
+      const { startVoiceBootstrap } = await import('$lib/voice/bootstrap');
+      voiceHandle = await startVoiceBootstrap(connection, onVoiceOverlayState);
+    } finally {
+      voiceArming = false;
+    }
   }
 
   function handleMessage(msg: ServerMessage) {
@@ -69,7 +80,15 @@
       error = null;
     } else if (msg.type === 'display_config') {
       orientation = msg.config.orientation;
-      if (msg.config.voiceEnabled && socket) void armVoice(socket);
+      if (msg.config.voiceEnabled && socket) {
+        void armVoice(socket);
+      } else if (voiceHandle) {
+        // Admin turned voice off on an already-armed display — disarm so the
+        // mic/AudioContext/wake-word session doesn't just run forever.
+        const handle = voiceHandle;
+        voiceHandle = null;
+        void handle.stop();
+      }
     } else if (msg.type === 'scene') {
       pendingTransition = msg.transition ?? null;
       scene = msg.state;
