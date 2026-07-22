@@ -536,12 +536,24 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     }
   );
 
-  app.put<{ Params: { name: string }; Body: { enabled: boolean; pipelineId: string | null } }>(
+  app.put<{ Params: { name: string }; Body: { enabled?: unknown; pipelineId?: unknown } }>(
     '/api/displays/:name/voice',
     async (req, reply) => {
       const display = deps.displays.getByName(req.params.name);
       if (!display) return reply.code(404).send({ error: 'display not found' });
-      deps.displays.setVoice(display.id, { enabled: req.body.enabled, pipelineId: req.body.pipelineId });
+      const enabled = req.body?.enabled;
+      if (typeof enabled !== 'boolean') {
+        return reply.code(400).send({ error: 'enabled must be a boolean' });
+      }
+      const pipelineId = req.body?.pipelineId;
+      if (pipelineId !== null && typeof pipelineId !== 'string') {
+        return reply.code(400).send({ error: 'pipelineId must be a string or null' });
+      }
+      deps.displays.setVoice(display.id, { enabled, pipelineId });
+      // Mirrors the orientation route: without this, a connected kiosk never
+      // learns voice was toggled until its next reconnect — enabling does
+      // nothing, and disabling leaves the mic hot indefinitely.
+      deps.onDisplayConfigChanged?.(display.id);
       return { ok: true };
     }
   );
