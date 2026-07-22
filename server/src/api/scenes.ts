@@ -536,6 +536,16 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
     }
   );
 
+  app.put<{ Params: { name: string }; Body: { enabled: boolean; pipelineId: string | null } }>(
+    '/api/displays/:name/voice',
+    async (req, reply) => {
+      const display = deps.displays.getByName(req.params.name);
+      if (!display) return reply.code(404).send({ error: 'display not found' });
+      deps.displays.setVoice(display.id, { enabled: req.body.enabled, pipelineId: req.body.pipelineId });
+      return { ok: true };
+    }
+  );
+
   app.delete<{ Params: { name: string } }>(
     '/api/displays/:name',
     async (req, reply) => {

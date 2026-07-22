@@ -138,6 +138,28 @@ describe('scenes REST API', () => {
     expect(res.statusCode).toBe(404);
   });
 
+  it('PUT /api/displays/:name/voice updates voice settings', async () => {
+    const display = ctx.displays.registerByName('kitchen');
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/displays/kitchen/voice',
+      payload: { enabled: true, pipelineId: 'p1' },
+    });
+    expect(res.statusCode).toBe(200);
+    const updated = ctx.displays.getById(display.id);
+    expect(updated?.voiceEnabled).toBe(true);
+    expect(updated?.voicePipelineId).toBe('p1');
+  });
+
+  it('PUT /api/displays/:name/voice 404s for an unknown display', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/displays/nonexistent/voice',
+      payload: { enabled: true, pipelineId: null },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
   it('POST /api/scenes accepts a valid mood config and returns it on the scene', async () => {
     const res = await app.inject({
       method: 'POST',
