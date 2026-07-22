@@ -52,7 +52,7 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
 
 - All animation is CSS-driven (`@keyframes`, `transition`, `background-position`). No JS in the render loop.
 - Widgets read `widget.data` directly. They do not fetch or compute data.
-- No display-side test suite yet — the end-to-end Playwright smoke in plan verification is the gate.
+- `npm --workspace display test` runs vitest (jsdom environment, config at `display/vitest.config.ts`). Colocate `*.test.ts` next to the module under test (e.g. `src/lib/ws.test.ts`). Still thin coverage — the end-to-end Playwright smoke in plan verification remains the broader gate.
 - The **kiosk** (everything outside `/admin`) keeps inline styles for now; the `.cosmos-admin` design system in `theme.css` is the canonical look for the editor and is the place to add new admin styles.
 
 ## Admin design system
