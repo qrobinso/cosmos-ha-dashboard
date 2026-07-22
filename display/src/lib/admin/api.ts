@@ -47,7 +47,7 @@ export const api = {
     },
   },
   displays: {
-    async list(): Promise<{ id: string; name: string; lastSeen: string | null; defaultSceneId: string | null; currentSceneId: string | null; rotation: { enabled: boolean; sceneIds: string[]; intervalSec: number } | null; orientation: 'landscape' | 'portrait' }[]> {
+    async list(): Promise<{ id: string; name: string; lastSeen: string | null; defaultSceneId: string | null; currentSceneId: string | null; rotation: { enabled: boolean; sceneIds: string[]; intervalSec: number } | null; orientation: 'landscape' | 'portrait'; voiceEnabled: boolean; voicePipelineId: string | null; micHealth: string | null }[]> {
       return jsonOr(await fetch('/api/displays'), []);
     },
     async setRotation(displayName: string, payload: { enabled: boolean; sceneIds: string[]; intervalSec: number }): Promise<void> {
@@ -65,6 +65,15 @@ export const api = {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ orientation }),
+        })
+      );
+    },
+    async setVoice(displayName: string, opts: { enabled: boolean; pipelineId: string | null }): Promise<void> {
+      await ensureOk(
+        await fetch(`/api/displays/${encodeURIComponent(displayName)}/voice`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(opts),
         })
       );
     },
@@ -198,6 +207,9 @@ export const api = {
     async listEntities(domain?: string): Promise<{ entity_id: string; state: string; attributes: Record<string, unknown> }[]> {
       const url = domain ? `/api/ha/entities?domain=${encodeURIComponent(domain)}` : '/api/ha/entities';
       return jsonOr(await fetch(url), []);
+    },
+    async listAssistPipelines(): Promise<{ id: string; name: string }[]> {
+      return jsonOr(await fetch('/api/ha/assist-pipelines'), []);
     },
   },
   agent: {

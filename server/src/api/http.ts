@@ -120,6 +120,13 @@ export type HttpDeps = {
   /** Runtime HA connection status. Manual URL/token edits are persisted from
    *  the settings API, then used on the next server start. */
   homeAssistant?: HaRuntimeInfo;
+  /** Last-known mic health for a display's live voice session, as tracked
+   *  in-memory by the WS hub (`wss.getVoiceHealth`). Null/absent when the
+   *  display has never reported health (voice off, or not yet connected).
+   *  Wired late via `index.ts`'s `wssRef` since the hub attaches after this
+   *  app is built — same pattern as `onDisplayConfigChanged`. Surfaced on
+   *  `GET /api/displays` as `micHealth` for the admin UI's status readout. */
+  getVoiceHealth?: (displayId: string) => import('../voice/types.js').VoiceHealth | null;
 };
 
 export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
@@ -138,7 +145,9 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     return deps.displays.registerByName(name);
   });
 
-  app.get('/api/displays', async () => deps.displays.list());
+  app.get('/api/displays', async () =>
+    deps.displays.list().map((d) => ({ ...d, micHealth: deps.getVoiceHealth?.(d.id) ?? null }))
+  );
 
   app.get('/api/settings/safe-area', async () => readSafeArea(deps.settings));
   app.put<{ Body: Partial<SafeArea> }>('/api/settings/safe-area', async (req, reply) => {

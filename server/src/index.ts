@@ -243,6 +243,7 @@ async function main() {
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
     onRotationChanged,
     onDisplayConfigChanged: (displayId) => wssRef?.pushDisplayConfigTo(displayId),
+    getVoiceHealth: (displayId) => wssRef?.getVoiceHealth(displayId) ?? null,
     onScenesListChanged,
     onScenesMutated: () => {
       gcCanvasResolver();

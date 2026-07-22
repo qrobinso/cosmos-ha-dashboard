@@ -62,6 +62,35 @@ describe('HTTP API', () => {
     expect(res.json().map((d: { name: string }) => d.name).sort()).toEqual(['A', 'B']);
   });
 
+  it('GET /api/displays reports micHealth as null when no getVoiceHealth dep is wired', async () => {
+    await app.inject({ method: 'POST', url: '/api/displays/register', payload: { name: 'A' } });
+    const res = await app.inject({ method: 'GET', url: '/api/displays' });
+    expect(res.json()[0].micHealth).toBeNull();
+  });
+
+  it('GET /api/displays surfaces micHealth from the getVoiceHealth dep, keyed by display id', async () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const displays = createDisplaysRepo(db);
+    const settings = createSettingsRepo(db);
+    const scenes = createScenesRepo(db);
+    const transitions = createTransitionsRepo(db);
+    const overrides = createOverridesRepo(db);
+    const designs = createDesignPacksRepo(db);
+    const { id } = displays.registerByName('A');
+    const withHealth = await buildHttpApp({
+      displays,
+      settings,
+      scenes,
+      transitions,
+      overrides,
+      designs,
+      getVoiceHealth: (displayId: string) => (displayId === id ? 'ok' : null),
+    });
+    const res = await withHealth.inject({ method: 'GET', url: '/api/displays' });
+    expect(res.json()[0].micHealth).toBe('ok');
+  });
+
   it('stores Home Assistant standalone connection settings without returning the token', async () => {
     const put = await app.inject({
       method: 'PUT',
