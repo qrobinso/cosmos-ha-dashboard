@@ -57,4 +57,26 @@ describe('createVoiceRelay', () => {
     await relay.runUtterance(null, chunks(), (r) => received.push(r));
     expect(received).toEqual([{ stage: 'error', error: 'boom' }]);
   });
+
+  it('emits a timeout error and stops waiting when the HA iterable never completes', async () => {
+    function neverEndingClient(): VoiceHaClient {
+      return {
+        async listPipelines() {
+          return [];
+        },
+        // Simulates HA emitting a terminal error (or just going silent)
+        // without ever sending run-end: the async generator never yields
+        // and never returns.
+        async *runPipeline() {
+          await new Promise<void>(() => {});
+        },
+        close() {},
+      };
+    }
+
+    const relay = createVoiceRelay(neverEndingClient(), { timeoutMs: 20 });
+    const received: VoiceResult[] = [];
+    await relay.runUtterance(null, chunks(), (r) => received.push(r));
+    expect(received).toEqual([{ stage: 'error', error: 'voice pipeline timed out' }]);
+  });
 });

@@ -44,9 +44,14 @@
   function voiceOverlayFor(state: VoiceOverlayState, text?: string): OverlayMessage | null {
     switch (state) {
       case 'listening':
-        return { title: 'Listening…', icon: '🎙️' };
+        // Backstop: if no further voice_result ever arrives (e.g. the
+        // capture arm-timeout expires with no speech, or the WS drops
+        // mid-utterance), this overlay must not stick forever.
+        return { title: 'Listening…', icon: '🎙️', timeout_ms: 8000 };
       case 'thinking':
-        return { title: text ?? 'Thinking…', icon: '💭' };
+        // Backstop for a stt-end/intent-end with no eventual tts-end or
+        // error (see server/src/voice/relay.ts's per-utterance timeout).
+        return { title: text ?? 'Thinking…', icon: '💭', timeout_ms: 30000 };
       case 'response':
         return { title: text ?? 'Done', icon: '🔊', timeout_ms: 6000 };
       case 'error':

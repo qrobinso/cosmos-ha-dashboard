@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import WebSocket from 'ws';
 import { runMigrations } from '../src/store/migrations.js';
@@ -169,6 +169,64 @@ describe('WebSocket voice relay', () => {
         stage: 'tts-end',
         audioUrl: 'https://cdn.example.com/abc.mp3',
       });
+      ws.close();
+    } finally {
+      await ctx.app.close();
+    }
+  });
+
+  it('ignores a malformed voice_audio frame instead of crashing or reaching the relay', async () => {
+    const runUtterance = vi.fn(async () => {});
+    const fakeRelay: VoiceRelay = { runUtterance };
+    const ctx = await startServer({ voiceRelay: fakeRelay });
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
+      const received: unknown[] = [];
+      ws.on('message', (data) => received.push(JSON.parse(data.toString())));
+      await new Promise<void>((r) => ws.once('open', () => r()));
+      ws.send(JSON.stringify({ type: 'hello', displayName: 'Living Room' }));
+      await waitFor(received, (m) => (m as { type?: string }).type === 'welcome');
+
+      // `chunk` is a number, not a base64 string, and `final` is a string,
+      // not a boolean — malformed on both fields the fix now checks.
+      ws.send(JSON.stringify({ type: 'voice_audio', seq: 0, chunk: 12345, final: 'true' }));
+      const echoed = await waitFor(received, (m) => (m as { type?: string }).type === 'error');
+      expect((echoed as { error: string }).error).toBe('unsupported message');
+
+      // Give any (incorrect) async handling a tick to settle, then confirm
+      // the relay was never invoked and the socket is still alive.
+      await new Promise((r) => setTimeout(r, 20));
+      expect(runUtterance).not.toHaveBeenCalled();
+      expect(received.some((m) => (m as { type?: string }).type === 'voice_result')).toBe(false);
+      expect(ws.readyState).toBe(WebSocket.OPEN);
+      ws.close();
+    } finally {
+      await ctx.app.close();
+    }
+  });
+
+  it('drops a per-socket audio buffer that exceeds the byte cap instead of relaying it', async () => {
+    const runUtterance = vi.fn(async () => {});
+    const fakeRelay: VoiceRelay = { runUtterance };
+    const ctx = await startServer({ voiceRelay: fakeRelay });
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
+      const received: unknown[] = [];
+      ws.on('message', (data) => received.push(JSON.parse(data.toString())));
+      await new Promise<void>((r) => ws.once('open', () => r()));
+      ws.send(JSON.stringify({ type: 'hello', displayName: 'Living Room' }));
+      await waitFor(received, (m) => (m as { type?: string }).type === 'welcome');
+
+      // Three ~0.8MB chunks (~2.4MB total) blow past the 2MB cap well before
+      // the final frame.
+      const bigChunk = Buffer.alloc(800_000, 1).toString('base64');
+      ws.send(JSON.stringify({ type: 'voice_audio', seq: 0, chunk: bigChunk, final: false }));
+      ws.send(JSON.stringify({ type: 'voice_audio', seq: 1, chunk: bigChunk, final: false }));
+      ws.send(JSON.stringify({ type: 'voice_audio', seq: 2, chunk: bigChunk, final: true }));
+
+      await new Promise((r) => setTimeout(r, 50));
+      expect(runUtterance).not.toHaveBeenCalled();
+      expect(received.some((m) => (m as { type?: string }).type === 'voice_result')).toBe(false);
       ws.close();
     } finally {
       await ctx.app.close();

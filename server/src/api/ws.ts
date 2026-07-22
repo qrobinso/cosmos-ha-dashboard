@@ -94,7 +94,13 @@ function isHello(value: unknown): value is Extract<ClientMessage, { type: 'hello
 }
 
 function isVoiceAudio(value: unknown): value is Extract<ClientMessage, { type: 'voice_audio' }> {
-  return typeof value === 'object' && value !== null && (value as { type?: unknown }).type === 'voice_audio';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'voice_audio' &&
+    typeof (value as { chunk?: unknown }).chunk === 'string' &&
+    typeof (value as { final?: unknown }).final === 'boolean'
+  );
 }
 
 function isVoiceHealth(value: unknown): value is Extract<ClientMessage, { type: 'voice_health' }> {
@@ -122,8 +128,16 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   // as soon as a `final:true` frame arrives, so a second utterance on the
   // same socket always starts from a fresh empty buffer — no cross-utterance
   // mixing even if frames for utterance N+1 arrive before N's relay finishes.
-  const voiceAudioBuffers = new Map<WebSocket, Buffer[]>();
+  // `overflowed` marks a buffer that has already blown past the cap below —
+  // once set it stays true (chunks stop being retained) until the next
+  // `final:true` frame starts a fresh utterance from a clean slate.
+  const voiceAudioBuffers = new Map<WebSocket, { chunks: Buffer[]; bytes: number; overflowed: boolean }>();
   const lastVoiceHealthByDisplay = new Map<string, VoiceHealth>();
+  // ~60s of 16kHz 16-bit mono PCM (16000 samples/s * 2 bytes/sample * 60s ≈
+  // 1.9MB); round up to 2MB. Caps a single socket's runaway/malicious
+  // buffering — a client that never sends `final:true` would otherwise grow
+  // this Buffer[] unbounded for as long as the connection stays open.
+  const MAX_VOICE_AUDIO_BYTES = 2 * 1024 * 1024;
 
   const pingMsg = JSON.stringify({ type: 'ping' });
   const heartbeat = setInterval(() => {
@@ -234,16 +248,27 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
         if (isVoiceAudio(parsed)) {
           if (!deps.voiceRelay || !ownDisplayId) return;
           const displayId = ownDisplayId;
-          const chunk = Buffer.from(parsed.chunk, 'base64');
-          const existing = voiceAudioBuffers.get(socket);
-          if (existing) {
-            existing.push(chunk);
-          } else {
-            voiceAudioBuffers.set(socket, [chunk]);
+          let entry = voiceAudioBuffers.get(socket);
+          if (!entry) {
+            entry = { chunks: [], bytes: 0, overflowed: false };
+            voiceAudioBuffers.set(socket, entry);
+          }
+          if (!entry.overflowed) {
+            const chunk = Buffer.from(parsed.chunk, 'base64');
+            entry.chunks.push(chunk);
+            entry.bytes += chunk.length;
+            if (entry.bytes > MAX_VOICE_AUDIO_BYTES) {
+              // Drop what's buffered so far and stop retaining further
+              // chunks; the `final:true` branch below still fires (so the
+              // socket doesn't wedge) but relays nothing for this utterance.
+              entry.overflowed = true;
+              entry.chunks = [];
+            }
           }
           if (parsed.final) {
-            const chunks = voiceAudioBuffers.get(socket) ?? [];
             voiceAudioBuffers.delete(socket);
+            if (entry.overflowed) return;
+            const chunks = entry.chunks;
             const display = deps.displays.getById(displayId);
             const pipelineId = display?.voicePipelineId ?? null;
             async function* toAsyncIter() {
