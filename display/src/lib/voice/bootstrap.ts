@@ -75,7 +75,13 @@ export async function startVoiceBootstrap(
     });
 
     detector = createWakeWordDetector({
-      onWake: () => onOverlayState('listening'),
+      // Wake arms capture so the *following* frames get buffered — frames
+      // before this point (including the wake phrase itself) are never
+      // captured. See capture.ts's armed/idle gate.
+      onWake: () => {
+        capture.arm();
+        onOverlayState('listening');
+      },
     });
 
     try {
@@ -97,6 +103,10 @@ export async function startVoiceBootstrap(
       // wakeword.ts) throwing on every single frame (~12.5x/sec) and
       // spamming an unhandled-rejection storm.
       void activeDetector.processFrame(input).catch(() => {});
+      // Wake detection always runs on every frame (above). Capture, however,
+      // only buffers/forwards frames while armed — pushFrame is a no-op
+      // until onWake calls capture.arm(), so pre-wake audio (including loud
+      // speech that never triggers the wake word) is never sent to HA.
       capture.pushFrame(floatTo16BitPCM(input));
     };
     source.connect(processor);
