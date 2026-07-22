@@ -2,7 +2,11 @@ import type { SceneState, OverlayMessage } from './types';
 import type { TransitionDescriptor } from './transitions/types';
 
 export type Orientation = 'landscape' | 'portrait';
-export type DisplayConfig = { orientation: Orientation };
+export type DisplayConfig = {
+  orientation: Orientation;
+  voiceEnabled: boolean;
+  voicePipelineId: string | null;
+};
 
 export type WelcomeMessage = { type: 'welcome'; displayId: string; message: string };
 export type DisplayConfigMessage = { type: 'display_config'; config: DisplayConfig };

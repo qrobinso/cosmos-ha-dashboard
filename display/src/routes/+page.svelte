@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { getDisplayName, setDisplayName } from '$lib/storage';
   import { setDisplayName as setReportDisplayName } from '$lib/scene/reportPalette';
-  import { connect, type ServerMessage, type Orientation } from '$lib/ws';
+  import { connect, type ServerMessage, type Orientation, type CosmosConnection } from '$lib/ws';
   import type { SceneState } from '$lib/types';
   import TransitionStage from '$lib/scene/TransitionStage.svelte';
   import type { TransitionDescriptor } from '$lib/transitions/types';
@@ -10,19 +10,57 @@
   import FullscreenButton from '$lib/scene/FullscreenButton.svelte';
   import RefreshTapper from '$lib/scene/RefreshTapper.svelte';
   import type { OverlayMessage } from '$lib/types';
+  import type { VoiceOverlayState } from '$lib/voice/types';
+  import type { VoiceBootstrapHandle } from '$lib/voice/bootstrap';
 
   let name: string | null = null;
   let inputName = '';
   let greeting: string | null = null;
   let scene: SceneState | null = null;
   let error: string | null = null;
-  let socket: { close(): void } | null = null;
+  let socket: CosmosConnection | null = null;
   let pendingTransition: TransitionDescriptor | null = null;
   let overlay: OverlayMessage | null = null;
   let orientation: Orientation = 'landscape';
+  // Voice bootstrap is armed at most once per session, lazily, only for
+  // displays with voiceEnabled — see armVoice(). null until (if ever) armed.
+  let voiceHandle: VoiceBootstrapHandle | null = null;
 
   $: if (typeof document !== 'undefined') {
     document.body.dataset.orientation = orientation;
+  }
+
+  // Voice overlay states reuse the kiosk's single MessageOverlay slot rather
+  // than a second overlay UI (per the voice-assistant design spec). This means
+  // a voice state and a server-pushed OverlayMessage can't be shown
+  // simultaneously — whichever lands last wins. Acceptable for this task;
+  // revisit if that collision turns out to matter in practice.
+  function voiceOverlayFor(state: VoiceOverlayState, text?: string): OverlayMessage | null {
+    switch (state) {
+      case 'listening':
+        return { title: 'Listening…', icon: '🎙️' };
+      case 'thinking':
+        return { title: text ?? 'Thinking…', icon: '💭' };
+      case 'response':
+        return { title: text ?? 'Done', icon: '🔊', timeout_ms: 6000 };
+      case 'error':
+        return { title: 'Voice error', body: text, icon: '⚠️', timeout_ms: 5000 };
+      default:
+        return null;
+    }
+  }
+
+  function onVoiceOverlayState(state: VoiceOverlayState, text?: string) {
+    overlay = voiceOverlayFor(state, text);
+  }
+
+  // Dynamically imported: voice/bootstrap.ts (transitively wakeword.ts) pulls
+  // in onnxruntime-web's ~26MB WASM runtime. A static top-level import here
+  // would bloat every kiosk boot, including displays with voice disabled.
+  async function armVoice(connection: CosmosConnection) {
+    if (voiceHandle) return; // already armed this session
+    const { startVoiceBootstrap } = await import('$lib/voice/bootstrap');
+    voiceHandle = await startVoiceBootstrap(connection, onVoiceOverlayState);
   }
 
   function handleMessage(msg: ServerMessage) {
@@ -31,6 +69,7 @@
       error = null;
     } else if (msg.type === 'display_config') {
       orientation = msg.config.orientation;
+      if (msg.config.voiceEnabled && socket) void armVoice(socket);
     } else if (msg.type === 'scene') {
       pendingTransition = msg.transition ?? null;
       scene = msg.state;
@@ -39,6 +78,8 @@
       overlay = msg.overlay;
     } else if (msg.type === 'overlay_dismiss') {
       overlay = null;
+    } else if (msg.type === 'voice_result') {
+      voiceHandle?.handleServerMessage(msg);
     } else {
       error = msg.error;
     }
@@ -74,6 +115,7 @@
   onDestroy(() => {
     socket?.close();
     setReportDisplayName(null);
+    void voiceHandle?.stop();
   });
 </script>
 
