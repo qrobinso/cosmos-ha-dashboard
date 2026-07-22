@@ -34,6 +34,7 @@ export function startVoiceAssistant(
     if (msg.type !== 'voice_result') return;
     switch (msg.stage) {
       case 'listening':
+        lastText = undefined;
         onOverlayState('listening');
         break;
       case 'stt-end':
@@ -46,6 +47,7 @@ export function startVoiceAssistant(
         if (msg.audioUrl) playAudio(msg.audioUrl);
         break;
       case 'error':
+        lastText = undefined;
         onOverlayState('error', msg.error);
         break;
     }
