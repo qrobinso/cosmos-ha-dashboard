@@ -9,7 +9,7 @@ export type WakeWordDetectorOpts = {
 export type WakeWordDetector = {
   load(): Promise<void>;
   processFrame(frame: Float32Array): Promise<void>;
-  dispose(): void;
+  dispose(): Promise<void>;
 };
 
 /**
@@ -32,12 +32,21 @@ export function createWakeWordDetector(opts: WakeWordDetectorOpts): WakeWordDete
     async processFrame(frame: Float32Array) {
       if (!session) return;
       const tensor = new Tensor('float32', frame, [1, frame.length]);
+      // ASSUMPTION: 'input'/'output' are placeholder tensor names for a
+      // single-stage PCM-in/score-out model. The real exported openWakeWord
+      // `.onnx` asset (wired in separately, not part of this task) may use
+      // different names — whoever adds that asset must verify these against
+      // the model's actual `session.inputNames`/`session.outputNames` (both
+      // available on the real onnxruntime-web API) and adjust if they differ.
       const results = await session.run({ input: tensor } as unknown as Record<string, Tensor>);
       const score = (results.output.data as Float32Array)[0];
       if (score >= threshold) opts.onWake();
     },
-    dispose() {
-      session = null;
+    async dispose() {
+      if (session) {
+        await session.release();
+        session = null;
+      }
     },
   };
 }
