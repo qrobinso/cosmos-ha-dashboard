@@ -110,6 +110,8 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 - The kiosk's reported mic health is typed as a bare `string | null` in the admin displays page rather than the shared `VoiceHealth` union — drifts silently if the union gains/renames a member.
 - The voice overlay (listening/thinking/response/error) reuses the kiosk's single `MessageOverlay` slot rather than a dedicated voice UI — a voice state and a server-pushed `OverlayMessage` can't show simultaneously; whichever lands last wins.
 - `display` has no wired typecheck script and `svelte-check` currently reports pre-existing errors unrelated to voice — worth a follow-up pass to get it clean and wired into CI.
+- `voice/relay.ts`'s per-utterance timeout `break`s out of the loop without calling `iterator.return()`, so on the rare "HA sent run-start then went silent >30s" path the parked generator (HA subscription + up to 2MB of buffered audio) stays reachable until process exit. Add `iterator.return?.()` on the timeout path.
+- `voice/client.ts`: if HA rejects a run with an `error` event and never sends `run-start`, the caller sees the generic "run-start timed out" message after the 10s wait instead of HA's actual error immediately — cosmetic, but worth short-circuiting the run-start wait when a terminal error event arrives first.
 
 ## Roadmap
 
