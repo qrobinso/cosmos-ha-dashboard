@@ -8,6 +8,8 @@ import { assemblePush } from '../scenes/assembler.js';
 import { readSafeArea, readTransitionSpeed } from './http.js';
 import { readCanvasFetchPolicy } from '../store/canvasFetch.js';
 import type { OverlayMessage } from '../overlay/types.js';
+import type { VoiceRelay } from '../voice/relay.js';
+import type { VoiceResult, VoiceHealth } from '../voice/types.js';
 
 export type PushReason =
   | 'hello'
@@ -57,6 +59,9 @@ export type WsDeps = {
    *  it into the assembler so adaptive_colors can override gradient.colors.
    *  Also pruned on scene change and cleared on display disconnect. */
   displayPalette?: import('../store/displayPalette.js').DisplayPaletteStore;
+  /** Relay to HA's Assist pipeline. Undefined when voice/HA is unavailable —
+   *  inbound voice_audio frames are then silently ignored (no-op, not an error). */
+  voiceRelay?: VoiceRelay;
 };
 
 export type CosmosWss = WebSocketServer & {
@@ -70,17 +75,30 @@ export type CosmosWss = WebSocketServer & {
   dismissOverlayFor(displayId: string): void;
   dismissOverlayForAll(): void;
   pushDisplayConfigTo(displayId: string): void;
+  pushVoiceResultTo(displayId: string, result: VoiceResult): void;
+  getVoiceHealth(displayId: string): VoiceHealth | null;
 };
 
-type ClientMessage = { type: 'hello'; displayName: string };
+type ClientMessage =
+  | { type: 'hello'; displayName: string }
+  | { type: 'voice_audio'; seq: number; chunk: string; final: boolean }
+  | { type: 'voice_health'; mic: VoiceHealth };
 
-function isHello(value: unknown): value is ClientMessage {
+function isHello(value: unknown): value is Extract<ClientMessage, { type: 'hello' }> {
   return (
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === 'hello' &&
     typeof (value as { displayName?: unknown }).displayName === 'string'
   );
+}
+
+function isVoiceAudio(value: unknown): value is Extract<ClientMessage, { type: 'voice_audio' }> {
+  return typeof value === 'object' && value !== null && (value as { type?: unknown }).type === 'voice_audio';
+}
+
+function isVoiceHealth(value: unknown): value is Extract<ClientMessage, { type: 'voice_health' }> {
+  return typeof value === 'object' && value !== null && (value as { type?: unknown }).type === 'voice_health';
 }
 
 function activeSceneId(displayId: string, deps: WsDeps): string | null {
@@ -98,6 +116,14 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   const wss = new WebSocketServer({ server, path: '/ws' }) as CosmosWss;
   const sockets = new Map<string, Set<WebSocket>>();
   const lastSceneByDisplay = new Map<string, string>();
+  // Per-connection buffer of decoded audio chunks for the utterance currently
+  // in flight on that socket. Keyed by socket (not displayId) so multiple
+  // sockets for the same display never share a buffer. Drained and deleted
+  // as soon as a `final:true` frame arrives, so a second utterance on the
+  // same socket always starts from a fresh empty buffer — no cross-utterance
+  // mixing even if frames for utterance N+1 arrive before N's relay finishes.
+  const voiceAudioBuffers = new Map<WebSocket, Buffer[]>();
+  const lastVoiceHealthByDisplay = new Map<string, VoiceHealth>();
 
   const pingMsg = JSON.stringify({ type: 'ping' });
   const heartbeat = setInterval(() => {
@@ -178,6 +204,10 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   wss.on('connection', (socket: WebSocket) => {
     let ownDisplayId: string | null = null;
     socket.on('close', () => {
+      // Drop any in-progress voice-audio buffer for this socket. Without
+      // this, a disconnect mid-utterance leaks the accumulated Buffer[]
+      // forever since nothing else ever reaches `final:true` for it.
+      voiceAudioBuffers.delete(socket);
       if (!ownDisplayId) return;
       const set = sockets.get(ownDisplayId);
       set?.delete(socket);
@@ -199,6 +229,34 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
           parsed = JSON.parse(raw.toString());
         } catch {
           socket.send(JSON.stringify({ type: 'error', error: 'invalid json' }));
+          return;
+        }
+        if (isVoiceAudio(parsed)) {
+          if (!deps.voiceRelay || !ownDisplayId) return;
+          const displayId = ownDisplayId;
+          const chunk = Buffer.from(parsed.chunk, 'base64');
+          const existing = voiceAudioBuffers.get(socket);
+          if (existing) {
+            existing.push(chunk);
+          } else {
+            voiceAudioBuffers.set(socket, [chunk]);
+          }
+          if (parsed.final) {
+            const chunks = voiceAudioBuffers.get(socket) ?? [];
+            voiceAudioBuffers.delete(socket);
+            const display = deps.displays.getById(displayId);
+            const pipelineId = display?.voicePipelineId ?? null;
+            async function* toAsyncIter() {
+              for (const c of chunks) yield new Uint8Array(c);
+            }
+            void deps.voiceRelay.runUtterance(pipelineId, toAsyncIter(), (result) => {
+              wss.pushVoiceResultTo(displayId, result);
+            });
+          }
+          return;
+        }
+        if (isVoiceHealth(parsed)) {
+          if (ownDisplayId) lastVoiceHealthByDisplay.set(ownDisplayId, parsed.mic);
           return;
         }
         if (!isHello(parsed)) {
@@ -299,6 +357,23 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   wss.dismissOverlayForAll = () => {
     for (const id of sockets.keys()) sendToDisplay(id, { type: 'overlay_dismiss' });
   };
+
+  wss.pushVoiceResultTo = (displayId, result) => {
+    const set = sockets.get(displayId);
+    if (!set) return;
+    const msg = JSON.stringify({ type: 'voice_result', ...result });
+    for (const s of set) {
+      if (s.readyState === s.OPEN) {
+        try {
+          s.send(msg);
+        } catch {
+          /* socket dying — close handler cleans up */
+        }
+      }
+    }
+  };
+
+  wss.getVoiceHealth = (displayId) => lastVoiceHealthByDisplay.get(displayId) ?? null;
 
   wss.pushDisplayConfigTo = (displayId) => {
     const display = deps.displays.getById(displayId);

@@ -11,6 +11,10 @@ import { attachWsHub } from './api/ws.js';
 import { registerStatic } from './static.js';
 import { makeHaClient } from './ha/client.js';
 import type { HaClient } from './ha/types.js';
+import { makeVoiceHaClient } from './voice/client.js';
+import { createVoiceRelay } from './voice/relay.js';
+import type { VoiceHaClient } from './voice/types.js';
+import type { VoiceRelay } from './voice/relay.js';
 import { mockEntityResolver, buildSceneState } from './scenes/assembler.js';
 import { resolveMoodsDir } from './moods/scan.js';
 import { createTemplatesClient } from './ha/templates.js';
@@ -86,6 +90,25 @@ async function main() {
     }
   } else {
     console.log('Home Assistant not configured; using mock entity data');
+  }
+
+  // Dedicated second HA connection for voice (see voice/client.ts) so a
+  // long-running Assist pipeline can't block the reactive entity-state
+  // connection. Mirrors the primary haClient construction above but is
+  // fully optional: any failure here just means voice is unavailable, it
+  // never blocks boot.
+  let voiceClient: VoiceHaClient | null = null;
+  let voiceRelay: VoiceRelay | undefined;
+  if (effectiveHaUrl && effectiveHaToken) {
+    try {
+      voiceClient = await makeVoiceHaClient({ url: effectiveHaUrl, token: effectiveHaToken });
+      voiceRelay = createVoiceRelay(voiceClient);
+      console.log('Voice (HA Assist) connected');
+    } catch (err) {
+      console.error('[voice] failed to connect HA assist client', err);
+      voiceClient = null;
+      voiceRelay = undefined;
+    }
   }
 
   const resolveEntity = haClient
@@ -212,6 +235,7 @@ async function main() {
     overrides,
     designs,
     haClient,  // pass the live client (or null) so /api/ha/entities can read the cache
+    voiceClient,  // pass the live voice client (or null) so /api/ha/assist-pipelines can read it
     haUrl: effectiveHaUrl,    // server-reachable HA URL (LAN or http://supervisor/core) for the media proxy
     haToken: effectiveHaToken, // matching auth token for the proxy's upstream fetches
     moodsDir: () => resolveMoodsDir({ explicit: config.moodsDir, staticDir: config.staticDir, repoRoot: __cosmos_repo_root }),
@@ -388,6 +412,7 @@ async function main() {
 
   const wss = attachWsHub(app.server, {
     displays, scenes, settings, transitions, overrides, displayPalette,
+    voiceRelay,
     resolveEntity,
     resolveCalendarEvents,
     resolveHistory,
@@ -652,6 +677,7 @@ async function main() {
       canvasResolver.dispose();
       templatesClient?.close();
       await haClient?.close();
+      voiceClient?.close();
       await mqttClient?.close();
       db.close();
     } catch (err) {
