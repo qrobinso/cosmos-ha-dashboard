@@ -35,12 +35,23 @@ export async function makeVoiceHaClient(config: HaConfig): Promise<VoiceHaClient
       let resolveNext: (() => void) | null = null;
       let done = false;
       let handlerId: number | null = null;
+      // `connection.subscribeMessage` resolving only means the subscribe
+      // COMMAND was acked — HA's pipeline `run-start` EVENT (which carries
+      // `stt_binary_handler_id`) arrives later on the same callback. The
+      // send loop below must not start until this resolves, or every audio
+      // chunk gets silently dropped (handlerId still null).
+      let resolveRunStart: (() => void) | null = null;
+      const runStart = new Promise<void>((resolve) => {
+        resolveRunStart = resolve;
+      });
 
       const unsubscribe = await connection.subscribeMessage(
         (event: { type: string; data?: Record<string, unknown> }) => {
           if (event.type === 'run-start') {
             const stt = event.data?.runner_data as { stt_binary_handler_id?: number } | undefined;
             handlerId = stt?.stt_binary_handler_id ?? null;
+            resolveRunStart?.();
+            resolveRunStart = null;
           } else if (event.type === 'stt-end') {
             const text = (event.data as { stt_output?: { text?: string } } | undefined)?.stt_output?.text;
             events.push({ stage: 'stt-end', text });
@@ -70,6 +81,25 @@ export async function makeVoiceHaClient(config: HaConfig): Promise<VoiceHaClient
       );
 
       try {
+        // Await run-start (bounded so a wedged HA can't hang the utterance
+        // forever) before sending any audio. On timeout, report an error and
+        // skip straight to unsubscribing — there's no handler id to frame
+        // audio against.
+        const RUN_START_TIMEOUT_MS = 10_000;
+        let runStartTimedOut = false;
+        const runStartTimeout = setTimeout(() => {
+          runStartTimedOut = true;
+          resolveRunStart?.();
+          resolveRunStart = null;
+        }, RUN_START_TIMEOUT_MS);
+        await runStart;
+        clearTimeout(runStartTimeout);
+
+        if (runStartTimedOut) {
+          yield { stage: 'error', error: 'assist pipeline run-start timed out' };
+          return;
+        }
+
         for await (const chunk of audioChunks) {
           if (handlerId === null) continue;
           const framed = new Uint8Array(chunk.length + 1);
