@@ -14,6 +14,7 @@ import { registerSceneRoutes } from './scenes.js';
 import { buildSceneState } from '../scenes/assembler.js';
 import { registerTransitionRoutes } from './transitions.js';
 import { registerHaEntityRoutes } from './ha-entities.js';
+import { registerHaAssistRoutes } from './ha-assist.js';
 import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerCameraRoutes } from './cameras.js';
 import { registerMoodRoutes } from './moods.js';
@@ -72,6 +73,9 @@ export type HttpDeps = {
   overrides: OverridesRepo;
   designs: DesignPacksRepo;
   haClient?: import('../ha/types.js').HaClient | null;
+  /** Voice pipeline client for HA's Assist API. Null when voice/HA is
+   *  disabled; the assist-pipelines route falls back to an empty list. */
+  voiceClient?: import('../voice/types.js').VoiceHaClient | null;
   /** Server-reachable HA URL for the media proxy (LAN URL or `http://supervisor/core`). */
   haUrl?: string | null;
   /** HA token (long-lived or Supervisor) for authenticated proxy fetches. */
@@ -254,6 +258,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   registerDesignRoutes(app, { designs: deps.designs });
 
   registerHaEntityRoutes(app, { haClient: deps.haClient ?? null });
+  registerHaAssistRoutes(app, { voiceClient: deps.voiceClient ?? null });
   registerHaMediaProxyRoutes(app, { haUrl: deps.haUrl ?? null, haToken: deps.haToken ?? null });
   registerCameraRoutes(app, { haClient: deps.haClient ?? null });
   registerMoodRoutes(app, { moodsDir: () => deps.moodsDir?.() ?? null });
