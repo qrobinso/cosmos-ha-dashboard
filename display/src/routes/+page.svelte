@@ -31,6 +31,12 @@
   // second display_config arriving in that window must not double-arm the
   // mic — this flag closes that gap.
   let voiceArming = false;
+  // Latest desired voice state per the most recent display_config. Read at
+  // the end of armVoice's async chain so a toggle-off that lands mid-arm
+  // (mic permission prompt, WASM fetch, ONNX model load — all can take
+  // seconds) doesn't leave a freshly-armed mic running for a state nobody
+  // wants anymore.
+  let voiceWanted = false;
 
   $: if (typeof document !== 'undefined') {
     document.body.dataset.orientation = orientation;
@@ -73,7 +79,16 @@
     voiceArming = true;
     try {
       const { startVoiceBootstrap } = await import('$lib/voice/bootstrap');
-      voiceHandle = await startVoiceBootstrap(connection, onVoiceOverlayState);
+      const handle = await startVoiceBootstrap(connection, onVoiceOverlayState);
+      if (!voiceWanted) {
+        // Voice was toggled off again while the arm was in flight — don't
+        // leave the mic/AudioContext/wake-word session it just created
+        // running for a state we no longer want.
+        void handle?.stop();
+        voiceHandle = null;
+        return;
+      }
+      voiceHandle = handle;
     } finally {
       voiceArming = false;
     }
@@ -85,7 +100,8 @@
       error = null;
     } else if (msg.type === 'display_config') {
       orientation = msg.config.orientation;
-      if (msg.config.voiceEnabled && socket) {
+      voiceWanted = !!msg.config.voiceEnabled;
+      if (voiceWanted && socket) {
         void armVoice(socket);
       } else if (voiceHandle) {
         // Admin turned voice off on an already-armed display — disarm so the

@@ -318,7 +318,7 @@
                           value={d.voicePipelineId ?? ''}
                           disabled={busy === d.name}
                           on:change={(e) =>
-                            setVoicePipeline(d.name, true, e.currentTarget.value || null)}
+                            setVoicePipeline(d.name, d.voiceEnabled, e.currentTarget.value || null)}
                         >
                           <option value="">HA default pipeline</option>
                           {#each assistPipelines as p (p.id)}
