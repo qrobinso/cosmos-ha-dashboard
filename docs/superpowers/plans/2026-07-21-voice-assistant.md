@@ -848,11 +848,13 @@ git commit -m "feat(voice): relay voice_audio over the WS hub to HA assist"
 
 ---
 
-### Task 7: Display-side WS protocol extension
+### Task 7: Display-side WS protocol extension (+ vitest setup for `display/`)
 
 **Files:**
 - Modify: `display/src/lib/ws.ts`
-- Test: `display/src/lib/ws.test.ts` (create if none exists — check first)
+- Modify: `display/package.json` (add vitest — see Step 0)
+- Create: `display/vitest.config.ts`
+- Test: `display/src/lib/ws.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -860,6 +862,32 @@ git commit -m "feat(voice): relay voice_audio over the WS hub to HA assist"
   - `ServerMessage` union extended with `VoiceResultMessage`
   - `CosmosConnection.sendVoiceAudio(seq: number, chunk: Uint8Array, final: boolean): void`
   - `CosmosConnection.sendVoiceHealth(mic: 'ok' | 'permission_denied' | 'model_load_failed' | 'idle' | 'error'): void`
+
+**Note:** `display/` currently has no test runner at all — no `test` script, no vitest devDependency (confirmed: `display/CLAUDE.md` states "No display-side test suite yet — the end-to-end Playwright smoke in plan verification is the gate"). This task establishes it, since every subsequent display task (8, 9, 10, 12) in this plan needs `npm --workspace display test` to work.
+
+- [ ] **Step 0: Add vitest to `display/`**
+
+Run: `npm --workspace display install --save-dev vitest`
+
+Add a `test` script to `display/package.json`'s `"scripts"` block:
+```json
+    "test": "vitest run"
+```
+
+Create `display/vitest.config.ts`:
+```typescript
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+  },
+});
+```
+
+This requires `jsdom` for DOM globals (`Audio`, `AudioContext` mocks in later tasks use browser-shaped globals even under Node's test environment in some cases — `jsdom` is the safer default). Run: `npm --workspace display install --save-dev jsdom`
+
+Run: `npm --workspace display test` — expected: passes with "no test files found" (0 tests), confirming the runner is wired before any real test is added.
 
 - [ ] **Step 1: Check for existing ws tests**
 
