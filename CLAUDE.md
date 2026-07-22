@@ -34,6 +34,7 @@ DB_PATH="$(pwd)/data/cosmos.db" npm --workspace server start
 - `canvas` widget — sandboxed iframe (`sandbox="allow-scripts"`) running user/agent-authored HTML/CSS/JS. Templates inside the content (`{{ states("...") }}`) are rendered server-side by HA via the `render_template` WS subscription (pin-for-pin HA-compatible). The iframe gets a small read-only postMessage bridge exposing `window.cosmos.{entity, subscribe, getCalendarEvents, fetch, reportColors, size, scene, font, tokens, ready}` plus CSS variables (`--cosmos-font-family`, `--cosmos-font-scale`, `--cosmos-bg`, `--cosmos-fg`, `--cosmos-w/h`). See `docs/canvas-widget.md` (user) and `docs/canvas-widget-agent.md` (LLM contract).
 - Agent contracts: `docs/scene-agent.md` (how an LLM produces a `POST /api/scenes` payload, layout/background/typography best practices, publishing flow) pairs with `docs/canvas-widget-agent.md` for the inside-the-iframe contract.
 - `mcp/` (server) — Optional Model Context Protocol HTTP server at `/mcp` so external agents (Claude Desktop, Cursor, etc.) can call Cosmos's tools. Bearer-token-gated, off by default. Same `app.inject(...)` execution path as the in-product agent. See `docs/superpowers/specs/2026-05-07-mcp-server-design.md`.
+- `voice/` (server) — Voice Assistant relay: a second, dedicated HA websocket connection (`client.ts`) drives `assist_pipeline/run` (stt → intent → tts) fed by base64 PCM chunks the display streams over the main WS; `relay.ts` wraps that per-utterance run with error handling and a hard timeout so a wedged HA can't hang a turn forever. Flow: kiosk wake-word detector fires → kiosk arms mic capture and streams `voice_audio` frames → server buffers per-socket until `final:true` → relay runs the HA pipeline and pushes `voice_result` events (stt-end/intent-end/tts-end/error) back to the display, which drives the overlay and plays the TTS response. `ha-assist.ts` exposes the pipeline list for the admin picker.
 
 WebSocket protocol (server → display):
 - `{type: 'welcome', displayId, message}` — sent on hello.
@@ -41,6 +42,10 @@ WebSocket protocol (server → display):
 - `{type: 'error', error}` — error reporting.
 - `{type: 'overlay', overlay: OverlayMessage}` — push a banner to the display.
 - `{type: 'overlay_dismiss'}` — clear any visible banner.
+- `{type: 'display_config', config}` — orientation + voice settings, sent on hello and whenever an admin changes them for a connected display.
+- `{type: 'voice_result', stage, text?, audioUrl?, error?}` — one Assist pipeline event (`listening | stt-end | intent-end | tts-end | error`); `audioUrl` is already proxied through the ha-media convention by the time it reaches the display.
+
+WebSocket protocol (display → server): `{type: 'voice_audio', seq, chunk, final}` (base64 PCM frame) and `{type: 'voice_health', mic}` (kiosk-reported mic/model status), alongside the existing `{type: 'hello', displayName}`.
 
 REST highlights:
 - `POST /api/displays/register {name}` — register/find a display.
@@ -53,6 +58,8 @@ REST highlights:
 - `GET /api/transitions` / `GET /api/transitions/:id` — list/get transitions.
 - `GET /api/ha/entities[?domain=light]` — list cached HA entities (or mock entities when HA disabled).
 - `GET /api/moods` — list bundled moods (id, label, tags) for the editor's Mood card.
+- `GET /api/ha/assist-pipelines` — list HA Assist pipelines (empty array when the voice client is unavailable) for the admin voice picker.
+- `PUT /api/displays/:name/voice {enabled, pipelineId}` — toggle voice + pick a pipeline for a display; notifies a connected kiosk live via `display_config`.
 
 Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enables MQTT command dispatch + HA discovery. Without them, Cosmos uses mock entity data and overlay commands are unavailable.
 
@@ -95,6 +102,14 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 - Calendar week-start-day, hour-range window, and color palette are all hardcoded (Sunday start, 6am–11pm, 8-color `CALENDAR_SOURCE_PALETTE` in `display/src/lib/admin/widgets/calendarPalette.ts`). Surface in the editor if users want it.
 - Calendar `defaultConfig` still emits `entity_id`-free configs; the editor's lazy promotion handles legacy scenes, and direct `POST /api/scenes` calls with the legacy single-entity shape still work thanks to the assembler's `normalizeCalendarSources`. Could tighten the schema later.
 - Calendar reactive re-push on event mutation still TODO — HA doesn't fire `state_changed` for calendar event mutations, so changes only land on the next scene push. Carry into a future plan.
+- `createVoiceRelay`'s `runUtterance` wraps the whole HA iteration in one try/catch around `onResult` calls — an exception thrown *by* an `onResult` callback (e.g. a bug in the WS push path) is caught and reported as a pipeline error rather than propagating, which could mask a bug in the caller.
+- Multi-chunk voice-audio buffering (more than one non-final `voice_audio` frame before `final:true`) and the voiceRelay-absent code paths in `api/ws.ts` are exercised only lightly by tests — worth dedicated coverage before this sees heavier real-world traffic.
+- `lastVoiceHealthByDisplay` (in `api/ws.ts`) is never pruned when a display disconnects, so it grows unbounded across the lifetime of the process for churny display names. Low risk at real-world display counts; revisit if that changes.
+- The `voice_audio` chunk's base64 encode (kiosk) → decode (server) round trip has no dedicated test asserting byte-for-byte fidelity.
+- `wakeword.ts`'s ONNX tensor names (`'input'`/`'output'`) are placeholders — the real `.onnx` wake-word model is a build asset **not checked into this repo** (like the mood `.mp4` clips). Whoever adds that asset must verify the names against the model's actual `session.inputNames`/`session.outputNames` and adjust if they differ.
+- The kiosk's reported mic health is typed as a bare `string | null` in the admin displays page rather than the shared `VoiceHealth` union — drifts silently if the union gains/renames a member.
+- The voice overlay (listening/thinking/response/error) reuses the kiosk's single `MessageOverlay` slot rather than a dedicated voice UI — a voice state and a server-pushed `OverlayMessage` can't show simultaneously; whichever lands last wins.
+- `display` has no wired typecheck script and `svelte-check` currently reports pre-existing errors unrelated to voice — worth a follow-up pass to get it clean and wired into CI.
 
 ## Roadmap
 
