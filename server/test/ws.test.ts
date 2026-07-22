@@ -112,4 +112,66 @@ describe('WebSocket voice relay', () => {
       await ctx.app.close();
     }
   });
+
+  it('rewrites a relative tts-end audioUrl through the ha-media proxy convention', async () => {
+    const results: import('../src/voice/types.js').VoiceResult[] = [
+      { stage: 'tts-end', audioUrl: '/api/tts_proxy/abc.mp3' },
+    ];
+    const fakeRelay: VoiceRelay = {
+      async runUtterance(_pipelineId, _chunks, onResult) {
+        for (const r of results) onResult(r);
+      },
+    };
+    const ctx = await startServer({ voiceRelay: fakeRelay, mediaUrlBase: 'http://ha.local:8123' });
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
+      const received: unknown[] = [];
+      ws.on('message', (data) => received.push(JSON.parse(data.toString())));
+      await new Promise<void>((r) => ws.once('open', () => r()));
+      ws.send(JSON.stringify({ type: 'hello', displayName: 'Living Room' }));
+      await waitFor(received, (m) => (m as { type?: string }).type === 'welcome');
+
+      ws.send(JSON.stringify({ type: 'voice_audio', seq: 0, chunk: Buffer.from([1]).toString('base64'), final: true }));
+      await waitFor(received, (m) => (m as { type?: string }).type === 'voice_result');
+      expect(received).toContainEqual({
+        type: 'voice_result',
+        stage: 'tts-end',
+        audioUrl: '/api/ha-media/api/tts_proxy/abc.mp3',
+      });
+      ws.close();
+    } finally {
+      await ctx.app.close();
+    }
+  });
+
+  it('leaves an already-absolute tts-end audioUrl unchanged', async () => {
+    const results: import('../src/voice/types.js').VoiceResult[] = [
+      { stage: 'tts-end', audioUrl: 'https://cdn.example.com/abc.mp3' },
+    ];
+    const fakeRelay: VoiceRelay = {
+      async runUtterance(_pipelineId, _chunks, onResult) {
+        for (const r of results) onResult(r);
+      },
+    };
+    const ctx = await startServer({ voiceRelay: fakeRelay });
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${ctx.port}/ws`);
+      const received: unknown[] = [];
+      ws.on('message', (data) => received.push(JSON.parse(data.toString())));
+      await new Promise<void>((r) => ws.once('open', () => r()));
+      ws.send(JSON.stringify({ type: 'hello', displayName: 'Living Room' }));
+      await waitFor(received, (m) => (m as { type?: string }).type === 'welcome');
+
+      ws.send(JSON.stringify({ type: 'voice_audio', seq: 0, chunk: Buffer.from([1]).toString('base64'), final: true }));
+      await waitFor(received, (m) => (m as { type?: string }).type === 'voice_result');
+      expect(received).toContainEqual({
+        type: 'voice_result',
+        stage: 'tts-end',
+        audioUrl: 'https://cdn.example.com/abc.mp3',
+      });
+      ws.close();
+    } finally {
+      await ctx.app.close();
+    }
+  });
 });

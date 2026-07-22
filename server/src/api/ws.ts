@@ -4,7 +4,7 @@ import type { DisplaysRepo } from '../store/displays.js';
 import type { ScenesRepo } from '../store/scenes.js';
 import type { SettingsRepo } from '../store/settings.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
-import { assemblePush } from '../scenes/assembler.js';
+import { assemblePush, absolutizeMediaUrl } from '../scenes/assembler.js';
 import { readSafeArea, readTransitionSpeed } from './http.js';
 import { readCanvasFetchPolicy } from '../store/canvasFetch.js';
 import type { OverlayMessage } from '../overlay/types.js';
@@ -365,7 +365,14 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   wss.pushVoiceResultTo = (displayId, result) => {
     const set = sockets.get(displayId);
     if (!set) return;
-    const msg = JSON.stringify({ type: 'voice_result', ...result });
+    // HA's tts-end audioUrl is HA-relative (e.g. /api/tts_proxy/...). Route
+    // it through the same media-proxy convention as entity_picture/camera
+    // URLs (see absolutizeMediaUrl) — otherwise `new Audio(url)` on the
+    // kiosk resolves it against Cosmos's own origin and 404s.
+    const outgoing: VoiceResult = result.audioUrl
+      ? { ...result, audioUrl: absolutizeMediaUrl(result.audioUrl, deps.mediaUrlBase) }
+      : result;
+    const msg = JSON.stringify({ type: 'voice_result', ...outgoing });
     for (const s of set) {
       if (s.readyState === s.OPEN) {
         try {
