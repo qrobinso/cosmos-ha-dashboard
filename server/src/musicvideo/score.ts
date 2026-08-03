@@ -85,8 +85,12 @@ function durationScore(candidateSec: number | null, ctxSec: number | undefined):
 
   if (diff > 0) {
     // Longer than the track — the suspicious direction.
-    if (diff > 120) return -45; // compilation, mix, or full album
-    if (diff > 45) return -30; // medley, or a different (longer) arrangement
+    // Softened deliberately: official videos routinely run long on intros and
+    // outros — Tame Impala's "The Less I Know The Better" video is 5:43
+    // against a 3:36 album track — so this must not be heavy enough to bury a
+    // candidate that already says "official video".
+    if (diff > 120) return -30; // compilation, mix, or full album
+    if (diff > 45) return -20; // medley, or a different (longer) arrangement
     return 0;
   }
 
@@ -113,16 +117,59 @@ const TITLE_PENALTIES: Array<{ pattern: RegExp; points: number }> = [
   { pattern: /remix/i, points: -25 },
   { pattern: /sped up|slowed/i, points: -25 },
   { pattern: /instrumental/i, points: -20 },
-  { pattern: /\baudio\b/i, points: -10 },
+  // An explicit "(Audio)" label is the artist telling us this is not a video.
+  // Weighted like the Art Track penalty for the same reason: everything else
+  // about it looks perfect, including an exact duration match against the
+  // album track, so a weak penalty leaves it beating the real video.
+  { pattern: /\baudio\b/i, points: -35 },
 ];
 
-const OFFICIAL_VIDEO_PATTERN = /official\s+(music\s+)?video/i;
+/**
+ * "Official" and "video" both present, in any order and not necessarily
+ * adjacent — `Official Video`, `Official Music Video`, `[Official] ... Video`,
+ * `Video Oficial`-style orderings all count. This is the single most reliable
+ * indicator that an upload is an actual music video rather than an audio
+ * upload, so it is matched loosely on purpose.
+ */
+const OFFICIAL_WORD = /\bofficial\b/i;
+const VIDEO_WORD = /\bvideos?\b/i;
+
+export function hasOfficialVideoWords(title: string): boolean {
+  return OFFICIAL_WORD.test(title) && VIDEO_WORD.test(title);
+}
+
+/**
+ * Penalty for a YouTube "Art Track" — the auto-generated AUDIO upload that
+ * accompanies a release, not a music video.
+ *
+ * The tell is the title. Art Tracks are titled with the bare song name, while
+ * a real video on the same artist channel is titled "Artist - Song". Verified
+ * against live search output:
+ *
+ *   "Kendrick Lamar - HUMBLE."   184s  Kendrick Lamar✓   <- the official video
+ *   "HUMBLE."                    177s  Kendrick Lamar✓   <- the Art Track
+ *   "Radiohead - Karma Police"   263s  Radiohead✓        <- the official video
+ *   "Karma Police"               265s  Radiohead✓        <- the Art Track
+ *   "Weary"                      195s  solangeknowles✓   <- the Art Track
+ *
+ * Note that NEITHER official video above says "official video" anywhere, which
+ * is why this rule keys on the bare title rather than on the absence of that
+ * wording — doing the latter rejected two of the most famous music videos of
+ * their respective decades.
+ *
+ * Art Tracks otherwise look perfect to every other signal — right channel,
+ * verified, exact track duration — so without this they outrank the genuine
+ * article. The penalty is large enough to push one below MIN_SCORE on its own,
+ * because the alternative is a static album-art rectangle on the wall
+ * pretending to be a music video.
+ */
+const ART_TRACK_PENALTY = -35;
 
 function titleScore(title: string, ctxTitle: string | undefined): number {
   let score = 0;
   // Weighted above the duration signal on purpose: a title that says
   // "official video" is stronger evidence than a coincidental runtime match.
-  if (OFFICIAL_VIDEO_PATTERN.test(title)) score += 30;
+  if (hasOfficialVideoWords(title)) score += 30;
 
   if (ctxTitle && ctxTitle.length >= 3) {
     if (!containsEither(title, ctxTitle)) score -= 20;
@@ -135,6 +182,20 @@ function titleScore(title: string, ctxTitle: string | undefined): number {
   return score;
 }
 
+/**
+ * True when this looks like an Art Track: the artist's own channel, and a title
+ * that is EXACTLY the song name with no artist prefix or video wording.
+ *
+ * The equality (rather than containment) is the whole point — "Karma Police"
+ * is an Art Track, "Radiohead - Karma Police" is the video.
+ */
+function isLikelyArtTrack(c: Candidate, ctx: ScoreContext): boolean {
+  if (hasOfficialVideoWords(c.title)) return false;
+  if (!ctx.artist || ctx.artist.length < 3 || !ctx.title || ctx.title.length < 3) return false;
+  if (!containsEither(c.channel, ctx.artist)) return false;
+  return normalize(c.title) === normalize(ctx.title);
+}
+
 function popularityScore(viewCount: number | null): number {
   if (viewCount == null) return 0;
   return Math.min(5, Math.floor(Math.log10(Math.max(1, viewCount))));
@@ -145,7 +206,8 @@ export function scoreCandidate(c: Candidate, ctx: ScoreContext): number {
     durationScore(c.durationSec, ctx.durationSec) +
     channelScore(c.channel, ctx.artist, c.verified) +
     titleScore(c.title, ctx.title) +
-    popularityScore(c.viewCount)
+    popularityScore(c.viewCount) +
+    (isLikelyArtTrack(c, ctx) ? ART_TRACK_PENALTY : 0)
   );
 }
 
@@ -197,7 +259,7 @@ export function explainCandidate(
   }
   if (c.verified) reasons.push(`verified channel ${fmt(15)}`);
 
-  if (OFFICIAL_VIDEO_PATTERN.test(c.title)) reasons.push(`title says "official video" ${fmt(30)}`);
+  if (hasOfficialVideoWords(c.title)) reasons.push(`title has "official" + "video" ${fmt(30)}`);
   if (ctx.title && ctx.title.length >= 3 && !containsEither(c.title, ctx.title)) {
     reasons.push(`title does not contain "${ctx.title}" ${fmt(-20)}`);
   }
@@ -205,6 +267,13 @@ export function explainCandidate(
     if (pattern.test(c.title)) {
       reasons.push(`title matches /${pattern.source}/ ${fmt(points)}`);
     }
+  }
+
+  if (isLikelyArtTrack(c, ctx)) {
+    reasons.push(
+      `title is exactly the song name on the artist's own channel — looks like a ` +
+        `YouTube Art Track (auto-generated audio), not a music video ${fmt(ART_TRACK_PENALTY)}`,
+    );
   }
 
   return { score: scoreCandidate(c, ctx), reasons };

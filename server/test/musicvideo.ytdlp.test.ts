@@ -81,7 +81,9 @@ describe('createYtDlpLookup — two-phase search', () => {
     // exact bug this feature exists to fix.
     const flatLines = [
       flatJson({ id: 'medley-id', title: 'Solange - Rise/Weary Medley (Live)', channel: 'solangeknowlesmusic', channel_is_verified: true, duration: 282, view_count: 100 }),
-      flatJson({ id: 'weary-id', title: 'Weary', channel: 'solangeknowlesmusic', channel_is_verified: true, duration: 195, view_count: 100 }),
+      // Carries official-video wording so it clears the confidence gate; a
+      // bare "Weary" here would be read as a YouTube Art Track and rejected.
+      flatJson({ id: 'weary-id', title: 'Solange - Weary (Official Video)', channel: 'solangeknowlesmusic', channel_is_verified: true, duration: 195, view_count: 100 }),
     ];
     const { spawnFn, calls } = twoPhaseFake({
       flatLines,

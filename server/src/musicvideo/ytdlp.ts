@@ -223,8 +223,14 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
       title: hint?.title,
       durationSec: hint?.durationSec,
     };
+    // The gate needs artist AND title to mean anything — without them most
+    // signals are unavailable and every candidate would score low, so we'd
+    // reject everything rather than judging it. In practice the resolver only
+    // calls us once `normalizeTrackKey` has produced both, so this guard is
+    // for direct/degenerate callers.
+    const canAssess = !!ctx.artist && !!ctx.title;
     const { score, reasons } = explainCandidate(winner, ctx);
-    if (score < MIN_SCORE) {
+    if (canAssess && score < MIN_SCORE) {
       mvWarn(
         `no confident match for "${describeTrack(hint)}": ` +
           `best candidate scored ${score}, below the ${MIN_SCORE} threshold, so nothing will play.\n` +

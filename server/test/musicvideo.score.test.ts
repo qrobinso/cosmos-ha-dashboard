@@ -3,6 +3,7 @@ import {
   scoreCandidate,
   pickBest,
   explainCandidate,
+  hasOfficialVideoWords,
   MIN_SCORE,
   type Candidate,
   type ScoreContext,
@@ -62,20 +63,89 @@ const FIXTURE: Candidate[] = [
 
 const CTX: ScoreContext = { artist: 'Solange', title: 'Weary', durationSec: 195 };
 
-describe('scoreCandidate / pickBest — real fixture', () => {
-  it('picks #2 ("Weary" by solangeknowlesmusic) as the winner', () => {
-    const winner = pickBest(FIXTURE, CTX);
-    expect(winner?.videoId).toBe('row2-weary');
+describe('scoreCandidate / pickBest — Solange fixture', () => {
+  it('rejects every candidate: this song has no official music video', () => {
+    // "Weary" has no official video. The bare "Weary" upload on Solange's own
+    // channel is a YouTube Art Track (auto-generated audio), and everything
+    // else here is a medley, a lyric video, a remix, a fan edit, or a
+    // different song. Correct behaviour is to play nothing at all.
+    const winner = pickBest(FIXTURE, CTX)!;
+    expect(scoreCandidate(winner, CTX)).toBeLessThan(MIN_SCORE);
   });
 
-  it('scores every candidate (documented for audit)', () => {
-    const scores = FIXTURE.map((c) => ({ id: c.videoId, score: scoreCandidate(c, CTX) }));
-    // #2 must clearly beat everything else.
-    const byId = Object.fromEntries(scores.map((s) => [s.id, s.score]));
-    expect(byId['row2-weary']).toBeGreaterThan(byId['row1-medley']);
-    expect(byId['row2-weary']).toBeGreaterThan(byId['row3-lyrics']);
-    expect(byId['row2-weary']).toBeGreaterThan(byId['row5-remix']);
-    expect(byId['row2-weary']).toBeGreaterThan(byId['row6-visual']);
+  it('penalizes the bare-titled artist upload as an Art Track', () => {
+    const artTrack = FIXTURE.find((c) => c.videoId === 'row2-weary')!;
+    // Right channel, verified, exact duration — it would otherwise win easily.
+    const withoutArtTrackRule = scoreCandidate(
+      { ...artTrack, title: 'Solange - Weary (Official Video)' },
+      CTX,
+    );
+    expect(scoreCandidate(artTrack, CTX)).toBeLessThan(withoutArtTrackRule);
+    expect(scoreCandidate(artTrack, CTX)).toBeLessThan(MIN_SCORE);
+  });
+
+  it('keeps the junk well below the Art Track, let alone the gate', () => {
+    const byId = Object.fromEntries(
+      FIXTURE.map((c) => [c.videoId, scoreCandidate(c, CTX)]),
+    );
+    for (const id of ['row1-medley', 'row3-lyrics', 'row5-remix', 'row6-visual']) {
+      expect(byId[id]).toBeLessThan(MIN_SCORE);
+    }
+    // The medley and the remix are actively worse than the audio upload.
+    expect(byId['row1-medley']).toBeLessThan(byId['row2-weary']);
+    expect(byId['row5-remix']).toBeLessThan(byId['row2-weary']);
+  });
+});
+
+describe('Art Track detection', () => {
+  const base: Candidate = {
+    videoId: 'x',
+    title: '',
+    channel: 'Radiohead',
+    verified: true,
+    durationSec: 264,
+    viewCount: 10_000_000,
+  };
+  const ctx: ScoreContext = { artist: 'Radiohead', title: 'Karma Police', durationSec: 264 };
+
+  it('penalizes a bare song title on the artist channel', () => {
+    const artTrack = scoreCandidate({ ...base, title: 'Karma Police' }, ctx);
+    const video = scoreCandidate({ ...base, title: 'Radiohead - Karma Police' }, ctx);
+    expect(artTrack).toBeLessThan(video);
+  });
+
+  it('does NOT penalize the "Artist - Song" form, which is the real video', () => {
+    // Verified against live search: neither Radiohead's nor Kendrick Lamar's
+    // official videos carry "official video" wording, so keying this rule on
+    // that wording instead of the bare title would reject both.
+    const video = scoreCandidate({ ...base, title: 'Radiohead - Karma Police' }, ctx);
+    expect(video).toBeGreaterThanOrEqual(MIN_SCORE);
+  });
+
+  it('does not fire when the channel is not the artist', () => {
+    const bare = { ...base, title: 'Karma Police', channel: 'Some Fan Channel', verified: false };
+    const withArtistChannel = { ...bare, channel: 'Radiohead', verified: false };
+    expect(scoreCandidate(bare, ctx)).toBeGreaterThan(scoreCandidate(withArtistChannel, ctx));
+  });
+
+  it('does not fire when the title carries official-video wording', () => {
+    const a = scoreCandidate({ ...base, title: 'Karma Police (Official Video)' }, ctx);
+    expect(a).toBeGreaterThanOrEqual(MIN_SCORE);
+  });
+});
+
+describe('hasOfficialVideoWords', () => {
+  it('matches the words in any arrangement, not just "official video"', () => {
+    expect(hasOfficialVideoWords('Song (Official Video)')).toBe(true);
+    expect(hasOfficialVideoWords('Song (Official Music Video)')).toBe(true);
+    expect(hasOfficialVideoWords('Song [Official] ... Video')).toBe(true);
+    expect(hasOfficialVideoWords('OFFICIAL VIDEOS - Song')).toBe(true);
+  });
+
+  it('requires both words', () => {
+    expect(hasOfficialVideoWords('Song (Official Audio)')).toBe(false);
+    expect(hasOfficialVideoWords('Song (Video)')).toBe(false);
+    expect(hasOfficialVideoWords('Song')).toBe(false);
   });
 });
 
@@ -158,18 +228,17 @@ describe('pickBest — Bowie fixture (duration must not outrank provenance)', ()
 });
 
 describe('MIN_SCORE confidence gate', () => {
-  const solangeCtx: ScoreContext = { artist: 'Solange', title: 'Weary', durationSec: 195 };
-
-  it('passes the correct Solange match', () => {
-    const winner = pickBest(FIXTURE, solangeCtx)!;
-    expect(scoreCandidate(winner, solangeCtx)).toBeGreaterThanOrEqual(MIN_SCORE);
-  });
-
-  it('holds the lyric video, the wrong song, and the medley below the gate', () => {
+  it('blocks a song whose only artist upload is an Art Track', () => {
+    const solangeCtx: ScoreContext = { artist: 'Solange', title: 'Weary', durationSec: 195 };
     for (const c of FIXTURE) {
-      if (c.videoId === pickBest(FIXTURE, solangeCtx)!.videoId) continue;
       expect(scoreCandidate(c, solangeCtx)).toBeLessThan(MIN_SCORE);
     }
+  });
+
+  it('passes a genuine official video', () => {
+    const ctx: ScoreContext = { artist: 'David Bowie', title: 'Heroes', durationSec: 371 };
+    const studio = BOWIE_FIXTURE.find((c) => c.videoId === 'bowie-studio')!;
+    expect(scoreCandidate(studio, ctx)).toBeGreaterThanOrEqual(MIN_SCORE);
   });
 });
 
@@ -320,7 +389,7 @@ describe('scoreCandidate — title signals', () => {
     ['sped up', 'Weary Sped Up', -25],
     ['slowed', 'Weary Slowed', -25],
     ['instrumental', 'Weary Instrumental', -20],
-    ['audio', 'Weary Official Audio', -10],
+    ['audio', 'Weary Official Audio', -35],
   ];
 
   for (const [label, title, penalty] of penaltyCases) {
