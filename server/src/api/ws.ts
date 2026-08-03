@@ -48,6 +48,7 @@ export type WsDeps = {
   onDisplayRegistered?: (displayId: string, name: string) => void;
   onSceneActivated?: (displayId: string, sceneName: string | null) => void;
   canvasResolver?: import('../scenes/assembler.js').DataResolvers['canvasResolver'];
+  musicVideoResolver?: import('../scenes/assembler.js').DataResolvers['musicVideoResolver'];
   canvasExtras?: import('../scenes/assembler.js').DataResolvers['canvasExtras'];
   canvasExtrasOnDisconnect?: (displayName: string) => void;
   /** Called from buildPayload before sending so iframe-side subscriptions
@@ -192,6 +193,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       mediaUrlBase: deps.mediaUrlBase,
       canvasResolver: deps.canvasResolver,
       canvasExtras: deps.canvasExtras,
+      musicVideoResolver: deps.musicVideoResolver,
     });
     const assembleMs = performance.now() - t0;
     lastSceneByDisplay.set(displayId, scene.id);

@@ -611,6 +611,7 @@ export type AssemblePushArgs = {
   mediaUrlBase?: string;
   canvasResolver?: DataResolvers['canvasResolver'];
   canvasExtras?: DataResolvers['canvasExtras'];
+  musicVideoResolver?: DataResolvers['musicVideoResolver'];
   /** Global multiplier applied to the resolved transition's `out` and `in`
    *  durations. 1.0 = baked-in builtin durations; <1 faster; >1 slower.
    *  Out-of-range values are caller's responsibility to clamp. */
@@ -658,6 +659,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
       mediaUrlBase: args.mediaUrlBase,
       canvasResolver: args.canvasResolver,
       canvasExtras: args.canvasExtras,
+      musicVideoResolver: args.musicVideoResolver,
     },
     args.canvasFetchPolicy,
     args.adaptiveContributions

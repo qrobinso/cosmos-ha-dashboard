@@ -19,6 +19,9 @@ import { mockEntityResolver, buildSceneState } from './scenes/assembler.js';
 import { resolveMoodsDir } from './moods/scan.js';
 import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
+import { createMusicVideoCache } from './musicvideo/cache.js';
+import { createYtDlpLookup } from './musicvideo/ytdlp.js';
+import { createMusicVideoResolver } from './musicvideo/resolver.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
 import { createCalendarCache } from './ha/calendarCache.js';
@@ -45,6 +48,8 @@ function widgetEntityIds(scenes: ReturnType<typeof createScenesRepo>): Set<strin
 async function main() {
   const db = openDatabase(config.dbPath);
   runMigrations(db);
+  const musicVideoCache = createMusicVideoCache(db);
+  const musicVideoLookup = createYtDlpLookup();
   const displays = createDisplaysRepo(db);
   const settings = createSettingsRepo(db);
   const scenes = createScenesRepo(db);
@@ -238,6 +243,8 @@ async function main() {
     voiceClient,  // pass the live voice client (or null) so /api/ha/assist-pipelines can read it
     haUrl: effectiveHaUrl,    // server-reachable HA URL (LAN or http://supervisor/core) for the media proxy
     haToken: effectiveHaToken, // matching auth token for the proxy's upstream fetches
+    musicVideoCache,
+    musicVideoLookup,
     moodsDir: () => resolveMoodsDir({ explicit: config.moodsDir, staticDir: config.staticDir, repoRoot: __cosmos_repo_root }),
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
@@ -411,6 +418,22 @@ async function main() {
     }
   });
 
+  const musicVideoResolver = createMusicVideoResolver(
+    musicVideoLookup,
+    musicVideoCache,
+    (widgetId) => {
+      // Same fan-out as canvasResolver: any display whose active scene holds
+      // this widget needs a re-push now that the videoId has landed.
+      for (const d of displays.list()) {
+        const activeId = d.currentSceneId ?? d.defaultSceneId;
+        if (!activeId) continue;
+        const scene = scenes.get(activeId);
+        if (!scene) continue;
+        if (scene.widgets.some((w) => w.id === widgetId)) markDisplayDirty(d.id);
+      }
+    },
+  );
+
   const wss = attachWsHub(app.server, {
     displays, scenes, settings, transitions, overrides, displayPalette,
     voiceRelay,
@@ -426,6 +449,7 @@ async function main() {
     onDisplayRegistered: () => interest.recompute(),
     onSceneActivated: publishSceneState,
     canvasResolver,
+    musicVideoResolver,
     canvasExtras: (widgetId) => {
       const all: string[] = [];
       for (const d of displays.list()) all.push(...canvasExtras.list(d.name, widgetId));
@@ -450,6 +474,14 @@ async function main() {
       }
     }
     canvasResolver.gc(live);
+
+    const liveMusicVideo = new Set<string>();
+    for (const s of scenes.list()) {
+      for (const w of s.widgets) {
+        if (w.kind === 'musicvideo') liveMusicVideo.add(w.id);
+      }
+    }
+    musicVideoResolver.gc(liveMusicVideo);
   }
 
   let unsubHaStateChange: (() => void) | null = null;
@@ -676,6 +708,7 @@ async function main() {
       // Tear down template subscriptions while the HA socket is still live
       // so `unsubscribe` messages actually reach HA.
       canvasResolver.dispose();
+      musicVideoResolver.dispose();
       templatesClient?.close();
       await haClient?.close();
       voiceClient?.close();
