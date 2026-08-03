@@ -164,11 +164,20 @@ Renders nothing when `widget.data` has no `videoId`. Otherwise a
 `<video muted playsinline loop autoplay>` with
 `src="/api/musicvideo/stream/<videoId>"`, `object-fit: cover`.
 
-**Position sync.** On load, `video.currentTime` is set from the media player's live
-position, reusing the same clock-drift math `MediaPlayer.svelte` already computes
-(`lastPosition` advanced by wall-clock delta since the last push). Thereafter it
-re-syncs only when the reported position diverges from the video's by more than 3s,
-which catches manual seeks without fighting natural drift every second.
+**Position sync.** The assembler passes HA's `media_position_updated_at` through as
+`MusicVideoData.position_updated_at`; the display anchors its drift math to that
+timestamp (elapsed = now − that timestamp, clamped at >= 0) rather than to when the
+scene push arrived. This matters because HA does not tick `media_position` for many
+integrations (Chromecast, some DLNA) — it only refreshes it on seek or state change —
+while any unrelated entity change in the scene can trigger a re-push carrying that
+same stale position with a fresh arrival timestamp. Anchoring to push-arrival time was
+tried first and rejected: it made elapsed time run ahead of real playback, so the >3s
+drift guard fired and seeked the video backward, which triggered the guard again on
+the next unrelated push — an endless restart loop that never let the video advance.
+`position_updated_at` falls back to push-arrival time only when HA doesn't supply it.
+Thereafter the video re-syncs only when the reported position diverges from its
+`currentTime` by more than 3s, which catches manual seeks without fighting natural
+drift every second.
 
 If the video is shorter than the track, it loops.
 
