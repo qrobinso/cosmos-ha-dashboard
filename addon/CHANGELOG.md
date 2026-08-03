@@ -5,7 +5,10 @@
 - Feat: **Music Video widget.** Point it at a `media_player` and it plays the matching YouTube music video for whatever is playing — muted, position-synced to the track, sized to whatever grid slot you give it. Audio keeps coming from your Home Assistant speaker; the video is just the visual. Lookups happen on the server via `yt-dlp` (bundled in this image, so there's nothing to install) and results are cached, so replaying a song is instant. If YouTube changes break the bundled copy before the next release, `yt-dlp -U` inside the app container updates it in place.
   - The widget stays **hidden** whenever there's no video — while a lookup is still running, when nothing matched, or when the player is idle. There's no spinner and no error box by design; an empty slot reads better on a wall than a broken one.
   - TV shows and movies are skipped: a media player showing an episode reports a title and "artist" too, and searching YouTube for a music video of it is just wasted effort.
-  - Match quality is whatever YouTube's first search hit is, so you'll occasionally get a lyric video, a live version, or a cover. The widget's **Search suffix** field (default `official music video`) is the knob — set it per-widget if a particular player's metadata needs help.
+  - Candidates are scored before anything plays. A video must be on the artist's own channel *and* carry "official" and "video" in its title; the best remaining candidate then has to clear a confidence bar. This is deliberately strict — songs whose real video is titled plainly (Radiohead's "Karma Police", Taylor Swift's "Blank Space") show nothing rather than risk a fan re-upload or a lyric video. The **Search suffix** field is the per-widget knob when a player's metadata needs help.
+  - **Styling:** Opacity, Edge fade (dissolve the edges into the scene), and Track-change fade (crossfade instead of cutting between songs).
+  - **Layering:** every widget kind now has a Layer setting under Placement — *Behind* / *Normal* / *In front*. Combined with the settings above, the music video works as a full-bleed backdrop with the rest of the scene on top.
+  - New `log_musicvideo` option: traces which candidates were considered, how each scored, and why nothing plays when nothing does. Errors are logged regardless.
 
 ## 0.6.18
 

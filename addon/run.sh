@@ -38,6 +38,14 @@ if bashio::var.has_value "${MQTT_HOST}"; then
   bashio::log.info "using manual MQTT broker at ${MQTT_HOST}:${MQTT_PORT}"
 fi
 
+# Music video tracing. Failures always log; this adds the per-candidate scoring
+# table and the skip reasons, which is what makes "why is my widget blank"
+# answerable from the app log alone.
+if bashio::config.true 'log_musicvideo'; then
+  export LOG_MUSICVIDEO=1
+  bashio::log.info "music video tracing enabled (LOG_MUSICVIDEO=1)"
+fi
+
 # Forward log level to NODE_DEBUG when relevant. Cosmos uses console.log/error today;
 # log_level is wired through here for future structured logging.
 case "${LOG_LEVEL}" in
