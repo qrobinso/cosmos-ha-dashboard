@@ -41,6 +41,22 @@ function containsEither(a: string, b: string): boolean {
   return na.includes(nb) || nb.includes(na);
 }
 
+/**
+ * Duration is deliberately the heaviest signal — heavy enough to outweigh the
+ * `live` title penalty. That is a considered tradeoff, not an oversight.
+ *
+ * Consequence, with a real example: playing the 6:11 album cut of Bowie's
+ * "Heroes" picks the 6:04 official LIVE video over the 3:29 official studio
+ * video, because official videos are frequently shorter single edits. The
+ * alternative — letting "official video" win — would put a 3:29 clip under a
+ * 6:11 song, looping it twice with a visible restart mid-track.
+ *
+ * We chose sync over provenance: a matching-length live performance reads
+ * better on a wall than a correct video that visibly loops. If you want the
+ * opposite, soften these bands and raise the official-video bonus; the
+ * six-candidate Solange fixture in the tests is the regression guard that the
+ * change must not break (it must keep picking the studio "Weary").
+ */
 function durationScore(candidateSec: number | null, ctxSec: number | undefined): number {
   if (candidateSec == null || ctxSec == null) return 0;
   const delta = Math.abs(candidateSec - ctxSec);
