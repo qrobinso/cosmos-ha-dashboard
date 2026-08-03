@@ -18,6 +18,7 @@ import { registerHaAssistRoutes } from './ha-assist.js';
 import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerCameraRoutes } from './cameras.js';
 import { registerMoodRoutes } from './moods.js';
+import { registerMusicVideoRoutes } from './musicvideo.js';
 import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
 import { registerDocsRoutes } from './docs.js';
 import { registerAgentRoutes } from './agent.js';
@@ -81,6 +82,8 @@ export type HttpDeps = {
   /** HA token (long-lived or Supervisor) for authenticated proxy fetches. */
   haToken?: string | null;
   moodsDir?: () => string | null;
+  musicVideoCache?: import('../musicvideo/cache.js').MusicVideoCache;
+  musicVideoLookup?: import('../musicvideo/types.js').VideoLookup;
   onSceneChanged?: (
     displayId: string,
     opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
@@ -271,6 +274,10 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   registerHaMediaProxyRoutes(app, { haUrl: deps.haUrl ?? null, haToken: deps.haToken ?? null });
   registerCameraRoutes(app, { haClient: deps.haClient ?? null });
   registerMoodRoutes(app, { moodsDir: () => deps.moodsDir?.() ?? null });
+  registerMusicVideoRoutes(app, {
+    cache: deps.musicVideoCache ?? null,
+    lookup: deps.musicVideoLookup ?? null,
+  });
 
   registerSceneRoutes(app, {
     scenes: deps.scenes,
