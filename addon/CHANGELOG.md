@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- Feat: **Music Video widget.** Point it at a `media_player` and it plays the matching YouTube music video for whatever is playing — muted, position-synced to the track, sized to whatever grid slot you give it. Audio keeps coming from your Home Assistant speaker; the video is just the visual. Lookups happen on the server via `yt-dlp` (bundled in this image, so there's nothing to install) and results are cached, so replaying a song is instant. If YouTube changes break the bundled copy before the next release, `yt-dlp -U` inside the app container updates it in place.
+  - The widget stays **hidden** whenever there's no video — while a lookup is still running, when nothing matched, or when the player is idle. There's no spinner and no error box by design; an empty slot reads better on a wall than a broken one.
+  - TV shows and movies are skipped: a media player showing an episode reports a title and "artist" too, and searching YouTube for a music video of it is just wasted effort.
+  - Match quality is whatever YouTube's first search hit is, so you'll occasionally get a lyric video, a live version, or a cover. The widget's **Search suffix** field (default `official music video`) is the knob — set it per-widget if a particular player's metadata needs help.
+
 ## 0.6.18
 
 - Feat: **Auto-by-weather mood strategy** now uses the recently-added clips. `rainy` → `water-droplets` (gentle drops), `pouring` and `hail` → `rain` (heavier), `lightning` and `lightning-rainy` → the new `lightning.mp4` storm clip. Sunny / cloudy / snowy / clear-night mappings unchanged. Documented in `display/static/moods/README.md`.

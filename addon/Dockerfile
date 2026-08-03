@@ -29,8 +29,35 @@ RUN npm prune --workspace server --omit=dev
 # --- runtime stage ---
 FROM ${BUILD_FROM}
 
-# Install Node 20 for the runtime
-RUN apk add --no-cache nodejs npm
+# Install Node 20 for the runtime.
+RUN apk add --no-cache nodejs npm ca-certificates
+
+# yt-dlp for the musicvideo widget. Without it that widget can only ever
+# report itself unavailable, so the feature would ship dead in this image.
+#
+# Deliberately NOT `apk add yt-dlp`: Alpine's community package lags badly
+# (v3.21 still ships 2025.03.31), and a stale yt-dlp is precisely how this
+# breaks — YouTube changes, old extractors stop working. The upstream musl
+# standalone builds match Alpine's libc, bundle their own Python (so no
+# python3/py3-pip dependency chain), and support `yt-dlp -U` self-update,
+# which an apk-managed copy does not — that lets a user recover from a broken
+# extractor without waiting on a new app release.
+#
+# No ffmpeg anywhere: the widget pins `-f 18`, a progressive MP4 with muxed
+# audio, so nothing ever needs remuxing.
+ARG YTDLP_VERSION=2026.07.04
+RUN set -eu; \
+    case "$(uname -m)" in \
+      x86_64)  asset=yt-dlp_musllinux ;; \
+      aarch64) asset=yt-dlp_musllinux_aarch64 ;; \
+      *) echo "unsupported arch for yt-dlp: $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    wget -qO /usr/local/bin/yt-dlp \
+      "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/${asset}"; \
+    chmod a+x /usr/local/bin/yt-dlp; \
+    # Fail the build loudly rather than shipping an image whose music video
+    # widget is silently dead.
+    /usr/local/bin/yt-dlp --version
 
 WORKDIR /app
 
