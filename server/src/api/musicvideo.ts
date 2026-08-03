@@ -22,6 +22,38 @@ export type MusicVideoRouteDeps = {
  * them is not the machine playing them. Going through here means an expired
  * URL is silently re-derived server-side instead of leaving a dead <video>.
  */
+/**
+ * Re-derive a stream URL, collapsing concurrent requests for the same video.
+ *
+ * Every display showing the scene requests the stream, and a browser opens
+ * several ranged connections per video. Without this, one stale URL meant a
+ * yt-dlp spawn per connection — the exact stampede the resolver's concurrency
+ * cap prevents on the lookup side.
+ */
+const inFlightUrls = new Map<string, Promise<string | null>>();
+
+async function deriveStreamUrl(
+  videoId: string,
+  lookup: VideoLookup,
+  cache: MusicVideoCache,
+): Promise<string | null> {
+  const existing = inFlightUrls.get(videoId);
+  if (existing) return existing;
+
+  const p = (async () => {
+    try {
+      const url = await lookup.streamUrlFor(videoId);
+      if (url) cache.putStream(videoId, url, 0);
+      return url;
+    } finally {
+      inFlightUrls.delete(videoId);
+    }
+  })();
+
+  inFlightUrls.set(videoId, p);
+  return p;
+}
+
 export function registerMusicVideoRoutes(
   app: FastifyInstance,
   deps: MusicVideoRouteDeps,
@@ -48,12 +80,11 @@ export function registerMusicVideoRoutes(
       let streamUrl = cache.getStream(videoId)?.streamUrl ?? null;
       if (!streamUrl) {
         mvLog(`stream url absent or stale videoId=${videoId} — re-deriving via yt-dlp`);
-        streamUrl = await lookup.streamUrlFor(videoId);
+        streamUrl = await deriveStreamUrl(videoId, lookup, cache);
         if (!streamUrl) {
           mvWarn(`stream 404 videoId=${videoId} — could not re-derive a stream url`);
           return reply.code(404).send({ error: 'video unavailable' });
         }
-        cache.putStream(videoId, streamUrl, 0);
         mvLog(`stream url re-derived videoId=${videoId}`);
       }
 
@@ -78,7 +109,16 @@ export function registerMusicVideoRoutes(
           const v = upstream.headers.get(h);
           if (v) reply.header(h, v);
         }
-        reply.header('cache-control', 'no-store');
+        // The bytes behind a videoId never change, so let the browser keep
+        // them. This is the single biggest lever on this feature's footprint:
+        // with `no-store` the kiosk re-downloaded the entire file through this
+        // proxy on every loop of a short video under a longer song, and again
+        // on every replay of the track — a real 5.4 MB per pass for a 3:29
+        // video at 360p. `immutable` also suppresses revalidation round-trips.
+        //
+        // Only the upstream googlevideo URL expires; the content does not, and
+        // the display never sees that URL.
+        reply.header('cache-control', 'public, max-age=604800, immutable');
         reply.code(upstream.status);
         mvLog(
           `stream ok  videoId=${videoId} upstream=${upstream.status} ` +

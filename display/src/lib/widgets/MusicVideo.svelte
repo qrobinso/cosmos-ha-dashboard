@@ -77,9 +77,16 @@
   $: if (el && data) syncPosition();
 
   // Pause the video when the player pauses, so it doesn't run on alone.
+  //
+  // Guarded on the element's ACTUAL paused state rather than fired on every
+  // push: an active media player re-pushes several times a second as
+  // `media_position` ticks, and calling play() on an already-playing element
+  // allocated a fresh promise each time for no effect. Only act on a real
+  // transition.
   $: if (el) {
-    if (data?.state === 'playing') void el.play().catch(() => {});
-    else el.pause();
+    const shouldPlay = data?.state === 'playing';
+    if (shouldPlay && el.paused) void el.play().catch(() => {});
+    else if (!shouldPlay && !el.paused) el.pause();
   }
 
   onDestroy(() => {
@@ -95,6 +102,10 @@
 {#if src && !failed}
   <!-- Muted always: audio belongs to the Home Assistant speaker, not the kiosk.
        `muted` is also what lets autoplay work without user interaction. -->
+  <!-- disablepictureinpicture / disableremoteplayback: this is decorative wall
+       ambience, so there is no reason to keep the Cast and PiP machinery (and
+       their hover controls) alive on a kiosk that can never use them.
+       x-webkit-airplay does the same on Safari/iOS panels. -->
   <video
     bind:this={el}
     {src}
@@ -103,6 +114,10 @@
     playsinline
     loop
     autoplay
+    preload="auto"
+    disablepictureinpicture
+    disableremoteplayback
+    x-webkit-airplay="deny"
     on:loadedmetadata={onLoadedMetadata}
     on:error={onError}
   ></video>

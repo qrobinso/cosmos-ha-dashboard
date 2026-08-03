@@ -117,9 +117,50 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('never caches the response in the browser', async () => {
+  it('lets the browser cache the body: the bytes for a videoId never change', async () => {
     cache.putStream('abc123', 'https://x', 214);
     const res = await app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc123' });
-    expect(res.headers['cache-control']).toBe('no-store');
+    const cc = String(res.headers['cache-control']);
+    // Without this the kiosk re-downloaded the whole file through the proxy on
+    // every loop of a short video under a longer song, and on every replay.
+    expect(cc).not.toContain('no-store');
+    expect(cc).toContain('immutable');
+    expect(cc).toMatch(/max-age=\d+/);
+  });
+
+  it('collapses concurrent re-derivations of the same stale videoId', async () => {
+    // Nothing cached, so every request must re-derive. Several displays (and
+    // several ranged connections per display) hitting at once must not each
+    // spawn yt-dlp.
+    let calls = 0;
+    let release: (v: string) => void = () => {};
+    const slowLookup: VideoLookup = {
+      search: async () => ({ status: 'none' }),
+      streamUrlFor: () => {
+        calls++;
+        return new Promise((res) => {
+          release = res;
+        });
+      },
+    };
+    const app2 = Fastify({ logger: false });
+    registerMusicVideoRoutes(app2, {
+      cache,
+      lookup: slowLookup,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await app2.ready();
+
+    const inFlight = [
+      app2.inject({ method: 'GET', url: '/api/musicvideo/stream/dedupe1' }),
+      app2.inject({ method: 'GET', url: '/api/musicvideo/stream/dedupe1' }),
+      app2.inject({ method: 'GET', url: '/api/musicvideo/stream/dedupe1' }),
+    ];
+    await new Promise((r) => setTimeout(r, 0));
+    release('https://derived/once');
+    const results = await Promise.all(inFlight);
+
+    expect(calls).toBe(1);
+    for (const r of results) expect(r.statusCode).toBe(200);
   });
 });

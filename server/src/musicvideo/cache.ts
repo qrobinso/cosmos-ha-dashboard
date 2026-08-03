@@ -14,6 +14,16 @@ export const STREAM_TTL_MS = 4 * 60 * 60 * 1000;
 export type CachedLookup = { videoId: string | null; miss: boolean };
 export type CachedStream = { streamUrl: string; duration: number };
 
+/**
+ * Hard ceiling on remembered `trackKey -> videoId` rows.
+ *
+ * Generous: a household would have to play ~5000 distinct songs before the
+ * oldest is forgotten, and forgetting one costs a single yt-dlp lookup. The
+ * point is that the table is bounded at all — it is written on every newly
+ * played track and was never pruned, so it grew for the life of the DB.
+ */
+export const MAX_CACHE_ROWS = 5000;
+
 export type MusicVideoCache = {
   /** null = nothing usable cached, go look it up. */
   getVideoId(trackKey: string): CachedLookup | null;
@@ -23,6 +33,9 @@ export type MusicVideoCache = {
   getStream(videoId: string): CachedStream | null;
   putStream(videoId: string, streamUrl: string, duration: number): void;
   invalidateStream(videoId: string): void;
+  /** Drop expired negatives and stale stream URLs, then cap the lookup table.
+   *  Returns how many rows went, for logging. Cheap enough to run hourly. */
+  prune(): { negatives: number; streams: number; overflow: number };
 };
 
 export function createMusicVideoCache(
@@ -94,6 +107,36 @@ export function createMusicVideoCache(
 
     invalidateStream(videoId) {
       delStream.run(videoId);
+    },
+
+    prune() {
+      const t = now();
+
+      // Expired negatives are pure dead weight: getVideoId already ignores
+      // them, so they only ever occupy space.
+      const negatives = db
+        .prepare('DELETE FROM music_video_cache WHERE miss = 1 AND resolved_at < ?')
+        .run(t - NEGATIVE_TTL_MS).changes;
+
+      // Stale stream URLs are unusable — googlevideo has expired them — and
+      // the proxy re-derives on demand anyway.
+      const streams = db
+        .prepare('DELETE FROM music_video_stream WHERE resolved_at < ?')
+        .run(t - STREAM_TTL_MS).changes;
+
+      // Cap the durable table, oldest first. Positive rows never expire by
+      // design (a videoId stays correct forever), so this is the only bound.
+      const overflow = db
+        .prepare(
+          `DELETE FROM music_video_cache WHERE track_key IN (
+             SELECT track_key FROM music_video_cache
+             ORDER BY resolved_at DESC
+             LIMIT -1 OFFSET ?
+           )`,
+        )
+        .run(MAX_CACHE_ROWS).changes;
+
+      return { negatives, streams, overflow };
     },
   };
 }

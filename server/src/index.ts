@@ -20,6 +20,7 @@ import { resolveMoodsDir } from './moods/scan.js';
 import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
 import { createMusicVideoCache } from './musicvideo/cache.js';
+import { mvLog } from './musicvideo/log.js';
 import { createYtDlpLookup, probeYtDlpAvailable } from './musicvideo/ytdlp.js';
 import { createMusicVideoResolver } from './musicvideo/resolver.js';
 import { createAlertManager } from './scenes/alerts.js';
@@ -49,6 +50,23 @@ async function main() {
   const db = openDatabase(config.dbPath);
   runMigrations(db);
   const musicVideoCache = createMusicVideoCache(db);
+  // The music-video tables are written on every newly played track and were
+  // never pruned. Sweep at boot and hourly: expired negatives and stale stream
+  // URLs are already ignored by reads, so they are pure dead weight, and the
+  // durable lookup table gets a row cap. `unref` so this timer never holds the
+  // process open.
+  function pruneMusicVideoCache() {
+    const { negatives, streams, overflow } = musicVideoCache.prune();
+    if (negatives + streams + overflow > 0) {
+      mvLog(
+        `cache pruned: ${negatives} expired negatives, ${streams} stale stream urls, ` +
+          `${overflow} rows over the cap`,
+      );
+    }
+  }
+  pruneMusicVideoCache();
+  const musicVideoPruneTimer = setInterval(pruneMusicVideoCache, 60 * 60 * 1000);
+  musicVideoPruneTimer.unref();
   const musicVideoLookup = createYtDlpLookup();
   // One-shot availability probe. Fire-and-forget so it never blocks startup,
   // and never throws — its only job is to log a missing binary ONCE here
@@ -720,6 +738,7 @@ async function main() {
       // so `unsubscribe` messages actually reach HA.
       canvasResolver.dispose();
       musicVideoResolver.dispose();
+      clearInterval(musicVideoPruneTimer);
       templatesClient?.close();
       await haClient?.close();
       voiceClient?.close();
