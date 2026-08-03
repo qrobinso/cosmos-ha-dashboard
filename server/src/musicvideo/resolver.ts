@@ -27,6 +27,10 @@ export type TrackRef = {
   artist?: string;
   title?: string;
   querySuffix?: string;
+  /** HA's `media_duration` for the currently playing track — passed through
+   * to `VideoLookup.search` as a scoring hint, the strongest discriminator
+   * between near-identical search results. */
+  durationSec?: number;
 };
 
 export type MusicVideoResolver = ((
@@ -77,7 +81,11 @@ export function createMusicVideoResolver(
    */
   let unavailableUntil = 0;
 
-  function startLookup(trackKey: string, query: string): void {
+  function startLookup(
+    trackKey: string,
+    query: string,
+    hint: { artist?: string; title?: string; durationSec?: number },
+  ): void {
     const waiters = new Set<string>();
     inFlight.set(trackKey, waiters);
 
@@ -87,7 +95,7 @@ export function createMusicVideoResolver(
     void (async () => {
       let videoId: string | null = null;
       try {
-        const found = await lookup.search(query);
+        const found = await lookup.search(query, hint);
         const ms = Date.now() - startedAt;
         if (found.status === 'ok') {
           videoId = found.video.videoId;
@@ -189,7 +197,11 @@ export function createMusicVideoResolver(
     }
 
     const suffix = track.querySuffix?.trim() || DEFAULT_QUERY_SUFFIX;
-    startLookup(trackKey, `${track.artist} ${track.title} ${suffix}`);
+    startLookup(trackKey, `${track.artist} ${track.title} ${suffix}`, {
+      artist: track.artist,
+      title: track.title,
+      durationSec: track.durationSec,
+    });
     inFlight.get(trackKey)?.add(widgetId);
     return { videoId: null };
   };

@@ -69,7 +69,7 @@ export type DataResolvers = {
    *  resolver, musicvideo widgets render hidden. */
   musicVideoResolver?: (
     widgetId: string,
-    track: { artist?: string; title?: string; querySuffix?: string },
+    track: { artist?: string; title?: string; querySuffix?: string; durationSec?: number },
   ) => { videoId: string | null };
 };
 
@@ -405,6 +405,7 @@ async function musicVideoData(
     artist: typeof a.media_artist === 'string' ? a.media_artist : undefined,
     title: typeof a.media_title === 'string' ? a.media_title : undefined,
     querySuffix: suffix || undefined,
+    durationSec: duration,
   });
 
   mvLog(

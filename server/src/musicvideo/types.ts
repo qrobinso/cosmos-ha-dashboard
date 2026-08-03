@@ -32,14 +32,28 @@ export type VideoSearchResult =
   | { status: 'unavailable' };
 
 /**
+ * Optional context passed alongside the search query so the lookup can score
+ * candidates instead of blindly taking YouTube's first hit. All fields
+ * optional — a caller with no HA metadata still gets a (less confident)
+ * result.
+ */
+export type SearchHint = {
+  artist?: string;
+  title?: string;
+  /** HA's `media_duration` for the currently playing track. */
+  durationSec?: number;
+};
+
+/**
  * The seam that keeps yt-dlp swappable. `ytdlp.ts` is one implementation;
  * a YouTube Data API v3 client would be another, with no other file changing.
  *
  * Neither method ever throws — every failure resolves to a value.
  */
 export interface VideoLookup {
-  /** Search for a video and resolve its stream in one call. */
-  search(query: string): Promise<VideoSearchResult>;
+  /** Search for a video and resolve its stream in one call. `hint` lets the
+   * implementation score candidates rather than take the first search hit. */
+  search(query: string, hint?: SearchHint): Promise<VideoSearchResult>;
   /** Re-derive a fresh stream URL for a known videoId. */
   streamUrlFor(videoId: string): Promise<string | null>;
 }

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { createYtDlpLookup, probeYtDlpAvailable } from '../src/musicvideo/ytdlp.js';
+import type { SpawnFn } from '../src/musicvideo/ytdlp.js';
 
-/** Minimal shape of the `yt-dlp -j` JSON line we care about. */
+/** Minimal shape of a phase-2 (`yt-dlp -f 18 -j`) full JSON line. */
 function ytdlpJson(over: Record<string, unknown> = {}) {
   return JSON.stringify({
     id: 'abc123',
@@ -12,11 +13,47 @@ function ytdlpJson(over: Record<string, unknown> = {}) {
   });
 }
 
-describe('createYtDlpLookup', () => {
+/** Minimal shape of a phase-1 (`--flat-playlist`) flat JSON line. Flat mode
+ * does NOT provide categories/uploader_id/artist/track/album. */
+function flatJson(over: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    id: 'abc123',
+    title: 'David Bowie - Heroes (Official Video)',
+    channel: 'David Bowie',
+    uploader: 'David Bowie',
+    channel_is_verified: true,
+    duration: 214,
+    view_count: 1000,
+    url: 'https://www.youtube.com/watch?v=abc123',
+    ...over,
+  });
+}
+
+/** Builds a fake spawnFn that answers phase 1 (`--flat-playlist`) with
+ * `flatLines` and phase 2 (anything else) with `phase2Json`, dispatching on
+ * whether the invocation's args contain `--flat-playlist`. Records every
+ * invocation's args for assertions. */
+function twoPhaseFake(opts: {
+  flatLines: string[];
+  phase2Json?: string;
+  phase2Ok?: boolean;
+}): { spawnFn: SpawnFn; calls: string[][] } {
+  const calls: string[][] = [];
+  const spawnFn: SpawnFn = async (args) => {
+    calls.push(args);
+    if (args.includes('--flat-playlist')) {
+      return { ok: true, stdout: opts.flatLines.join('\n') };
+    }
+    if (opts.phase2Ok === false) return { ok: false, stdout: '' };
+    return { ok: true, stdout: opts.phase2Json ?? ytdlpJson() };
+  };
+  return { spawnFn, calls };
+}
+
+describe('createYtDlpLookup — two-phase search', () => {
   it('parses a successful search into a ResolvedVideo', async () => {
-    const lookup = createYtDlpLookup({
-      spawnFn: async () => ({ ok: true, stdout: ytdlpJson() }),
-    });
+    const { spawnFn } = twoPhaseFake({ flatLines: [flatJson()] });
+    const lookup = createYtDlpLookup({ spawnFn });
     expect(await lookup.search('david bowie heroes')).toEqual({
       status: 'ok',
       video: {
@@ -28,27 +65,57 @@ describe('createYtDlpLookup', () => {
     });
   });
 
-  it('pins format 18 and uses ytsearch1 for searches', async () => {
-    let captured: string[] = [];
-    const lookup = createYtDlpLookup({
-      spawnFn: async (args) => {
-        captured = args;
-        return { ok: true, stdout: ytdlpJson() };
-      },
-    });
+  it('phase 1 uses --flat-playlist and ytsearch5', async () => {
+    const { spawnFn, calls } = twoPhaseFake({ flatLines: [flatJson()] });
+    const lookup = createYtDlpLookup({ spawnFn });
     await lookup.search('david bowie heroes');
-    expect(captured).toContain('-f');
-    expect(captured).toContain('18');
-    expect(captured).toContain('-j');
-    expect(captured.some((a) => a.startsWith('ytsearch1:'))).toBe(true);
-    expect(captured.some((a) => a.includes('david bowie heroes'))).toBe(true);
+    const phase1 = calls[0];
+    expect(phase1).toContain('--flat-playlist');
+    expect(phase1).toContain('-j');
+    expect(phase1.some((a) => a.startsWith('ytsearch5:'))).toBe(true);
+    expect(phase1.some((a) => a.includes('david bowie heroes'))).toBe(true);
   });
 
-  it("reports 'none' on a non-zero exit — the lookup ran and found nothing", async () => {
+  it('phase 2 pins format 18 and targets the WINNER\'s watch URL, not the first result\'s', async () => {
+    // Winner (row 2, "Weary") is NOT first in the flat results — this is the
+    // exact bug this feature exists to fix.
+    const flatLines = [
+      flatJson({ id: 'medley-id', title: 'Solange - Rise/Weary Medley (Live)', channel: 'solangeknowlesmusic', channel_is_verified: true, duration: 282, view_count: 100 }),
+      flatJson({ id: 'weary-id', title: 'Weary', channel: 'solangeknowlesmusic', channel_is_verified: true, duration: 195, view_count: 100 }),
+    ];
+    const { spawnFn, calls } = twoPhaseFake({
+      flatLines,
+      phase2Json: ytdlpJson({ id: 'weary-id', title: 'Weary' }),
+    });
+    const lookup = createYtDlpLookup({ spawnFn });
+    const result = await lookup.search('solange weary', { artist: 'Solange', title: 'Weary', durationSec: 195 });
+
+    expect(result.status === 'ok' && result.video.videoId).toBe('weary-id');
+    const phase2 = calls[1];
+    expect(phase2).toContain('-f');
+    expect(phase2).toContain('18');
+    expect(phase2.some((a) => a === 'https://www.youtube.com/watch?v=weary-id')).toBe(true);
+    expect(phase2.some((a) => a === 'https://www.youtube.com/watch?v=medley-id')).toBe(false);
+  });
+
+  it("yields 'none' when phase 1 fails", async () => {
     const lookup = createYtDlpLookup({
       spawnFn: async () => ({ ok: false, stdout: '' }),
     });
     expect(await lookup.search('nope')).toEqual({ status: 'none' });
+  });
+
+  it("yields 'none' when phase 1 succeeds but phase 2 fails", async () => {
+    const { spawnFn } = twoPhaseFake({ flatLines: [flatJson()], phase2Ok: false });
+    const lookup = createYtDlpLookup({ spawnFn });
+    expect(await lookup.search('x')).toEqual({ status: 'none' });
+  });
+
+  it("yields 'unavailable' when the phase-1 spawn itself fails", async () => {
+    const lookup = createYtDlpLookup({
+      spawnFn: async () => ({ ok: false, stdout: '', spawnFailed: true }),
+    });
+    expect(await lookup.search('x')).toEqual({ status: 'unavailable' });
   });
 
   it("reports 'none' on malformed json", async () => {
@@ -65,32 +132,14 @@ describe('createYtDlpLookup', () => {
     expect(await lookup.search('nope')).toEqual({ status: 'none' });
   });
 
-  it("reports 'none' when json is well-formed but missing id or url", async () => {
-    const noId = createYtDlpLookup({
-      spawnFn: async () => ({ ok: true, stdout: ytdlpJson({ id: undefined }) }),
+  it('defaults duration to 0 when phase 2 does not report one', async () => {
+    const { spawnFn } = twoPhaseFake({
+      flatLines: [flatJson()],
+      phase2Json: ytdlpJson({ duration: undefined }),
     });
-    expect(await noId.search('x')).toEqual({ status: 'none' });
-
-    const noUrl = createYtDlpLookup({
-      spawnFn: async () => ({ ok: true, stdout: ytdlpJson({ url: undefined }) }),
-    });
-    expect(await noUrl.search('x')).toEqual({ status: 'none' });
-  });
-
-  it('defaults duration to 0 when absent', async () => {
-    const lookup = createYtDlpLookup({
-      spawnFn: async () => ({ ok: true, stdout: ytdlpJson({ duration: undefined }) }),
-    });
+    const lookup = createYtDlpLookup({ spawnFn });
     const r = await lookup.search('x');
     expect(r.status === 'ok' && r.video.duration).toBe(0);
-  });
-
-  it('reads only the first line when yt-dlp emits several', async () => {
-    const lookup = createYtDlpLookup({
-      spawnFn: async () => ({ ok: true, stdout: `${ytdlpJson()}\n${ytdlpJson({ id: 'second' })}` }),
-    });
-    const r = await lookup.search('x');
-    expect(r.status === 'ok' && r.video.videoId).toBe('abc123');
   });
 
   it("reports 'unavailable' when the binary could not be spawned", async () => {

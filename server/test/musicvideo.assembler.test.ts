@@ -53,6 +53,7 @@ describe('assembler — musicvideo widget', () => {
       artist: 'David Bowie',
       title: 'Heroes',
       querySuffix: undefined,
+      durationSec: 214,
     });
 
     const data = state.widgets[0].data as MusicVideoData;
@@ -112,7 +113,40 @@ describe('assembler — musicvideo widget', () => {
       artist: 'David Bowie',
       title: 'Heroes',
       querySuffix: 'live 1977',
+      durationSec: 214,
     });
+  });
+
+  it('passes durationSec through from media_duration', async () => {
+    const musicVideoResolver = vi.fn(() => ({ videoId: null }));
+    await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      {
+        resolveEntity: () => playingEntity({ media_duration: 195 }),
+        musicVideoResolver,
+      },
+    );
+    expect(musicVideoResolver).toHaveBeenCalledWith(
+      'w1',
+      expect.objectContaining({ durationSec: 195 }),
+    );
+  });
+
+  it('passes durationSec: undefined when HA does not report media_duration', async () => {
+    const musicVideoResolver = vi.fn(() => ({ videoId: null }));
+    await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      {
+        resolveEntity: () => playingEntity({ media_duration: undefined }),
+        musicVideoResolver,
+      },
+    );
+    expect(musicVideoResolver).toHaveBeenCalledWith(
+      'w1',
+      expect.objectContaining({ durationSec: undefined }),
+    );
   });
 
   it('yields a null video_id while the lookup is still pending', async () => {

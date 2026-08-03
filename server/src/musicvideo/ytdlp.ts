@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
-import type { ResolvedVideo, VideoLookup, VideoSearchResult } from './types.js';
+import type { ResolvedVideo, SearchHint, VideoLookup, VideoSearchResult } from './types.js';
+import type { Candidate } from './score.js';
+import { pickBest, scoreCandidate } from './score.js';
+import { mvLog } from './log.js';
 
 export const YTDLP_TIMEOUT_MS = 15_000;
 
@@ -70,6 +73,49 @@ function parseFirstJson(stdout: string): Record<string, unknown> | null {
   }
 }
 
+/** Parse every non-empty line of `yt-dlp --flat-playlist -j` output into JSON
+ * objects. Malformed lines are skipped rather than failing the whole batch —
+ * one bad candidate shouldn't sink the search. Never throws. */
+function parseAllJson(stdout: string): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  for (const raw of stdout.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    try {
+      const parsed = JSON.parse(line);
+      if (parsed && typeof parsed === 'object') out.push(parsed as Record<string, unknown>);
+    } catch {
+      // skip malformed line
+    }
+  }
+  return out;
+}
+
+/** Flat-playlist JSON -> scoring Candidate. Flat mode does not provide
+ * categories/uploader_id/artist/track/album — verified against the real
+ * binary — so this only reads fields flat mode actually emits. */
+function toCandidate(json: Record<string, unknown>): Candidate | null {
+  const videoId = typeof json.id === 'string' ? json.id : '';
+  if (!videoId) return null;
+  return {
+    videoId,
+    title: typeof json.title === 'string' ? json.title : '',
+    channel:
+      typeof json.channel === 'string'
+        ? json.channel
+        : typeof json.uploader === 'string'
+          ? json.uploader
+          : '',
+    verified: json.channel_is_verified === true,
+    durationSec: typeof json.duration === 'number' && Number.isFinite(json.duration)
+      ? json.duration
+      : null,
+    viewCount: typeof json.view_count === 'number' && Number.isFinite(json.view_count)
+      ? json.view_count
+      : null,
+  };
+}
+
 function toResolved(json: Record<string, unknown>): ResolvedVideo | null {
   const videoId = typeof json.id === 'string' ? json.id : '';
   const streamUrl = typeof json.url === 'string' ? json.url : '';
@@ -114,13 +160,70 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
     }
   }
 
+  /**
+   * Two-phase search: phase 1 is a fast, metadata-only flat-playlist listing
+   * of several candidates; phase 2 resolves a real stream URL for the WINNER
+   * only, chosen by `pickBest` (see ./score.ts). Resolving formats for every
+   * candidate would be far slower and mostly wasted.
+   */
+  async function search(query: string, hint?: SearchHint): Promise<VideoSearchResult> {
+    let phase1: { ok: boolean; stdout: string; spawnFailed?: boolean };
+    try {
+      phase1 = await run(
+        ['--flat-playlist', '-j', '--no-warnings', `ytsearch5:${query}`],
+        timeoutMs,
+      );
+    } catch {
+      return { status: 'unavailable' };
+    }
+    if (phase1.spawnFailed) return { status: 'unavailable' };
+    if (!phase1.ok) return { status: 'none' };
+
+    const candidates = parseAllJson(phase1.stdout)
+      .map(toCandidate)
+      .filter((c): c is Candidate => c !== null);
+    if (candidates.length === 0) return { status: 'none' };
+
+    const winner = pickBest(candidates, {
+      artist: hint?.artist,
+      title: hint?.title,
+      durationSec: hint?.durationSec,
+    });
+    if (!winner) return { status: 'none' };
+
+    logCandidates(query, candidates, winner.videoId, hint);
+
+    return invoke(`https://www.youtube.com/watch?v=${winner.videoId}`);
+  }
+
   return {
-    search: (query) => invoke(`ytsearch1:${query}`),
+    search,
     streamUrlFor: async (videoId) => {
       const r = await invoke(`https://www.youtube.com/watch?v=${videoId}`);
       return r.status === 'ok' ? r.video.streamUrl : null;
     },
   };
+}
+
+/** One audit-friendly line per candidate with its score, marking the winner.
+ * Flag-gated via `mvLog` itself — silent unless `LOG_MUSICVIDEO=1`. */
+function logCandidates(
+  query: string,
+  candidates: Candidate[],
+  winnerId: string,
+  hint: SearchHint | undefined,
+): void {
+  const ctx = { artist: hint?.artist, title: hint?.title, durationSec: hint?.durationSec };
+  mvLog(`candidates query="${query}" track=${ctx.durationSec ?? '?'}s`);
+  for (const c of candidates) {
+    const marker = c.videoId === winnerId ? '*' : ' ';
+    const score = scoreCandidate(c, ctx);
+    const sign = score >= 0 ? '+' : '';
+    mvLog(
+      `  ${sign}${score}${marker} ${c.videoId} ${c.durationSec ?? '?'}s ` +
+        `ch=${c.channel}${c.verified ? '✓' : ''} "${c.title}"`,
+    );
+  }
 }
 
 /**
