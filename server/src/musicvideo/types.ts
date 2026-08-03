@@ -16,14 +16,30 @@ export interface ResolvedVideo {
 }
 
 /**
+ * Outcome of a search. The three cases are deliberately distinct because the
+ * resolver treats them differently:
+ *
+ * - `ok`          — found it. Cache the id and the stream url.
+ * - `none`        — the lookup RAN and found nothing. Safe to negative-cache.
+ * - `unavailable` — the lookup COULD NOT RUN (yt-dlp missing, spawn refused).
+ *                   Must NOT be negative-cached: otherwise every track played
+ *                   before the user installs yt-dlp stays poisoned for 24h
+ *                   afterwards.
+ */
+export type VideoSearchResult =
+  | { status: 'ok'; video: ResolvedVideo }
+  | { status: 'none' }
+  | { status: 'unavailable' };
+
+/**
  * The seam that keeps yt-dlp swappable. `ytdlp.ts` is one implementation;
  * a YouTube Data API v3 client would be another, with no other file changing.
  *
- * Neither method ever throws — every failure resolves to null.
+ * Neither method ever throws — every failure resolves to a value.
  */
 export interface VideoLookup {
   /** Search for a video and resolve its stream in one call. */
-  search(query: string): Promise<ResolvedVideo | null>;
+  search(query: string): Promise<VideoSearchResult>;
   /** Re-derive a fresh stream URL for a known videoId. */
   streamUrlFor(videoId: string): Promise<string | null>;
 }

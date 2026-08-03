@@ -20,7 +20,7 @@ import { resolveMoodsDir } from './moods/scan.js';
 import { createTemplatesClient } from './ha/templates.js';
 import { createCanvasResolver } from './scenes/canvas.js';
 import { createMusicVideoCache } from './musicvideo/cache.js';
-import { createYtDlpLookup } from './musicvideo/ytdlp.js';
+import { createYtDlpLookup, probeYtDlpAvailable } from './musicvideo/ytdlp.js';
 import { createMusicVideoResolver } from './musicvideo/resolver.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
@@ -50,6 +50,17 @@ async function main() {
   runMigrations(db);
   const musicVideoCache = createMusicVideoCache(db);
   const musicVideoLookup = createYtDlpLookup();
+  // One-shot availability probe. Fire-and-forget so it never blocks startup,
+  // and never throws — its only job is to log a missing binary ONCE here
+  // instead of silently failing on every lookup.
+  void probeYtDlpAvailable().then((available) => {
+    if (!available) {
+      console.warn(
+        '[musicvideo] yt-dlp was not found on PATH — music video widgets will stay hidden. ' +
+          'Install yt-dlp to enable them.',
+      );
+    }
+  });
   const displays = createDisplaysRepo(db);
   const settings = createSettingsRepo(db);
   const scenes = createScenesRepo(db);

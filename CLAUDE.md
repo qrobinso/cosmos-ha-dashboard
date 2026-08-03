@@ -117,6 +117,8 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 - Music video match quality is entirely at the mercy of `ytsearch1` — the first hit may be a lyric video or a cover. The widget's `query_suffix` is the only tuning knob.
 - `yt-dlp` is against YouTube's ToS and its extractors break when YouTube changes; a broken extractor degrades to a permanently hidden widget with no user-visible explanation. Requires occasional `yt-dlp -U`. Deliberate, accepted tradeoff — see `docs/superpowers/specs/2026-08-02-music-video-widget-design.md`.
 - The music video widget's position sync wraps `position % videoDuration`, so a video shorter than the track restarts at an arbitrary offset rather than at a musically sensible point.
+- `MediaPlayer.svelte` still advances its progress bar from push-arrival time rather than HA's `media_position_updated_at` (which `MusicVideo.svelte` now uses). Since many integrations never tick `media_position`, the bar drifts forward on every unrelated scene re-push. Cosmetic only — no seeking involved — so it was left alone; fix by reading `position_updated_at` off `MediaPlayerData` the same way.
+- `MusicVideoConfig.svelte` offers a "Name override" field that `MusicVideo.svelte` never renders (the widget is a bare `<video>`). Either drop the field or render a label.
 - `voice/client.ts`: if HA rejects a run with an `error` event and never sends `run-start`, the caller sees the generic "run-start timed out" message after the 10s wait instead of HA's actual error immediately — cosmetic, but worth short-circuiting the run-start wait when a terminal error event arrives first.
 
 ## Roadmap

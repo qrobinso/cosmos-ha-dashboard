@@ -10,20 +10,38 @@
 
   let el: HTMLVideoElement | null = null;
 
-  // Position sync. The server's `position` is a snapshot from push time, so
-  // advance it by the wall-clock delta since we received it — the same
-  // approach MediaPlayer.svelte uses for its progress bar.
-  let receivedAtMs = Date.now();
+  // A load failure hides the widget rather than leaving the element's black
+  // background as a permanent rectangle on the wall. Reset per video so a new
+  // track always gets a fresh attempt.
+  let failed = false;
+  let lastAttemptedId: string | null = null;
+  $: if (videoId !== lastAttemptedId) {
+    lastAttemptedId = videoId;
+    failed = false;
+  }
+
+  // Position sync. `position` is a snapshot, and crucially NOT one taken at
+  // push time: many HA integrations (Chromecast, some DLNA) only refresh
+  // `media_position` on seek/state-change, so a push triggered by an unrelated
+  // entity carries a long-stale value. Anchoring to push-arrival time would
+  // compute a position far behind reality and seek the video BACKWARD on every
+  // push — an endless restart loop. HA gives us `media_position_updated_at`
+  // for exactly this; fall back to arrival time only when it's absent.
+  let anchorMs = Date.now();
   let pushedPosition: number | null = null;
   $: if (data) {
-    receivedAtMs = Date.now();
+    const stamped = data.position_updated_at ? Date.parse(data.position_updated_at) : NaN;
+    anchorMs = Number.isFinite(stamped) ? stamped : Date.now();
     pushedPosition = typeof data.position === 'number' ? data.position : null;
   }
 
   function livePosition(): number | null {
     if (pushedPosition === null) return null;
     if (data?.state !== 'playing') return pushedPosition;
-    return pushedPosition + (Date.now() - receivedAtMs) / 1000;
+    // Clamp: HA's clock and the kiosk's can disagree slightly, and a negative
+    // elapsed would drag the position backward for no reason.
+    const elapsedS = Math.max(0, (Date.now() - anchorMs) / 1000);
+    return pushedPosition + elapsedS;
   }
 
   /** Only correct real divergence — chasing sub-second drift every tick would
@@ -49,6 +67,12 @@
     void el?.play().catch(() => {});
   }
 
+  // The proxy can 404 (expired or IP-bound stream url, upstream 403, a broken
+  // yt-dlp extractor). Hide rather than show a black box forever.
+  function onError() {
+    failed = true;
+  }
+
   // Re-check on each push (covers manual seeks on the media player).
   $: if (el && data) syncPosition();
 
@@ -68,7 +92,7 @@
   });
 </script>
 
-{#if src}
+{#if src && !failed}
   <!-- Muted always: audio belongs to the Home Assistant speaker, not the kiosk.
        `muted` is also what lets autoplay work without user interaction. -->
   <video
@@ -80,6 +104,7 @@
     loop
     autoplay
     on:loadedmetadata={onLoadedMetadata}
+    on:error={onError}
   ></video>
 {/if}
 

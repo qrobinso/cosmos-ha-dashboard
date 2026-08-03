@@ -137,8 +137,15 @@ export type MusicVideoData = {
   /** null while resolving, or when no video matched. The widget hides. */
   video_id: string | null;
   state: MediaPlayerData['state'];
-  /** seconds — player position at push time, used to seek the video */
+  /** seconds — player position as of `position_updated_at`, used to seek the video */
   position?: number;
+  /**
+   * ISO timestamp HA stamps when `position` last changed (`media_position_updated_at`).
+   * Many integrations never tick `media_position`, so the kiosk MUST anchor its
+   * drift math to this rather than to push-arrival time — otherwise an unrelated
+   * entity change re-pushes a stale position and the video seeks backward forever.
+   */
+  position_updated_at?: string;
   /** seconds */
   duration?: number;
 };

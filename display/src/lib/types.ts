@@ -135,6 +135,8 @@ export type MusicVideoData = {
   video_id: string | null;
   state: MediaPlayerData['state'];
   position?: number;
+  /** ISO timestamp HA stamps when `position` last changed. Anchor drift math here. */
+  position_updated_at?: string;
   duration?: number;
 };
 

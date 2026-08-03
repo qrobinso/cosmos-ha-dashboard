@@ -70,8 +70,17 @@ export interface ResolvedVideo {
   title: string;
 }
 
+// Three outcomes, because the resolver treats them differently: only 'none'
+// (the lookup ran and found nothing) may be negative-cached. 'unavailable'
+// (yt-dlp missing / spawn refused) must retry, or every track played before
+// the user installs yt-dlp stays poisoned for 24h afterwards.
+export type VideoSearchResult =
+  | { status: 'ok'; video: ResolvedVideo }
+  | { status: 'none' }
+  | { status: 'unavailable' };
+
 export interface VideoLookup {
-  search(query: string): Promise<ResolvedVideo | null>;
+  search(query: string): Promise<VideoSearchResult>;
   streamUrlFor(videoId: string): Promise<string | null>;
 }
 ```
@@ -79,7 +88,9 @@ export interface VideoLookup {
 **`ytdlp.ts`** — the only file that knows yt-dlp exists. Spawns
 `yt-dlp -f 18 -j "ytsearch1:<query>"`, parses JSON, returns `ResolvedVideo`.
 Hard timeout of 15s that **kills the child process**. Non-zero exit, malformed JSON,
-empty results, and timeouts all return `null`. Never throws.
+empty results, and timeouts all report `{status:'none'}`; a failed spawn (ENOENT)
+reports `{status:'unavailable'}`. Never throws. `probeYtDlpAvailable()` runs
+`yt-dlp --version` once at startup so a missing binary is logged once, not per lookup.
 
 **`cache.ts`** — SQLite-backed, two tiers with different lifetimes:
 
@@ -131,7 +142,9 @@ right fallback: it doubles as the loading state, so there is no flicker between 
 different placeholder appearances.
 
 Only one in-flight lookup per `track_key` is permitted; concurrent requests for the same
-track share it.
+track share it. Total concurrent lookups are capped at `MAX_CONCURRENT_LOOKUPS` (3) so
+rapid track-skipping can't spawn a pile of 15-second processes on a Raspberry Pi;
+requests past the cap return `{videoId: null}` and the next scene push retries.
 
 ### Proxy route — `server/src/api/musicvideo.ts`
 

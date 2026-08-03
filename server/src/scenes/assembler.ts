@@ -353,11 +353,20 @@ async function musicVideoData(
   const a = entity.attributes as Record<string, unknown>;
   const state = entity.state as MusicVideoData['state'];
   const position = typeof a.media_position === 'number' ? a.media_position : undefined;
+  const positionUpdatedAt =
+    typeof a.media_position_updated_at === 'string' ? a.media_position_updated_at : undefined;
   const duration = typeof a.media_duration === 'number' ? a.media_duration : undefined;
 
   // Only look up a video for a player that actually has a track loaded.
   if (!MV_ACTIVE_STATES.has(entity.state) || !deps.musicVideoResolver) {
-    return { entity_id: entityId, video_id: null, state, position, duration };
+    return {
+      entity_id: entityId,
+      video_id: null,
+      state,
+      position,
+      position_updated_at: positionUpdatedAt,
+      duration,
+    };
   }
 
   const suffix = readString(cfg, 'query_suffix');
@@ -367,7 +376,14 @@ async function musicVideoData(
     querySuffix: suffix || undefined,
   });
 
-  return { entity_id: entityId, video_id: videoId, state, position, duration };
+  return {
+    entity_id: entityId,
+    video_id: videoId,
+    state,
+    position,
+    position_updated_at: positionUpdatedAt,
+    duration,
+  };
 }
 
 async function statisticsData(

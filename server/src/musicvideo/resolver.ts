@@ -4,6 +4,15 @@ import type { VideoLookup } from './types.js';
 
 export const DEFAULT_QUERY_SUFFIX = 'official music video';
 
+/**
+ * Ceiling on concurrent yt-dlp child processes. Rapid track-skipping would
+ * otherwise spawn one 15-second process per skip — a real CPU/memory spike on
+ * the Raspberry Pi many Home Assistant installs run on. Requests past the cap
+ * are simply dropped (`{videoId: null}`); the next scene push retries, so no
+ * queue is needed.
+ */
+export const MAX_CONCURRENT_LOOKUPS = 3;
+
 export type TrackRef = {
   artist?: string;
   title?: string;
@@ -51,13 +60,17 @@ export function createMusicVideoResolver(
       let videoId: string | null = null;
       try {
         const found = await lookup.search(query);
-        if (found) {
-          videoId = found.videoId;
-          cache.putStream(found.videoId, found.streamUrl, found.duration);
+        if (found.status === 'ok') {
+          videoId = found.video.videoId;
+          cache.putStream(found.video.videoId, found.video.streamUrl, found.video.duration);
+          cache.putVideoId(trackKey, videoId);
+        } else if (found.status === 'none') {
+          // The lookup RAN and found nothing — negative-cache it so we stop
+          // respawning yt-dlp for an unmatchable track.
+          cache.putVideoId(trackKey, null);
         }
-        // Cache the outcome either way — a null here is a negative result,
-        // which stops us respawning yt-dlp for an unmatchable track.
-        cache.putVideoId(trackKey, videoId);
+        // 'unavailable' (yt-dlp missing / spawn refused) writes nothing: the
+        // lookup never ran, so there is no result to remember.
       } catch {
         // A lookup that throws is a bug in the lookup, not a negative result:
         // don't poison the cache, just let the next push retry.
@@ -91,6 +104,9 @@ export function createMusicVideoResolver(
       existing.add(widgetId);
       return { videoId: null };
     }
+
+    // Drop rather than queue when we're already at the process ceiling.
+    if (inFlight.size >= MAX_CONCURRENT_LOOKUPS) return { videoId: null };
 
     const suffix = track.querySuffix?.trim() || DEFAULT_QUERY_SUFFIX;
     startLookup(trackKey, `${track.artist} ${track.title} ${suffix}`);

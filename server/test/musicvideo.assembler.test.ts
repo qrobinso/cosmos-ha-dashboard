@@ -30,6 +30,7 @@ function playingEntity(over: Partial<EntityState['attributes']> = {}): EntitySta
       media_artist: 'David Bowie',
       media_title: 'Heroes',
       media_position: 42,
+      media_position_updated_at: '2026-08-02T10:00:00+00:00',
       media_duration: 214,
       ...over,
     },
@@ -60,6 +61,44 @@ describe('assembler — musicvideo widget', () => {
     expect(data.state).toBe('playing');
     expect(data.position).toBe(42);
     expect(data.duration).toBe(214);
+    expect(data.position_updated_at).toBe('2026-08-02T10:00:00+00:00');
+  });
+
+  it("surfaces HA's media_position_updated_at so the kiosk can anchor drift math", async () => {
+    const state = await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      {
+        resolveEntity: () =>
+          playingEntity({ media_position_updated_at: '2026-08-02T11:22:33.500+00:00' }),
+        musicVideoResolver: () => ({ videoId: 'abc123' }),
+      },
+    );
+    expect((state.widgets[0].data as MusicVideoData).position_updated_at)
+      .toBe('2026-08-02T11:22:33.500+00:00');
+  });
+
+  it('omits position_updated_at when HA does not report one', async () => {
+    const state = await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      {
+        resolveEntity: () => playingEntity({ media_position_updated_at: undefined }),
+        musicVideoResolver: () => ({ videoId: 'abc123' }),
+      },
+    );
+    expect((state.widgets[0].data as MusicVideoData).position_updated_at).toBeUndefined();
+  });
+
+  it('carries position_updated_at even on the not-playing path', async () => {
+    const paused = { ...playingEntity(), state: 'idle' } as EntityState;
+    const state = await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      { resolveEntity: () => paused, musicVideoResolver: () => ({ videoId: null }) },
+    );
+    expect((state.widgets[0].data as MusicVideoData).position_updated_at)
+      .toBe('2026-08-02T10:00:00+00:00');
   });
 
   it('forwards a configured query_suffix', async () => {

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { openDatabase, type DB } from '../src/store/db.js';
 import { runMigrations } from '../src/store/migrations.js';
 import { createMusicVideoCache } from '../src/musicvideo/cache.js';
-import { createMusicVideoResolver } from '../src/musicvideo/resolver.js';
-import type { VideoLookup, ResolvedVideo } from '../src/musicvideo/types.js';
+import { createMusicVideoResolver, MAX_CONCURRENT_LOOKUPS } from '../src/musicvideo/resolver.js';
+import type { VideoLookup, ResolvedVideo, VideoSearchResult } from '../src/musicvideo/types.js';
 
 const HEROES: ResolvedVideo = {
   videoId: 'abc123',
@@ -14,18 +14,24 @@ const HEROES: ResolvedVideo = {
 
 /** A lookup whose search resolution the test controls by hand. */
 function deferredLookup() {
-  let release: (v: ResolvedVideo | null) => void = () => {};
+  const pending: ((v: VideoSearchResult) => void)[] = [];
   const searches: string[] = [];
   const lookup: VideoLookup = {
     search: (q) => {
       searches.push(q);
       return new Promise((res) => {
-        release = res;
+        pending.push(res);
       });
     },
     streamUrlFor: async () => null,
   };
-  return { lookup, searches, release: (v: ResolvedVideo | null) => release(v) };
+  /** Release every pending search; `null` means "ran, found nothing". */
+  const release = (v: ResolvedVideo | null | VideoSearchResult) => {
+    const result: VideoSearchResult =
+      v === null ? { status: 'none' } : 'status' in v ? v : { status: 'ok', video: v };
+    for (const res of pending.splice(0)) res(result);
+  };
+  return { lookup, searches, release };
 }
 
 /** Let queued microtasks (the background lookup chain) run. */
@@ -194,6 +200,47 @@ describe('createMusicVideoResolver', () => {
     expect(resolve('w1', { artist: 'DAVID BOWIE', title: 'Heroes - Remastered 2017' }))
       .toEqual({ videoId: 'abc123' });
     expect(searches).toHaveLength(1);
+  });
+
+  it("does not negative-cache an 'unavailable' lookup and retries on the next call", async () => {
+    const cache = createMusicVideoCache(db);
+    let calls = 0;
+    const lookup: VideoLookup = {
+      search: async () => {
+        calls++;
+        return { status: 'unavailable' } as VideoSearchResult;
+      },
+      streamUrlFor: async () => null,
+    };
+    const resolve = createMusicVideoResolver(lookup, cache, vi.fn());
+
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    expect(calls).toBe(1);
+    // yt-dlp was missing — nothing was learned, so nothing is remembered.
+    expect(cache.getVideoId('a|b')).toBeNull();
+
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    expect(calls).toBe(2);
+  });
+
+  it('caps concurrent lookups and drops the overflow rather than queueing', async () => {
+    const { lookup, searches, release } = deferredLookup();
+    const resolve = createMusicVideoResolver(lookup, createMusicVideoCache(db), vi.fn());
+
+    for (let i = 0; i < 20; i++) {
+      expect(resolve(`w${i}`, { artist: `Artist ${i}`, title: 'T' })).toEqual({ videoId: null });
+    }
+    expect(searches).toHaveLength(MAX_CONCURRENT_LOOKUPS);
+    expect(resolve.inFlightCount()).toBe(MAX_CONCURRENT_LOOKUPS);
+
+    // Once the in-flight lookups drain, new tracks can start again.
+    release(null);
+    await flush();
+    expect(resolve.inFlightCount()).toBe(0);
+    resolve('w99', { artist: 'Fresh', title: 'T' });
+    expect(searches).toHaveLength(MAX_CONCURRENT_LOOKUPS + 1);
   });
 
   it('never rejects when the lookup itself throws', async () => {
