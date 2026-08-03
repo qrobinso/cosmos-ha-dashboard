@@ -50,7 +50,8 @@
    * (per theme), so the slot's edge-fade mask conflicts with the
    * intended look — disable it here. */
   .widget-slot[data-kind='media_player'],
-  .widget-slot[data-kind='canvas'] {
+  .widget-slot[data-kind='canvas'],
+  .widget-slot[data-kind='musicvideo'] {
     -webkit-mask-image: none;
     mask-image: none;
   }

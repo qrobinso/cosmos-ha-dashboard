@@ -35,6 +35,7 @@ DB_PATH="$(pwd)/data/cosmos.db" npm --workspace server start
 - Agent contracts: `docs/scene-agent.md` (how an LLM produces a `POST /api/scenes` payload, layout/background/typography best practices, publishing flow) pairs with `docs/canvas-widget-agent.md` for the inside-the-iframe contract.
 - `mcp/` (server) — Optional Model Context Protocol HTTP server at `/mcp` so external agents (Claude Desktop, Cursor, etc.) can call Cosmos's tools. Bearer-token-gated, off by default. Same `app.inject(...)` execution path as the in-product agent. See `docs/superpowers/specs/2026-05-07-mcp-server-design.md`.
 - `voice/` (server) — Voice Assistant relay: a second, dedicated HA websocket connection (`client.ts`) drives `assist_pipeline/run` (stt → intent → tts) fed by base64 PCM chunks the display streams over the main WS; `relay.ts` wraps that per-utterance run with error handling and a hard timeout so a wedged HA can't hang a turn forever. Flow: kiosk wake-word detector fires → kiosk arms mic capture and streams `voice_audio` frames → server buffers per-socket until `final:true` → relay runs the HA pipeline and pushes `voice_result` events (stt-end/intent-end/tts-end/error) back to the display, which drives the overlay and plays the TTS response. `ha-assist.ts` exposes the pipeline list for the admin picker.
+- `musicvideo/` (server) — Resolves the YouTube music video for a `media_player`'s current track. `trackKey.ts` normalizes `artist|title` (stripping `feat.` / remaster decoration) into a cache key; `ytdlp.ts` shells out to `yt-dlp -f 18 -j ytsearch1:…` behind a `VideoLookup` interface (the only file that knows yt-dlp exists — swap in a YouTube Data API client by writing one new implementation); `cache.ts` is a two-tier SQLite cache (durable `trackKey → videoId`, ephemeral 4h `videoId → streamUrl`, 24h negative results); `resolver.ts` mirrors `createCanvasResolver`'s lifecycle and **never blocks the scene push** — a cache miss returns `null` immediately and fires `onUpdate` → `markDisplayDirty` → re-push once the lookup lands. The kiosk plays the stream from `/api/musicvideo/stream/:videoId`, never a raw googlevideo URL.
 
 WebSocket protocol (server → display):
 - `{type: 'welcome', displayId, message}` — sent on hello.
@@ -60,6 +61,7 @@ REST highlights:
 - `GET /api/moods` — list bundled moods (id, label, tags) for the editor's Mood card.
 - `GET /api/ha/assist-pipelines` — list HA Assist pipelines (empty array when the voice client is unavailable) for the admin voice picker.
 - `PUT /api/displays/:name/voice {enabled, pipelineId}` — toggle voice + pick a pipeline for a display; notifies a connected kiosk live via `display_config`.
+- `GET /api/musicvideo/stream/:videoId` — proxies the YouTube progressive MP4 to the kiosk, forwarding `Range` and re-deriving expired stream URLs server-side.
 
 Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enables MQTT command dispatch + HA discovery. Without them, Cosmos uses mock entity data and overlay commands are unavailable.
 
@@ -111,6 +113,10 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 - The voice overlay (listening/thinking/response/error) reuses the kiosk's single `MessageOverlay` slot rather than a dedicated voice UI — a voice state and a server-pushed `OverlayMessage` can't show simultaneously; whichever lands last wins.
 - `display` has no wired typecheck script and `svelte-check` currently reports pre-existing errors unrelated to voice — worth a follow-up pass to get it clean and wired into CI.
 - `voice/relay.ts`'s per-utterance timeout `break`s out of the loop without calling `iterator.return()`, so on the rare "HA sent run-start then went silent >30s" path the parked generator (HA subscription + up to 2MB of buffered audio) stays reachable until process exit. Add `iterator.return?.()` on the timeout path.
+- `music_video_cache` is never pruned. Bounded in practice by distinct tracks played, but it grows for the life of the DB — add a pruning pass if it gets large.
+- Music video match quality is entirely at the mercy of `ytsearch1` — the first hit may be a lyric video or a cover. The widget's `query_suffix` is the only tuning knob.
+- `yt-dlp` is against YouTube's ToS and its extractors break when YouTube changes; a broken extractor degrades to a permanently hidden widget with no user-visible explanation. Requires occasional `yt-dlp -U`. Deliberate, accepted tradeoff — see `docs/superpowers/specs/2026-08-02-music-video-widget-design.md`.
+- The music video widget's position sync wraps `position % videoDuration`, so a video shorter than the track restarts at an arbitrary offset rather than at a musically sensible point.
 - `voice/client.ts`: if HA rejects a run with an `error` event and never sends `run-start`, the caller sees the generic "run-start timed out" message after the 10s wait instead of HA's actual error immediately — cosmetic, but worth short-circuiting the run-start wait when a terminal error event arrives first.
 
 ## Roadmap
@@ -121,3 +127,4 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 - Plan 6: ✅ Shipped — installable HA app (formerly called "add-on") with Supervisor auto-discovery, Ingress sidebar panel, multi-arch Docker images.
 - Plan 7: 🛠 In progress — Scene Mood Engine. Looping video atmosphere layer per scene. Strategies: manual, time-of-day (sun.sun), weather. See `docs/superpowers/plans/2026-05-04-scene-mood-engine.md`.
 - Plan A (Calendar v2): ✅ Shipped — multi-source calendar widget with five views (agenda/month/week/day/lanes), per-source color coding, now-line indicator on time grids. See `docs/superpowers/plans/2026-05-17-calendar-v2-data-and-views.md`.
+- Plan B (Music Video): ✅ Shipped — `musicvideo` widget resolving YouTube videos for the current track. See `docs/superpowers/plans/2026-08-02-music-video-widget.md`.

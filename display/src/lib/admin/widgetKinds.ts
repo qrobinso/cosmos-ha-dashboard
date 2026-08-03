@@ -230,6 +230,19 @@ export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
     }),
     instanceLabel: (c) => labelFrom(c, 'Canvas'),
   },
+  musicvideo: {
+    kind: 'musicvideo',
+    label: 'Music Video',
+    category: 'ha',
+    icon: widgetIcons.musicvideo,
+    accent: '#d9639b', // music video pink
+    blurb: 'Plays the YouTube music video for the current track.',
+    defaultSize: { w: 6, h: 4 },
+    defaultConfig: (entities) => ({
+      entity_id: firstEntityOfDomain(entities, 'media_player'),
+    }),
+    instanceLabel: (c) => labelFrom(c, 'Music Video'),
+  },
 };
 
 /** All kinds in palette order (Time & info, then Home Assistant, then Canvas). */
@@ -243,6 +256,7 @@ export const widgetKindOrder: WidgetKind[] = [
   'statistics',
   'camera',
   'canvas',
+  'musicvideo',
 ];
 
 export const categoryLabels: Record<WidgetCategory, string> = {

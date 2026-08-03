@@ -28,6 +28,10 @@ export const widgetIcons: Record<WidgetKind, string> = {
     '<rect x="3" y="7" width="18" height="12" rx="2.5"/><path d="M8.5 7l1.3-2.2h4.4L19.5 7"/><circle cx="12" cy="13" r="3.2"/>',
   canvas:
     '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 8.5h17M7 12.5h6M7 15.5h9M16.5 11.5l1.5 1.5-1.5 1.5"/>',
+  // Reuses the media_player icon verbatim — a distinct glyph isn't worth
+  // drawing for a widget that's conceptually "media player, but video".
+  musicvideo:
+    '<circle cx="12" cy="12" r="8.5"/><path d="M10.5 9.5v5l4-2.5z"/>',
 };
 
 /** Convenience: a complete <svg> string for `{@html}` use. */

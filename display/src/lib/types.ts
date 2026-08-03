@@ -12,7 +12,7 @@ export type Background =
       auto_contrast?: boolean;
     };
 export type Typography = { font_family: string; font_scale: number; color?: string };
-export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
+export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas' | 'musicvideo';
 
 export type WeatherForecastType = 'daily' | 'hourly' | 'twice_daily';
 
@@ -130,6 +130,14 @@ export type CanvasData = {
   liveEntityIds: string[];
 };
 
+export type MusicVideoData = {
+  entity_id: string;
+  video_id: string | null;
+  state: MediaPlayerData['state'];
+  position?: number;
+  duration?: number;
+};
+
 export type WidgetData =
   | null
   | WeatherData
@@ -138,7 +146,8 @@ export type WidgetData =
   | MediaPlayerData
   | StatisticsData
   | CameraData
-  | CanvasData;
+  | CanvasData
+  | MusicVideoData;
 
 export type WidgetState = {
   id: string;
