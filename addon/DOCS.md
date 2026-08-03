@@ -113,7 +113,7 @@ For an ambient now-playing wall: size it to the full grid, set Layer to *Behind*
 
 If a widget stays blank and you want to know why, switch on `log_musicvideo` in Configuration — the app log will name the reason, from "no official video" through to the score every candidate received.
 
-**Updating yt-dlp.** YouTube changes break `yt-dlp` extractors from time to time; a new app release picks up a current version. To patch in place without waiting, run `yt-dlp -U` inside the app container. That update is lost when the app restarts or updates, which is expected.
+**Updating yt-dlp.** YouTube changes break `yt-dlp` extractors from time to time; a new app release picks up a current version. To patch in place without waiting, run `pip3 install -U --break-system-packages yt-dlp` inside the app container. (`yt-dlp -U` does not work here — that self-updater only applies to yt-dlp's standalone builds, and this app installs it from PyPI.) An in-place update is lost when the app restarts or updates, which is expected.
 
 ## Support
 

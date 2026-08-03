@@ -1,8 +1,12 @@
 # Changelog
 
+## 0.7.1
+
+- Fix: **0.7.0 failed to build.** The bundled `yt-dlp` used its standalone musllinux build, which embeds Python 3.14 and needs a libc symbol (`pwritev2`) that this app's Alpine base does not have — the build aborted with `Error relocating libpython3.14.so.1.0`. It now installs from PyPI against the image's own Python. If you saw that error, updating to 0.7.1 is the fix; nothing else changed.
+
 ## 0.7.0
 
-- Feat: **Music Video widget.** Point it at a `media_player` and it plays the matching YouTube music video for whatever is playing — muted, position-synced to the track, sized to whatever grid slot you give it. Audio keeps coming from your Home Assistant speaker; the video is just the visual. Lookups happen on the server via `yt-dlp` (bundled in this image, so there's nothing to install) and results are cached, so replaying a song is instant. If YouTube changes break the bundled copy before the next release, `yt-dlp -U` inside the app container updates it in place.
+- Feat: **Music Video widget.** Point it at a `media_player` and it plays the matching YouTube music video for whatever is playing — muted, position-synced to the track, sized to whatever grid slot you give it. Audio keeps coming from your Home Assistant speaker; the video is just the visual. Lookups happen on the server via `yt-dlp` (bundled in this image, so there's nothing to install) and results are cached, so replaying a song is instant. If YouTube changes break the bundled copy before the next release, `pip3 install -U --break-system-packages yt-dlp` inside the app container updates it in place.
   - The widget stays **hidden** whenever there's no video — while a lookup is still running, when nothing matched, or when the player is idle. There's no spinner and no error box by design; an empty slot reads better on a wall than a broken one.
   - TV shows and movies are skipped: a media player showing an episode reports a title and "artist" too, and searching YouTube for a music video of it is just wasted effort.
   - Candidates are scored before anything plays. A video must be on the artist's own channel *and* carry "official" and "video" in its title; the best remaining candidate then has to clear a confidence bar. This is deliberately strict — songs whose real video is titled plainly (Radiohead's "Karma Police", Taylor Swift's "Blank Space") show nothing rather than risk a fan re-upload or a lyric video. The **Search suffix** field is the per-widget knob when a player's metadata needs help.

@@ -35,29 +35,36 @@ RUN apk add --no-cache nodejs npm ca-certificates
 # yt-dlp for the musicvideo widget. Without it that widget can only ever
 # report itself unavailable, so the feature would ship dead in this image.
 #
-# Deliberately NOT `apk add yt-dlp`: Alpine's community package lags badly
-# (v3.21 still ships 2025.03.31), and a stale yt-dlp is precisely how this
-# breaks — YouTube changes, old extractors stop working. The upstream musl
-# standalone builds match Alpine's libc, bundle their own Python (so no
-# python3/py3-pip dependency chain), and support `yt-dlp -U` self-update,
-# which an apk-managed copy does not — that lets a user recover from a broken
-# extractor without waiting on a new app release.
+# Installed from PyPI against the image's OWN Python. Two rejected alternatives,
+# both for concrete reasons:
+#
+#   * yt-dlp's standalone musllinux binary was tried first and FAILS on this
+#     base. It bundles Python 3.14, which needs the `pwritev2` symbol added in
+#     musl 1.2.5 (Alpine 3.20); ghcr.io/hassio-addons/base:15.0.7 predates that,
+#     so the binary aborts immediately with
+#     "Error relocating libpython3.14.so.1.0: pwritev2: symbol not found".
+#     Do not reintroduce it without first bumping the base image.
+#
+#   * `apk add yt-dlp` would link correctly but lags badly (Alpine v3.21 still
+#     ships 2025.03.31), and a stale yt-dlp is precisely how this feature
+#     breaks — YouTube changes, old extractors stop working.
+#
+# pip gives a current release linked against the right libc. Note the PyPI
+# version format strips leading zeros (2026.7.4, NOT 2026.07.04).
 #
 # No ffmpeg anywhere: the widget pins `-f 18`, a progressive MP4 with muxed
 # audio, so nothing ever needs remuxing.
-ARG YTDLP_VERSION=2026.07.04
+ARG YTDLP_VERSION=2026.7.4
 RUN set -eu; \
-    case "$(uname -m)" in \
-      x86_64)  asset=yt-dlp_musllinux ;; \
-      aarch64) asset=yt-dlp_musllinux_aarch64 ;; \
-      *) echo "unsupported arch for yt-dlp: $(uname -m)" >&2; exit 1 ;; \
-    esac; \
-    wget -qO /usr/local/bin/yt-dlp \
-      "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/${asset}"; \
-    chmod a+x /usr/local/bin/yt-dlp; \
+    apk add --no-cache python3 py3-pip; \
+    # PEP 668 marks Alpine's Python "externally managed" on newer releases.
+    # The flag is what we want there; older pip rejects the flag outright, so
+    # fall back to a plain install.
+    pip3 install --no-cache-dir --break-system-packages "yt-dlp==${YTDLP_VERSION}" \
+      || pip3 install --no-cache-dir "yt-dlp==${YTDLP_VERSION}"; \
     # Fail the build loudly rather than shipping an image whose music video
-    # widget is silently dead.
-    /usr/local/bin/yt-dlp --version
+    # widget is silently dead. This is what caught the musl failure above.
+    yt-dlp --version
 
 WORKDIR /app
 
