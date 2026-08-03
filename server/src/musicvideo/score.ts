@@ -1,11 +1,14 @@
 /**
  * Pure candidate scoring for the yt-dlp two-phase lookup. No I/O, no clock,
  * no logging — that purity is what makes this fast and deterministic to
- * test against a hand-captured fixture. See
- * `docs/superpowers/sdd/2026-08-02-music-video-widget/task-9-brief.md` for
- * the design rationale and the exact point values, which are load-bearing:
- * they were tuned against real yt-dlp output where the correct video is NOT
- * the first search hit.
+ * test against hand-captured fixtures.
+ *
+ * The point values are load-bearing. They were tuned against real yt-dlp
+ * output for two songs where the correct video is NOT the first search hit,
+ * and both fixtures live in `server/test/musicvideo.score.test.ts` as the
+ * regression guard. Retune only with those tests in front of you: the weights
+ * trade off against each other, and fixing one song by feel has already
+ * broken the other once.
  */
 
 /** A phase-1 (`--flat-playlist`) search result. Flat mode does not expose
@@ -23,7 +26,9 @@ export type Candidate = {
 export type ScoreContext = {
   artist?: string;
   title?: string;
-  /** HA's `media_duration` for the currently playing track. The strongest signal. */
+  /** HA's `media_duration` for the currently playing track. Used to reject
+   * unrelated content (medleys, compilations); deliberately NOT strong enough
+   * to outrank an explicit "official video" title. See `durationScore`. */
   durationSec?: number;
 };
 
@@ -42,29 +47,53 @@ function containsEither(a: string, b: string): boolean {
 }
 
 /**
- * Duration is deliberately the heaviest signal — heavy enough to outweigh the
- * `live` title penalty. That is a considered tradeoff, not an oversight.
+ * Duration's job is to REJECT UNRELATED CONTENT — medleys, compilations,
+ * full-album uploads, hour-long mixes — not to choose between edits of the
+ * same song. It is therefore a modest, asymmetric signal.
  *
- * Consequence, with a real example: playing the 6:11 album cut of Bowie's
- * "Heroes" picks the 6:04 official LIVE video over the 3:29 official studio
- * video, because official videos are frequently shorter single edits. The
- * alternative — letting "official video" win — would put a 3:29 clip under a
- * 6:11 song, looping it twice with a visible restart mid-track.
+ * Asymmetric because the two directions mean different things:
  *
- * We chose sync over provenance: a matching-length live performance reads
- * better on a wall than a correct video that visibly loops. If you want the
- * opposite, soften these bands and raise the official-video bonus; the
- * six-candidate Solange fixture in the tests is the regression guard that the
- * change must not break (it must keep picking the studio "Weary").
+ *  - **Much longer than the track** is genuinely suspicious. Nothing legitimate
+ *    is three minutes longer than the song; that's a medley or a compilation.
+ *  - **Shorter than the track** is completely normal. Official videos are very
+ *    often single edits — Bowie's official "Heroes" video is 3:29 against a
+ *    6:11 album cut. Punishing that would reject the correct answer.
+ *
+ * An earlier version made duration the dominant signal (±50), which fixed one
+ * real case and broke another: it picked a length-matching official LIVE video
+ * over the official studio video, because the live cut happened to match the
+ * album runtime. Duration is now weak enough that `official video` (+30) beats
+ * a live performance whose length merely coincides.
+ *
+ * Both real fixtures in the tests are the regression guard: Solange must pick
+ * the studio "Weary" (not the Fallon medley), and Bowie must pick the studio
+ * "Heroes" video (not the live one). Retuning must keep both.
+ *
+ * The widget loops and wraps a short video (`position % videoDuration`), so a
+ * shorter correct video costs a visible restart mid-song — accepted as the
+ * lesser evil against playing the wrong performance entirely.
  */
 function durationScore(candidateSec: number | null, ctxSec: number | undefined): number {
   if (candidateSec == null || ctxSec == null) return 0;
-  const delta = Math.abs(candidateSec - ctxSec);
-  if (delta <= 2) return 50;
-  if (delta <= 5) return 35;
-  if (delta <= 15) return 10;
-  if (delta <= 45) return 0;
-  return -40;
+
+  const diff = candidateSec - ctxSec;
+  const magnitude = Math.abs(diff);
+
+  // Close enough either way: a real, if weak, positive signal.
+  if (magnitude <= 5) return 20;
+  if (magnitude <= 15) return 12;
+
+  if (diff > 0) {
+    // Longer than the track — the suspicious direction.
+    if (diff > 120) return -45; // compilation, mix, or full album
+    if (diff > 45) return -30; // medley, or a different (longer) arrangement
+    return 0;
+  }
+
+  // Shorter than the track — usually just a single edit, so barely penalized.
+  if (candidateSec < ctxSec * 0.5) return -20; // a clip or preview, not the song
+  if (magnitude > 45) return -5;
+  return 0;
 }
 
 function channelScore(channel: string, artist: string | undefined, verified: boolean): number {
@@ -77,7 +106,7 @@ function channelScore(channel: string, artist: string | undefined, verified: boo
 const TITLE_PENALTIES: Array<{ pattern: RegExp; points: number }> = [
   { pattern: /karaoke/i, points: -40 },
   { pattern: /reaction/i, points: -40 },
-  { pattern: /\blive\b|live at|live from/i, points: -30 },
+  { pattern: /\blive\b|live at|live from/i, points: -35 },
   { pattern: /\bcover\b/i, points: -30 },
   { pattern: /full album/i, points: -30 },
   { pattern: /lyrics?/i, points: -25 },
@@ -91,7 +120,9 @@ const OFFICIAL_VIDEO_PATTERN = /official\s+(music\s+)?video/i;
 
 function titleScore(title: string, ctxTitle: string | undefined): number {
   let score = 0;
-  if (OFFICIAL_VIDEO_PATTERN.test(title)) score += 15;
+  // Weighted above the duration signal on purpose: a title that says
+  // "official video" is stronger evidence than a coincidental runtime match.
+  if (OFFICIAL_VIDEO_PATTERN.test(title)) score += 30;
 
   if (ctxTitle && ctxTitle.length >= 3) {
     if (!containsEither(title, ctxTitle)) score -= 20;
@@ -116,6 +147,71 @@ export function scoreCandidate(c: Candidate, ctx: ScoreContext): number {
     titleScore(c.title, ctx.title) +
     popularityScore(c.viewCount)
   );
+}
+
+/**
+ * Minimum score a candidate must reach to be played at all.
+ *
+ * Below this the widget stays hidden rather than showing something wrong —
+ * an empty slot on a wall reads better than a lyric video or the wrong song.
+ *
+ * Calibrated against the two real fixtures in the tests. Observed scores
+ * either side of the line:
+ *
+ *   +70  Bowie   — "Heroes" (Official Video), studio cut          -> plays
+ *   +65  Solange — "Weary" (official channel, exact duration)     -> plays
+ *   +52  Bowie   — "Heroes" (Live) [Official Video]               -> plays, but loses
+ *   +25  "Cranes in the Sky" — right artist, wrong song           -> hidden
+ *   +22  "weary - solange | visual exploration", unofficial       -> hidden
+ *    +0  "SOLANGE - WEARY (OFFICIAL LYRICS)"                      -> hidden
+ *   -20  "Rise/Weary Medley (Live from The Tonight Show)"         -> hidden
+ *   -67  "Weary (REMIX) | By Matty The Chef"                      -> hidden
+ *
+ * Roughly "the artist's own verified channel with nothing disqualifying", or
+ * a decent duration match plus one strong corroborating signal.
+ */
+export const MIN_SCORE = 40;
+
+/** A human-readable breakdown of how a candidate scored, for the "why is my
+ * video not playing" log line. Pure — the caller does the logging. */
+export function explainCandidate(
+  c: Candidate,
+  ctx: ScoreContext,
+): { score: number; reasons: string[] } {
+  const reasons: string[] = [];
+
+  const dur = durationScore(c.durationSec, ctx.durationSec);
+  if (c.durationSec == null || ctx.durationSec == null) {
+    reasons.push('no duration to compare');
+  } else {
+    const delta = Math.abs(c.durationSec - ctx.durationSec);
+    reasons.push(`duration ${c.durationSec}s vs track ${ctx.durationSec}s (${delta}s off) ${fmt(dur)}`);
+  }
+
+  if (ctx.artist && ctx.artist.length >= 3) {
+    reasons.push(
+      containsEither(c.channel, ctx.artist)
+        ? `channel "${c.channel}" matches artist ${fmt(25)}`
+        : `channel "${c.channel}" does not match artist "${ctx.artist}" ${fmt(0)}`,
+    );
+  }
+  if (c.verified) reasons.push(`verified channel ${fmt(15)}`);
+
+  if (OFFICIAL_VIDEO_PATTERN.test(c.title)) reasons.push(`title says "official video" ${fmt(30)}`);
+  if (ctx.title && ctx.title.length >= 3 && !containsEither(c.title, ctx.title)) {
+    reasons.push(`title does not contain "${ctx.title}" ${fmt(-20)}`);
+  }
+  for (const { pattern, points } of TITLE_PENALTIES) {
+    if (pattern.test(c.title)) {
+      reasons.push(`title matches /${pattern.source}/ ${fmt(points)}`);
+    }
+  }
+
+  return { score: scoreCandidate(c, ctx), reasons };
+}
+
+function fmt(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
 }
 
 /**

@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import type { ResolvedVideo, SearchHint, VideoLookup, VideoSearchResult } from './types.js';
 import type { Candidate } from './score.js';
-import { pickBest, scoreCandidate } from './score.js';
-import { mvLog } from './log.js';
+import { pickBest, scoreCandidate, explainCandidate, MIN_SCORE } from './score.js';
+import { mvLog, mvWarn } from './log.js';
 
 export const YTDLP_TIMEOUT_MS = 15_000;
 
@@ -130,6 +130,14 @@ function toResolved(json: Record<string, unknown>): ResolvedVideo | null {
   };
 }
 
+/** "Artist — Title" for log lines, or a placeholder when HA gave us neither. */
+function describeTrack(hint: SearchHint | undefined): string {
+  const artist = hint?.artist?.trim();
+  const title = hint?.title?.trim();
+  if (!artist && !title) return 'unknown track';
+  return `${artist ?? '?'} — ${title ?? '?'}`;
+}
+
 /**
  * The only file in the codebase that knows yt-dlp exists.
  *
@@ -177,12 +185,25 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
       return { status: 'unavailable' };
     }
     if (phase1.spawnFailed) return { status: 'unavailable' };
-    if (!phase1.ok) return { status: 'none' };
+    if (!phase1.ok) {
+      mvWarn(
+        `search failed for "${describeTrack(hint)}": yt-dlp exited non-zero on the ` +
+          `candidate search. Nothing will play. A broken extractor is the usual ` +
+          `cause — try \`yt-dlp -U\`.`,
+      );
+      return { status: 'none' };
+    }
 
     const candidates = parseAllJson(phase1.stdout)
       .map(toCandidate)
       .filter((c): c is Candidate => c !== null);
-    if (candidates.length === 0) return { status: 'none' };
+    if (candidates.length === 0) {
+      mvWarn(
+        `no search results for "${describeTrack(hint)}" (query: "${query}"). ` +
+          `Nothing will play; the widget stays hidden.`,
+      );
+      return { status: 'none' };
+    }
 
     const winner = pickBest(candidates, {
       artist: hint?.artist,
@@ -193,7 +214,36 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
 
     logCandidates(query, candidates, winner.videoId, hint);
 
-    return invoke(`https://www.youtube.com/watch?v=${winner.videoId}`);
+    // Confidence gate: if even the best candidate is weak, play nothing rather
+    // than something wrong. A hidden widget reads better on a wall than a
+    // lyric video or the wrong song, and 'none' gets negative-cached so we
+    // stop re-searching a track YouTube simply doesn't have a good video for.
+    const ctx = {
+      artist: hint?.artist,
+      title: hint?.title,
+      durationSec: hint?.durationSec,
+    };
+    const { score, reasons } = explainCandidate(winner, ctx);
+    if (score < MIN_SCORE) {
+      mvWarn(
+        `no confident match for "${describeTrack(hint)}": ` +
+          `best candidate scored ${score}, below the ${MIN_SCORE} threshold, so nothing will play.\n` +
+          `    rejected: "${winner.title}" (${winner.videoId})\n` +
+          reasons.map((r) => `      · ${r}`).join('\n') +
+          `\n    Widget stays hidden. Adjust the widget's "Search suffix" if this track needs a better query.`,
+      );
+      return { status: 'none' };
+    }
+
+    const resolved = await invoke(`https://www.youtube.com/watch?v=${winner.videoId}`);
+    if (resolved.status !== 'ok') {
+      mvWarn(
+        `picked "${winner.title}" (${winner.videoId}, score ${score}) for ` +
+          `"${describeTrack(hint)}" but could not resolve a playable stream ` +
+          `(${resolved.status}). Nothing will play.`,
+      );
+    }
+    return resolved;
   }
 
   return {

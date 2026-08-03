@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { scoreCandidate, pickBest, type Candidate, type ScoreContext } from '../src/musicvideo/score.js';
+import {
+  scoreCandidate,
+  pickBest,
+  explainCandidate,
+  MIN_SCORE,
+  type Candidate,
+  type ScoreContext,
+} from '../src/musicvideo/score.js';
 
 /** Real yt-dlp output for "Solange Weary official music video", captured by hand. */
 const FIXTURE: Candidate[] = [
@@ -72,6 +79,121 @@ describe('scoreCandidate / pickBest — real fixture', () => {
   });
 });
 
+/**
+ * Real yt-dlp output for "David Bowie Heroes official music video".
+ *
+ * This fixture is the guard for the duration retune. The track is the 6:11
+ * album cut; the correct answer is the 3:29 official STUDIO video, even though
+ * the official LIVE video's runtime is far closer to the album length. An
+ * earlier weighting made duration dominant and picked the live cut — if this
+ * test goes red, duration has been over-weighted again.
+ */
+const BOWIE_FIXTURE: Candidate[] = [
+  {
+    videoId: 'bowie-studio',
+    title: 'David Bowie - "Heroes" (Official Video) [HD]',
+    channel: 'David Bowie',
+    verified: true,
+    durationSec: 209,
+    viewCount: 50_000_000,
+  },
+  {
+    videoId: 'bowie-reupload-long',
+    title: 'David Bowie - Heroes',
+    channel: 'Broken Ridge Records',
+    verified: false,
+    durationSec: 453,
+    viewCount: 100_000,
+  },
+  {
+    videoId: 'bowie-christiane',
+    title: 'David Bowie - Heroes [Christiane F. - Wir Kinder Vom Bahnhof Zoo]',
+    channel: 'The Alice Project',
+    verified: false,
+    durationSec: 476,
+    viewCount: 100_000,
+  },
+  {
+    videoId: 'bowie-live',
+    title: 'David Bowie - "Heroes" (Live) [Official Video] [4K]',
+    channel: 'David Bowie',
+    verified: true,
+    durationSec: 364,
+    viewCount: 5_000_000,
+  },
+  {
+    videoId: 'bowie-remaster',
+    title: 'Heroes (2017 Remaster)',
+    channel: 'David Bowie',
+    verified: true,
+    durationSec: 216,
+    viewCount: 5_000_000,
+  },
+];
+
+describe('pickBest — Bowie fixture (duration must not outrank provenance)', () => {
+  const ctx: ScoreContext = { artist: 'David Bowie', title: 'Heroes', durationSec: 371 };
+
+  it('picks the official studio video over the length-matching live video', () => {
+    expect(pickBest(BOWIE_FIXTURE, ctx)?.videoId).toBe('bowie-studio');
+  });
+
+  it('ranks the studio video above the live one despite the worse duration match', () => {
+    const studio = BOWIE_FIXTURE.find((c) => c.videoId === 'bowie-studio')!;
+    const live = BOWIE_FIXTURE.find((c) => c.videoId === 'bowie-live')!;
+    // The live cut is 7s off a 371s track; the studio video is 162s off.
+    expect(scoreCandidate(studio, ctx)).toBeGreaterThan(scoreCandidate(live, ctx));
+  });
+
+  it('rejects the over-long unofficial re-uploads', () => {
+    for (const id of ['bowie-reupload-long', 'bowie-christiane']) {
+      const c = BOWIE_FIXTURE.find((x) => x.videoId === id)!;
+      expect(scoreCandidate(c, ctx)).toBeLessThan(MIN_SCORE);
+    }
+  });
+
+  it('clears the confidence threshold', () => {
+    expect(scoreCandidate(BOWIE_FIXTURE[0], ctx)).toBeGreaterThanOrEqual(MIN_SCORE);
+  });
+});
+
+describe('MIN_SCORE confidence gate', () => {
+  const solangeCtx: ScoreContext = { artist: 'Solange', title: 'Weary', durationSec: 195 };
+
+  it('passes the correct Solange match', () => {
+    const winner = pickBest(FIXTURE, solangeCtx)!;
+    expect(scoreCandidate(winner, solangeCtx)).toBeGreaterThanOrEqual(MIN_SCORE);
+  });
+
+  it('holds the lyric video, the wrong song, and the medley below the gate', () => {
+    for (const c of FIXTURE) {
+      if (c.videoId === pickBest(FIXTURE, solangeCtx)!.videoId) continue;
+      expect(scoreCandidate(c, solangeCtx)).toBeLessThan(MIN_SCORE);
+    }
+  });
+});
+
+describe('explainCandidate', () => {
+  const ctx: ScoreContext = { artist: 'Solange', title: 'Weary', durationSec: 195 };
+
+  it('agrees with scoreCandidate', () => {
+    for (const c of FIXTURE) {
+      expect(explainCandidate(c, ctx).score).toBe(scoreCandidate(c, ctx));
+    }
+  });
+
+  it('names the disqualifying reason for a rejected candidate', () => {
+    const lyric = FIXTURE.find((c) => /LYRICS/i.test(c.title))!;
+    const { reasons } = explainCandidate(lyric, ctx);
+    expect(reasons.join(' | ')).toMatch(/lyric/i);
+  });
+
+  it('reports when there is no duration to compare', () => {
+    const { reasons } = explainCandidate({ ...FIXTURE[0], durationSec: null }, ctx);
+    expect(reasons.join(' | ')).toMatch(/no duration/i);
+  });
+});
+
 describe('scoreCandidate — duration bands', () => {
   const base: Candidate = {
     videoId: 'x',
@@ -83,7 +205,7 @@ describe('scoreCandidate — duration bands', () => {
   };
   const ctx: ScoreContext = { durationSec: 200 };
 
-  it('<=2s delta scores the max duration bonus', () => {
+  it('treats small deltas either side identically', () => {
     const a = scoreCandidate({ ...base, durationSec: 200 }, ctx);
     const b = scoreCandidate({ ...base, durationSec: 202 }, ctx);
     const c = scoreCandidate({ ...base, durationSec: 198 }, ctx);
@@ -91,16 +213,30 @@ describe('scoreCandidate — duration bands', () => {
     expect(a).toBe(c);
   });
 
-  it('is monotonically non-increasing as delta grows through the bands', () => {
-    const s2 = scoreCandidate({ ...base, durationSec: 202 }, ctx); // delta 2 -> +50
-    const s5 = scoreCandidate({ ...base, durationSec: 205 }, ctx); // delta 5 -> +35
-    const s15 = scoreCandidate({ ...base, durationSec: 215 }, ctx); // delta 15 -> +10
-    const s45 = scoreCandidate({ ...base, durationSec: 245 }, ctx); // delta 45 -> 0
-    const sBig = scoreCandidate({ ...base, durationSec: 300 }, ctx); // delta 100 -> -40
-    expect(s2).toBeGreaterThan(s5);
+  it('degrades as a candidate grows LONGER than the track', () => {
+    const s5 = scoreCandidate({ ...base, durationSec: 205 }, ctx); // +5s   -> +20
+    const s15 = scoreCandidate({ ...base, durationSec: 215 }, ctx); // +15s  -> +12
+    const s45 = scoreCandidate({ ...base, durationSec: 245 }, ctx); // +45s  -> 0
+    const s100 = scoreCandidate({ ...base, durationSec: 300 }, ctx); // +100s -> -30
+    const s300 = scoreCandidate({ ...base, durationSec: 500 }, ctx); // +300s -> -45
     expect(s5).toBeGreaterThan(s15);
     expect(s15).toBeGreaterThan(s45);
-    expect(s45).toBeGreaterThan(sBig);
+    expect(s45).toBeGreaterThan(s100);
+    expect(s100).toBeGreaterThan(s300);
+  });
+
+  it('is asymmetric: being shorter is treated far more kindly than being longer', () => {
+    // Official videos are routinely single edits, so a short candidate must not
+    // be punished the way a too-long medley or compilation is.
+    const shorter = scoreCandidate({ ...base, durationSec: 200 - 100 }, ctx);
+    const longer = scoreCandidate({ ...base, durationSec: 200 + 100 }, ctx);
+    expect(shorter).toBeGreaterThan(longer);
+  });
+
+  it('penalizes a candidate under half the track length as a clip, not a song', () => {
+    const clip = scoreCandidate({ ...base, durationSec: 60 }, ctx); // 30% of 200s
+    const edit = scoreCandidate({ ...base, durationSec: 140 }, ctx); // 70% of 200s
+    expect(clip).toBeLessThan(edit);
   });
 
   it('contributes nothing when either duration is missing', () => {
@@ -151,12 +287,12 @@ describe('scoreCandidate — title signals', () => {
     viewCount: null,
   };
 
-  it('+15 for "official video" / "official music video"', () => {
+  it('+30 for "official video" / "official music video"', () => {
     const a = scoreCandidate({ ...base, title: 'Song Title (Official Video)' }, { title: 'Song Title' });
     const b = scoreCandidate({ ...base, title: 'Song Title (Official Music Video)' }, { title: 'Song Title' });
     const plain = scoreCandidate({ ...base, title: 'Song Title' }, { title: 'Song Title' });
-    expect(a - plain).toBe(15);
-    expect(b - plain).toBe(15);
+    expect(a - plain).toBe(30);
+    expect(b - plain).toBe(30);
   });
 
   it('-20 when the title does not contain the normalized track title', () => {
@@ -173,9 +309,9 @@ describe('scoreCandidate — title signals', () => {
   const penaltyCases: Array<[string, string, number]> = [
     ['karaoke', 'Weary (Karaoke Version)', -40],
     ['reaction', 'Weary REACTION', -40],
-    ['live (word boundary)', 'Weary Live', -30],
-    ['live at', 'Weary Live at the Apollo', -30],
-    ['live from', 'Weary Live From Fallon', -30],
+    ['live (word boundary)', 'Weary Live', -35],
+    ['live at', 'Weary Live at the Apollo', -35],
+    ['live from', 'Weary Live From Fallon', -35],
     ['cover', 'Weary Cover', -30],
     ['full album', 'Weary Full Album', -30],
     ['lyric', 'Weary Lyric Video', -25],
