@@ -23,6 +23,7 @@ import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import type { CanvasFetchPolicy } from '../store/canvasFetch.js';
 import { resolveMood } from '../moods/resolve.js';
+import { mvLog } from '../musicvideo/log.js';
 import { resolveSunGradient } from './sunGradient.js';
 import { reducePalette } from './palette.js';
 import {
@@ -345,10 +346,16 @@ async function musicVideoData(
   const cfg = widget.config as Record<string, unknown>;
   const entityId = readString(cfg, 'entity_id');
   const empty: MusicVideoData = { entity_id: entityId, video_id: null, state: 'unknown' };
-  if (!entityId) return empty;
+  if (!entityId) {
+    mvLog(`skip widget=${widget.id} reason=no-entity-id`);
+    return empty;
+  }
 
   const entity = await resolver(entityId);
-  if (!entity) return empty;
+  if (!entity) {
+    mvLog(`skip widget=${widget.id} reason=entity-not-found entity=${entityId}`);
+    return empty;
+  }
 
   const a = entity.attributes as Record<string, unknown>;
   const state = entity.state as MusicVideoData['state'];
@@ -359,6 +366,12 @@ async function musicVideoData(
 
   // Only look up a video for a player that actually has a track loaded.
   if (!MV_ACTIVE_STATES.has(entity.state) || !deps.musicVideoResolver) {
+    mvLog(
+      !deps.musicVideoResolver
+        ? `skip widget=${widget.id} reason=no-resolver-wired (preview render, or lookup not configured)`
+        : `skip widget=${widget.id} reason=state entity=${entityId} state=${entity.state} ` +
+            `(active states: ${[...MV_ACTIVE_STATES].join(', ')})`,
+    );
     return {
       entity_id: entityId,
       video_id: null,
@@ -375,6 +388,12 @@ async function musicVideoData(
     title: typeof a.media_title === 'string' ? a.media_title : undefined,
     querySuffix: suffix || undefined,
   });
+
+  mvLog(
+    `assemble widget=${widget.id} entity=${entityId} state=${state} ` +
+      `artist=${JSON.stringify(a.media_artist ?? null)} title=${JSON.stringify(a.media_title ?? null)} ` +
+      `-> video_id=${videoId ?? 'null (hidden)'} position=${position ?? '?'}s`,
+  );
 
   return {
     entity_id: entityId,

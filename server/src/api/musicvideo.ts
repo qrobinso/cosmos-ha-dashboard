@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { Readable } from 'node:stream';
 import type { MusicVideoCache } from '../musicvideo/cache.js';
+import { mvLog, mvWarn } from '../musicvideo/log.js';
 import type { VideoLookup } from '../musicvideo/types.js';
 
 /** YouTube ids are 11 chars of [A-Za-z0-9_-]; be strict, this reaches fetch(). */
@@ -37,15 +38,23 @@ export function registerMusicVideoRoutes(
 
       const videoId = req.params.videoId;
       if (!VIDEO_ID_RE.test(videoId)) {
+        mvWarn(`stream 400 videoId=${JSON.stringify(videoId)} rejected by charset guard`);
         return reply.code(400).send({ error: 'invalid videoId' });
       }
+
+      mvLog(`stream req videoId=${videoId} range=${req.headers.range ?? 'none'}`);
 
       // Cached URL, or re-derive when absent/stale.
       let streamUrl = cache.getStream(videoId)?.streamUrl ?? null;
       if (!streamUrl) {
+        mvLog(`stream url absent or stale videoId=${videoId} — re-deriving via yt-dlp`);
         streamUrl = await lookup.streamUrlFor(videoId);
-        if (!streamUrl) return reply.code(404).send({ error: 'video unavailable' });
+        if (!streamUrl) {
+          mvWarn(`stream 404 videoId=${videoId} — could not re-derive a stream url`);
+          return reply.code(404).send({ error: 'video unavailable' });
+        }
         cache.putStream(videoId, streamUrl, 0);
+        mvLog(`stream url re-derived videoId=${videoId}`);
       }
 
       try {
@@ -58,6 +67,10 @@ export function registerMusicVideoRoutes(
           // Almost always an expired or IP-bound URL. Drop it so the next
           // request re-derives rather than serving the same dead link.
           cache.invalidateStream(videoId);
+          mvWarn(
+            `stream 404 videoId=${videoId} — upstream returned ${upstream.status} ` +
+              `(url expired or IP-bound); cached url invalidated, next request re-derives`,
+          );
           return reply.code(404).send({ error: 'stream unavailable' });
         }
 
@@ -67,6 +80,11 @@ export function registerMusicVideoRoutes(
         }
         reply.header('cache-control', 'no-store');
         reply.code(upstream.status);
+        mvLog(
+          `stream ok  videoId=${videoId} upstream=${upstream.status} ` +
+            `type=${upstream.headers.get('content-type') ?? '?'} ` +
+            `len=${upstream.headers.get('content-length') ?? '?'}`,
+        );
 
         if (!upstream.body) return reply.send();
 
@@ -75,7 +93,8 @@ export function registerMusicVideoRoutes(
         // instead of letting it drain bandwidth until process exit.
         req.raw.on('close', () => nodeStream.destroy());
         return reply.send(nodeStream);
-      } catch {
+      } catch (err) {
+        mvWarn(`stream 404 videoId=${videoId} — upstream fetch threw: ${String(err)}`);
         return reply.code(404).send({ error: 'stream unavailable' });
       }
     },
