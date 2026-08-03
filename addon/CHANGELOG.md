@@ -10,6 +10,9 @@
   - **Layering:** every widget kind now has a Layer setting under Placement — *Behind* / *Normal* / *In front*. Combined with the settings above, the music video works as a full-bleed backdrop with the rest of the scene on top.
   - New `log_musicvideo` option: traces which candidates were considered, how each scored, and why nothing plays when nothing does. Errors are logged regardless.
 
+- Feat: **Voice Assistant groundwork.** Cosmos can now drive a Home Assistant Assist pipeline end to end — the kiosk streams microphone audio to the app, which runs speech-to-text → intent → text-to-speech through HA and plays the spoken response back on the display. Enable it per display, and pick which Assist pipeline it uses, on the Displays page.
+  - **Wake-word detection is not active in this release.** It needs an ONNX wake-word model at `display/static/voice/wakeword.onnx`, which is not bundled with the app. Until that asset is added the microphone is never armed, so the toggle and pipeline picker appear but nothing listens. Everything downstream of the wake word — capture, the HA pipeline relay, the on-screen states, TTS playback — is in place and tested.
+
 ## 0.6.18
 
 - Feat: **Auto-by-weather mood strategy** now uses the recently-added clips. `rainy` → `water-droplets` (gentle drops), `pouring` and `hail` → `rain` (heavier), `lightning` and `lightning-rainy` → the new `lightning.mp4` storm clip. Sunny / cloudy / snowy / clear-night mappings unchanged. Documented in `display/static/moods/README.md`.
