@@ -50,6 +50,39 @@ describe('MusicVideo — opacity', () => {
   });
 });
 
+describe('MusicVideo — edge fade', () => {
+  it('emits no mask at all by default, so the common case costs nothing', () => {
+    const el = mount(widget())!;
+    expect(el.classList.contains('faded')).toBe(false);
+    expect(el.style.getPropertyValue('--mv-fade')).toBe('');
+  });
+
+  it('applies a mask with the configured distance', () => {
+    const el = mount(widget({ edge_fade: 100 }))!;
+    expect(el.classList.contains('faded')).toBe(true);
+    expect(el.style.getPropertyValue('--mv-fade')).toBe('100px');
+  });
+
+  it('treats 0 and negatives as off', () => {
+    expect(mount(widget({ edge_fade: 0 }))!.classList.contains('faded')).toBe(false);
+    expect(mount(widget({ edge_fade: -20 }))!.classList.contains('faded')).toBe(false);
+  });
+
+  it('caps an absurd fade rather than masking the video out of existence', () => {
+    expect(mount(widget({ edge_fade: 100000 }))!.style.getPropertyValue('--mv-fade')).toBe('400px');
+  });
+
+  it('ignores a non-numeric fade', () => {
+    expect(mount(widget({ edge_fade: 'lots' }))!.classList.contains('faded')).toBe(false);
+  });
+
+  it('composes with opacity', () => {
+    const el = mount(widget({ edge_fade: 60, opacity: 0.5 }))!;
+    expect(el.style.opacity).toBe('0.5');
+    expect(el.style.getPropertyValue('--mv-fade')).toBe('60px');
+  });
+});
+
 describe('MusicVideo — element', () => {
   it('renders nothing when there is no video', () => {
     expect(mount(widget({}, null))).toBeNull();

@@ -20,6 +20,7 @@
   // Stored 0..1; edited as a percentage, which is what people think in.
   $: opacity = typeof config.opacity === 'number' ? config.opacity : 1;
   $: opacityPct = Math.round(opacity * 100);
+  $: edgeFade = typeof config.edge_fade === 'number' ? config.edge_fade : 0;
 </script>
 
 <Section label="Source">
@@ -58,6 +59,26 @@
       <span class="opacity-val">{opacityPct}%</span>
       {#if opacityPct !== 100}
         <button type="button" class="ghost sm" on:click={() => set('opacity', 1)}>Reset</button>
+      {/if}
+    </div>
+  </Field>
+
+  <Field
+    label="Edge fade"
+    hint="Dissolves the video into the scene instead of ending on a hard rectangle. Costs nothing at 0 — the mask is only applied when you set one."
+  >
+    <div class="opacity-row">
+      <input
+        type="range"
+        min="0"
+        max="200"
+        step="5"
+        value={edgeFade}
+        on:input={(e) => set('edge_fade', Number(e.currentTarget.value))}
+      />
+      <span class="opacity-val">{edgeFade ? `${edgeFade}px` : 'off'}</span>
+      {#if edgeFade > 0}
+        <button type="button" class="ghost sm" on:click={() => set('edge_fade', 0)}>Reset</button>
       {/if}
     </div>
   </Field>

@@ -16,6 +16,14 @@
       ? Math.min(1, Math.max(0, opacityRaw))
       : 1;
 
+  // Soft edges, in px. 0 (the default) emits no mask at all — see the note on
+  // `.mv.faded` in the style block for why that matters for performance.
+  $: fadeRaw = (widget.config as Record<string, unknown>).edge_fade;
+  $: edgeFade =
+    typeof fadeRaw === 'number' && Number.isFinite(fadeRaw) && fadeRaw > 0
+      ? Math.min(400, fadeRaw)
+      : 0;
+
   let el: HTMLVideoElement | null = null;
 
   /**
@@ -134,7 +142,8 @@
     bind:this={el}
     {src}
     class="mv"
-    style="opacity: {opacity}"
+    class:faded={edgeFade > 0}
+    style="opacity: {opacity}; {edgeFade > 0 ? `--mv-fade: ${edgeFade}px;` : ''}"
     muted
     playsinline
     loop
@@ -156,5 +165,33 @@
     display: block;
     border-radius: inherit;
     background: #000;
+  }
+
+  /*
+   * Gradient edge fade, so the video dissolves into the scene instead of
+   * ending on a hard rectangle. Same technique WidgetSlot uses for every other
+   * widget kind (that rule is disabled for musicvideo), but with a
+   * user-settable distance instead of a fixed 0.6rem.
+   *
+   * Two linear gradients intersected, giving all four edges plus a natural
+   * corner falloff where they overlap.
+   *
+   * On performance: this is applied ONLY when the user sets a fade, so the
+   * default costs exactly nothing. When it is on, the mask is static — never
+   * animated, never recalculated per frame — and a `<video>` is already a
+   * composited layer, so Chromium applies it on the GPU rather than repainting
+   * frames on the CPU. The black `background` above also stops being visible
+   * through the faded edge, which is what makes the blend read as clean.
+   */
+  .mv.faded {
+    background: none;
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0, black var(--mv-fade), black calc(100% - var(--mv-fade)), transparent 100%),
+      linear-gradient(to bottom, transparent 0, black var(--mv-fade), black calc(100% - var(--mv-fade)), transparent 100%);
+    mask-image:
+      linear-gradient(to right, transparent 0, black var(--mv-fade), black calc(100% - var(--mv-fade)), transparent 100%),
+      linear-gradient(to bottom, transparent 0, black var(--mv-fade), black calc(100% - var(--mv-fade)), transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
   }
 </style>
