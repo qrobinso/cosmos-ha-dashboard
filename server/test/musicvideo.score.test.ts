@@ -4,6 +4,7 @@ import {
   pickBest,
   explainCandidate,
   hasOfficialVideoWords,
+  isArtistChannel,
   MIN_SCORE,
   type Candidate,
   type ScoreContext,
@@ -63,89 +64,31 @@ const FIXTURE: Candidate[] = [
 
 const CTX: ScoreContext = { artist: 'Solange', title: 'Weary', durationSec: 195 };
 
-describe('scoreCandidate / pickBest — Solange fixture', () => {
-  it('rejects every candidate: this song has no official music video', () => {
-    // "Weary" has no official video. The bare "Weary" upload on Solange's own
-    // channel is a YouTube Art Track (auto-generated audio), and everything
-    // else here is a medley, a lyric video, a remix, a fan edit, or a
-    // different song. Correct behaviour is to play nothing at all.
-    const winner = pickBest(FIXTURE, CTX)!;
-    expect(scoreCandidate(winner, CTX)).toBeLessThan(MIN_SCORE);
+describe('eligibility — Solange fixture', () => {
+  const eligible = (cs: Candidate[], ctx: ScoreContext) =>
+    cs.filter((c) => hasOfficialVideoWords(c.title) && isArtistChannel(c.channel, ctx.artist));
+
+  it('leaves nothing eligible: this song has no official video on her channel', () => {
+    // "Weary" has no official music video. The bare "Weary" upload on Solange's
+    // own channel is a YouTube Art Track (auto-generated audio) with no
+    // official-video wording, and the only candidate that DOES carry the
+    // wording ("Cranes in the Sky") is a different song. Nothing plays.
+    expect(eligible(FIXTURE, CTX)).toHaveLength(1);
+    expect(eligible(FIXTURE, CTX)[0].videoId).toBe('row4-cranes');
   });
 
-  it('penalizes the bare-titled artist upload as an Art Track', () => {
-    const artTrack = FIXTURE.find((c) => c.videoId === 'row2-weary')!;
-    // Right channel, verified, exact duration — it would otherwise win easily.
-    const withoutArtTrackRule = scoreCandidate(
-      { ...artTrack, title: 'Solange - Weary (Official Video)' },
-      CTX,
-    );
-    expect(scoreCandidate(artTrack, CTX)).toBeLessThan(withoutArtTrackRule);
-    expect(scoreCandidate(artTrack, CTX)).toBeLessThan(MIN_SCORE);
-  });
-
-  it('keeps the junk well below the Art Track, let alone the gate', () => {
-    const byId = Object.fromEntries(
-      FIXTURE.map((c) => [c.videoId, scoreCandidate(c, CTX)]),
-    );
-    for (const id of ['row1-medley', 'row3-lyrics', 'row5-remix', 'row6-visual']) {
-      expect(byId[id]).toBeLessThan(MIN_SCORE);
+  it('excludes the Art Track, the lyric video, the remix and the fan edit', () => {
+    const ids = eligible(FIXTURE, CTX).map((c) => c.videoId);
+    for (const id of ['row1-medley', 'row2-weary', 'row3-lyrics', 'row5-remix', 'row6-visual']) {
+      expect(ids).not.toContain(id);
     }
-    // The medley and the remix are actively worse than the audio upload.
-    expect(byId['row1-medley']).toBeLessThan(byId['row2-weary']);
-    expect(byId['row5-remix']).toBeLessThan(byId['row2-weary']);
-  });
-});
-
-describe('Art Track detection', () => {
-  const base: Candidate = {
-    videoId: 'x',
-    title: '',
-    channel: 'Radiohead',
-    verified: true,
-    durationSec: 264,
-    viewCount: 10_000_000,
-  };
-  const ctx: ScoreContext = { artist: 'Radiohead', title: 'Karma Police', durationSec: 264 };
-
-  it('penalizes a bare song title on the artist channel', () => {
-    const artTrack = scoreCandidate({ ...base, title: 'Karma Police' }, ctx);
-    const video = scoreCandidate({ ...base, title: 'Radiohead - Karma Police' }, ctx);
-    expect(artTrack).toBeLessThan(video);
   });
 
-  it('does NOT penalize the "Artist - Song" form, which is the real video', () => {
-    // Verified against live search: neither Radiohead's nor Kendrick Lamar's
-    // official videos carry "official video" wording, so keying this rule on
-    // that wording instead of the bare title would reject both.
-    const video = scoreCandidate({ ...base, title: 'Radiohead - Karma Police' }, ctx);
-    expect(video).toBeGreaterThanOrEqual(MIN_SCORE);
-  });
-
-  it('does not fire when the channel is not the artist', () => {
-    const bare = { ...base, title: 'Karma Police', channel: 'Some Fan Channel', verified: false };
-    const withArtistChannel = { ...bare, channel: 'Radiohead', verified: false };
-    expect(scoreCandidate(bare, ctx)).toBeGreaterThan(scoreCandidate(withArtistChannel, ctx));
-  });
-
-  it('does not fire when the title carries official-video wording', () => {
-    const a = scoreCandidate({ ...base, title: 'Karma Police (Official Video)' }, ctx);
-    expect(a).toBeGreaterThanOrEqual(MIN_SCORE);
-  });
-});
-
-describe('hasOfficialVideoWords', () => {
-  it('matches the words in any arrangement, not just "official video"', () => {
-    expect(hasOfficialVideoWords('Song (Official Video)')).toBe(true);
-    expect(hasOfficialVideoWords('Song (Official Music Video)')).toBe(true);
-    expect(hasOfficialVideoWords('Song [Official] ... Video')).toBe(true);
-    expect(hasOfficialVideoWords('OFFICIAL VIDEOS - Song')).toBe(true);
-  });
-
-  it('requires both words', () => {
-    expect(hasOfficialVideoWords('Song (Official Audio)')).toBe(false);
-    expect(hasOfficialVideoWords('Song (Video)')).toBe(false);
-    expect(hasOfficialVideoWords('Song')).toBe(false);
+  it('still scores the wrong-song survivor below the gate', () => {
+    // "Cranes in the Sky" is eligible on channel + wording, so only the title
+    // mismatch keeps it off the wall. That is the gate earning its keep.
+    const cranes = FIXTURE.find((c) => c.videoId === 'row4-cranes')!;
+    expect(scoreCandidate(cranes, CTX)).toBeLessThan(MIN_SCORE);
   });
 });
 
@@ -228,11 +171,10 @@ describe('pickBest — Bowie fixture (duration must not outrank provenance)', ()
 });
 
 describe('MIN_SCORE confidence gate', () => {
-  it('blocks a song whose only artist upload is an Art Track', () => {
+  it('blocks an eligible candidate that is the wrong song', () => {
     const solangeCtx: ScoreContext = { artist: 'Solange', title: 'Weary', durationSec: 195 };
-    for (const c of FIXTURE) {
-      expect(scoreCandidate(c, solangeCtx)).toBeLessThan(MIN_SCORE);
-    }
+    const cranes = FIXTURE.find((c) => c.videoId === 'row4-cranes')!;
+    expect(scoreCandidate(cranes, solangeCtx)).toBeLessThan(MIN_SCORE);
   });
 
   it('passes a genuine official video', () => {

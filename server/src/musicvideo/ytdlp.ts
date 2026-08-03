@@ -1,7 +1,14 @@
 import { spawn } from 'node:child_process';
 import type { ResolvedVideo, SearchHint, VideoLookup, VideoSearchResult } from './types.js';
 import type { Candidate } from './score.js';
-import { pickBest, scoreCandidate, explainCandidate, MIN_SCORE } from './score.js';
+import {
+  pickBest,
+  scoreCandidate,
+  explainCandidate,
+  hasOfficialVideoWords,
+  isArtistChannel,
+  MIN_SCORE,
+} from './score.js';
 import { mvLog, mvWarn } from './log.js';
 
 export const YTDLP_TIMEOUT_MS = 15_000;
@@ -205,14 +212,63 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
       return { status: 'none' };
     }
 
-    const winner = pickBest(candidates, {
+    // TWO HARD REQUIREMENTS, both required — a candidate is excluded before
+    // ranking rather than merely penalized:
+    //
+    //   1. The title contains both "official" and "video".
+    //   2. The channel is the artist's own (VEVO and "…music" variants
+    //      included; see isArtistChannel).
+    //
+    // Requirement 2 exists because requirement 1 alone is trivially gamed:
+    // anyone can type "Official Music Video" into a title, and once wording
+    // became mandatory, re-uploaders who did exactly that were the only
+    // survivors for songs whose genuine video lacks the phrase. Observed live:
+    // Kendrick Lamar's "HUMBLE." search returned the real video (no wording,
+    // filtered) beside an unverified Korean re-upload titled "(Official Music
+    // Video)", which then won; and Taylor Swift's "Blank Space" picked a
+    // re-upload from "CISUM -THE BEST MUSIC" over her verified channel's copy.
+    //
+    // This is a deliberate accuracy-over-coverage trade with a known cost:
+    // genuine official videos frequently carry no such wording — "Kendrick
+    // Lamar - HUMBLE.", "Radiohead - Karma Police", "Taylor Swift - Blank
+    // Space" — so those songs display nothing at all. Relaxing requirement 1
+    // means restoring the Art Track rule in score.ts (see the note there).
+    // The channel requirement needs an artist to compare against. Without one
+    // it cannot be evaluated at all, so it is skipped rather than failing every
+    // candidate — same reasoning as the confidence gate below. In production
+    // the resolver only calls us once `normalizeTrackKey` produced an artist,
+    // so this only affects direct/degenerate callers.
+    const canCheckChannel = !!hint?.artist;
+    const eligible = candidates.filter(
+      (c) =>
+        hasOfficialVideoWords(c.title) &&
+        (!canCheckChannel || isArtistChannel(c.channel, hint?.artist)),
+    );
+    if (eligible.length === 0) {
+      mvWarn(
+        `no official video for "${describeTrack(hint)}": none of the ` +
+          `${candidates.length} search results are on the artist's own channel ` +
+          `AND titled with both "official" and "video", so nothing will play.\n` +
+          candidates
+            .map((c) => {
+              const why = !hasOfficialVideoWords(c.title)
+                ? 'title lacks "official" + "video"'
+                : 'not the artist\'s channel';
+              return `      · rejected "${c.title}" (${c.channel}) — ${why}`;
+            })
+            .join('\n'),
+      );
+      return { status: 'none' };
+    }
+
+    const winner = pickBest(eligible, {
       artist: hint?.artist,
       title: hint?.title,
       durationSec: hint?.durationSec,
     });
     if (!winner) return { status: 'none' };
 
-    logCandidates(query, candidates, winner.videoId, hint);
+    logCandidates(query, eligible, winner.videoId, hint);
 
     // Confidence gate: if even the best candidate is weak, play nothing rather
     // than something wrong. A hidden widget reads better on a wall than a
