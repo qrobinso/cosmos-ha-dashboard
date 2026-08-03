@@ -11,6 +11,19 @@
     typeof radiusRaw === 'number' && Number.isFinite(radiusRaw) && radiusRaw >= 0
       ? `${radiusRaw}rem`
       : null;
+
+  // Stacking order among overlapping widgets. Widgets have always been allowed
+  // to overlap (the grid stacks items sharing cells, and the editor has no
+  // collision rules), but order was implicit DOM order with no way to control
+  // it. `config.layer` makes it explicit: negative sits behind its siblings,
+  // positive in front, and ties fall back to the previous DOM-order behaviour.
+  //
+  // Safe to scope per-slot because `.widget-layer` is itself a stacking context
+  // (position + z-index), so a negative layer can never slide behind the scene
+  // background or the mood video.
+  $: layerRaw = (widget.config as Record<string, unknown>).layer;
+  $: layer =
+    typeof layerRaw === 'number' && Number.isFinite(layerRaw) ? Math.trunc(layerRaw) : 0;
 </script>
 
 <div
@@ -18,6 +31,7 @@
   style="grid-column: {widget.position.col} / span {widget.position.w};
          grid-row: {widget.position.row} / span {widget.position.h};
          --cosmos-float-delay: {floatDelay}s;
+         {layer !== 0 ? `z-index: ${layer};` : ''}
          {radiusRem ? `--cosmos-widget-radius: ${radiusRem};` : ''}"
   data-kind={widget.kind}
 >

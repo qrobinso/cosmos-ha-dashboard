@@ -8,7 +8,31 @@
   $: videoId = data?.video_id ?? null;
   $: src = videoId ? `/api/musicvideo/stream/${videoId}` : null;
 
+  // 0..1, default fully opaque. Lets the video sit under other widgets as a
+  // subdued backdrop rather than competing with them for attention.
+  $: opacityRaw = (widget.config as Record<string, unknown>).opacity;
+  $: opacity =
+    typeof opacityRaw === 'number' && Number.isFinite(opacityRaw)
+      ? Math.min(1, Math.max(0, opacityRaw))
+      : 1;
+
   let el: HTMLVideoElement | null = null;
+
+  /**
+   * `HTMLMediaElement.play()` only returns a Promise in modern browsers — some
+   * Android WebViews (and jsdom) still return undefined, where `.catch()` would
+   * throw a TypeError on every scene push. Autoplay rejections are expected and
+   * ignored either way: the element is muted, so a block is a browser-policy
+   * quirk we can do nothing about.
+   */
+  function safePlay(video: HTMLVideoElement) {
+    try {
+      const p = video.play() as unknown as Promise<void> | undefined;
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch {
+      // Ignore — play() can throw synchronously on a detached element.
+    }
+  }
 
   // A load failure hides the widget rather than leaving the element's black
   // background as a permanent rectangle on the wall. Reset per video so a new
@@ -64,7 +88,7 @@
   // A new videoId means a new <video> load; seek once metadata is available.
   function onLoadedMetadata() {
     syncPosition();
-    void el?.play().catch(() => {});
+    if (el) safePlay(el);
   }
 
   // The proxy can 404 (expired or IP-bound stream url, upstream 403, a broken
@@ -85,7 +109,7 @@
   // transition.
   $: if (el) {
     const shouldPlay = data?.state === 'playing';
-    if (shouldPlay && el.paused) void el.play().catch(() => {});
+    if (shouldPlay && el.paused) safePlay(el);
     else if (!shouldPlay && !el.paused) el.pause();
   }
 
@@ -110,6 +134,7 @@
     bind:this={el}
     {src}
     class="mv"
+    style="opacity: {opacity}"
     muted
     playsinline
     loop

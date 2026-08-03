@@ -16,6 +16,10 @@
   }
 
   $: mediaPlayers = entities.filter((e) => e.entity_id.startsWith('media_player.'));
+
+  // Stored 0..1; edited as a percentage, which is what people think in.
+  $: opacity = typeof config.opacity === 'number' ? config.opacity : 1;
+  $: opacityPct = Math.round(opacity * 100);
 </script>
 
 <Section label="Source">
@@ -37,8 +41,49 @@
   </Field>
 </Section>
 
+<Section label="Style">
+  <Field
+    label="Opacity"
+    hint="Fade the video back so it reads as atmosphere rather than the main event. Pairs well with Layer → Behind other widgets, under Placement."
+  >
+    <div class="opacity-row">
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        value={opacityPct}
+        on:input={(e) => set('opacity', Number(e.currentTarget.value) / 100)}
+      />
+      <span class="opacity-val">{opacityPct}%</span>
+      {#if opacityPct !== 100}
+        <button type="button" class="ghost sm" on:click={() => set('opacity', 1)}>Reset</button>
+      {/if}
+    </div>
+  </Field>
+</Section>
+
 <Section label="Content">
   <Field label="Name override">
     <input type="text" placeholder="(use entity friendly name)" value={str('name')} on:input={(e) => set('name', e.currentTarget.value)} />
   </Field>
 </Section>
+
+<style>
+  .opacity-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .opacity-row input[type='range'] {
+    flex: 1;
+    min-width: 0;
+  }
+  .opacity-val {
+    font-family: var(--c-font-mono, monospace);
+    font-size: 0.8125rem;
+    color: var(--c-fg-2);
+    min-width: 3.5ch;
+    text-align: right;
+  }
+</style>

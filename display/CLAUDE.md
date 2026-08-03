@@ -10,7 +10,7 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
 - `src/lib/storage.ts` — SSR-safe localStorage helpers for the display name.
 - `src/lib/ws.ts` — `connect(displayName, onMessage)` opens a WebSocket, sends hello on open, parses messages, exposes typed `ServerMessage` to callers. Handles `error`/`close` and reports both as `{type:'error'}`.
 - `src/lib/scene/SceneCanvas.svelte` — composes `<Background>` + a CSS Grid widget layer. Reads `scene.layout.{cols,rows}` for grid dimensions, `scene.safeArea` for padding, `scene.typography` for font family + scale (CSS variable `--cosmos-font-scale`).
-- `src/lib/scene/WidgetSlot.svelte` — positions a widget into its grid cell.
+- `src/lib/scene/WidgetSlot.svelte` — positions a widget into its grid cell. Reads two generic config keys shared by every kind: `border_radius` (exposed as `--cosmos-widget-radius`) and **`layer`** — an integer z-index applied only when non-zero, so the default stays implicit DOM-order stacking. Widgets have always been able to overlap (the grid stacks items sharing cells and the editor has no collision rules); `layer` just makes the order controllable. Scoped safely because `.widget-layer` is its own stacking context, so a negative layer cannot slide behind the scene background or the mood video.
 - `src/lib/widgets/` — one file per widget kind. Render functions only; data arrives via `widget.data` from the server.
   - `Clock.svelte` — renders local time + date; updates every 30s.
   - `Weather.svelte` — renders `widget.data` as `WeatherData`.
@@ -52,7 +52,7 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
 
 - All animation is CSS-driven (`@keyframes`, `transition`, `background-position`). No JS in the render loop.
 - Widgets read `widget.data` directly. They do not fetch or compute data.
-- `npm --workspace display test` runs vitest (jsdom environment, config at `display/vitest.config.ts`). Colocate `*.test.ts` next to the module under test (e.g. `src/lib/ws.test.ts`). Still thin coverage — the end-to-end Playwright smoke in plan verification remains the broader gate.
+- `npm --workspace display test` runs vitest (jsdom environment, config at `display/vitest.config.ts`). The config wires `@sveltejs/vite-plugin-svelte` plus a `$lib` alias and `resolve.conditions: ['browser']`, so tests can mount real components (`new Component({ target })`) and assert on the produced DOM — see `WidgetSlot.test.ts` and `widgets/MusicVideo.test.ts`. Colocate `*.test.ts` next to the module under test. Coverage is still thin outside those.
 - The **kiosk** (everything outside `/admin`) keeps inline styles for now; the `.cosmos-admin` design system in `theme.css` is the canonical look for the editor and is the place to add new admin styles.
 
 ## Admin design system
