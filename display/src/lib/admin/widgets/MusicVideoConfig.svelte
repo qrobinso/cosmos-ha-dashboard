@@ -21,6 +21,7 @@
   $: opacity = typeof config.opacity === 'number' ? config.opacity : 1;
   $: opacityPct = Math.round(opacity * 100);
   $: edgeFade = typeof config.edge_fade === 'number' ? config.edge_fade : 0;
+  $: fadeMs = typeof config.fade_ms === 'number' ? config.fade_ms : 800;
 </script>
 
 <Section label="Source">
@@ -79,6 +80,26 @@
       <span class="opacity-val">{edgeFade ? `${edgeFade}px` : 'off'}</span>
       {#if edgeFade > 0}
         <button type="button" class="ghost sm" on:click={() => set('edge_fade', 0)}>Reset</button>
+      {/if}
+    </div>
+  </Field>
+
+  <Field
+    label="Track-change fade"
+    hint="How long the video takes to fade out when the track changes, and back in once the next one is ready to play. 0 cuts straight over."
+  >
+    <div class="opacity-row">
+      <input
+        type="range"
+        min="0"
+        max="3000"
+        step="100"
+        value={fadeMs}
+        on:input={(e) => set('fade_ms', Number(e.currentTarget.value))}
+      />
+      <span class="opacity-val">{fadeMs ? `${(fadeMs / 1000).toFixed(1)}s` : 'cut'}</span>
+      {#if fadeMs !== 800}
+        <button type="button" class="ghost sm" on:click={() => set('fade_ms', 800)}>Reset</button>
       {/if}
     </div>
   </Field>

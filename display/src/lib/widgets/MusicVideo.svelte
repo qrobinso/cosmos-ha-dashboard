@@ -6,7 +6,60 @@
 
   $: data = widget.data as MusicVideoData | null;
   $: videoId = data?.video_id ?? null;
-  $: src = videoId ? `/api/musicvideo/stream/${videoId}` : null;
+
+  // Crossfade duration in ms. Track changes are the common case and a hard cut
+  // between two unrelated videos is jarring on a wall.
+  $: fadeMsRaw = (widget.config as Record<string, unknown>).fade_ms;
+  $: fadeMs =
+    typeof fadeMsRaw === 'number' && Number.isFinite(fadeMsRaw) && fadeMsRaw >= 0
+      ? Math.min(5000, fadeMsRaw)
+      : 800;
+
+  /*
+   * Track changes fade rather than cut.
+   *
+   * `shownId` is the video actually mounted, which deliberately lags `videoId`:
+   * on a change we first fade the current video out, THEN swap the source, then
+   * fade back in — but only once the new one can actually paint frames
+   * (`canplay`), so the fade-in never reveals a blank or stuttering element.
+   *
+   * This also covers the two asymmetric cases: a track with no video fades out
+   * and stays gone, and going from nothing to a video skips the fade-out (there
+   * is nothing to fade) and just fades in.
+   */
+  let shownId: string | null = null;
+  let visible = false;
+  let swapTimer: ReturnType<typeof setTimeout> | undefined;
+
+  $: handleIdChange(videoId, fadeMs);
+
+  function handleIdChange(next: string | null, ms: number) {
+    if (next === shownId) return;
+    clearTimeout(swapTimer);
+
+    // Nothing on screen to fade out — swap now and let `canplay` fade it in.
+    if (shownId === null || !visible || ms === 0) {
+      shownId = next;
+      visible = false;
+      if (next === null) return;
+      // A cached video can be ready before `canplay` fires again, so nudge.
+      queueMicrotask(() => {
+        if (el && el.readyState >= 3) visible = true;
+      });
+      return;
+    }
+
+    visible = false;
+    swapTimer = setTimeout(() => {
+      shownId = next;
+      if (next === null) return;
+      queueMicrotask(() => {
+        if (el && el.readyState >= 3) visible = true;
+      });
+    }, ms);
+  }
+
+  $: src = shownId ? `/api/musicvideo/stream/${shownId}` : null;
 
   // 0..1, default fully opaque. Lets the video sit under other widgets as a
   // subdued backdrop rather than competing with them for attention.
@@ -47,8 +100,8 @@
   // track always gets a fresh attempt.
   let failed = false;
   let lastAttemptedId: string | null = null;
-  $: if (videoId !== lastAttemptedId) {
-    lastAttemptedId = videoId;
+  $: if (shownId !== lastAttemptedId) {
+    lastAttemptedId = shownId;
     failed = false;
   }
 
@@ -103,6 +156,12 @@
   // yt-dlp extractor). Hide rather than show a black box forever.
   function onError() {
     failed = true;
+    visible = false;
+  }
+
+  /** Enough buffered to paint continuously — the honest moment to fade in. */
+  function onCanPlay() {
+    if (shownId !== null && !failed) visible = true;
   }
 
   // Re-check on each push (covers manual seeks on the media player).
@@ -122,6 +181,7 @@
   }
 
   onDestroy(() => {
+    clearTimeout(swapTimer);
     // Drop the connection to the proxy promptly rather than waiting for GC.
     if (el) {
       el.pause();
@@ -143,7 +203,9 @@
     {src}
     class="mv"
     class:faded={edgeFade > 0}
-    style="opacity: {opacity}; {edgeFade > 0 ? `--mv-fade: ${edgeFade}px;` : ''}"
+    style="opacity: {visible ? opacity : 0};
+           transition: opacity {fadeMs}ms ease-in-out;
+           {edgeFade > 0 ? `--mv-fade: ${edgeFade}px;` : ''}"
     muted
     playsinline
     loop
@@ -153,6 +215,7 @@
     disableremoteplayback
     x-webkit-airplay="deny"
     on:loadedmetadata={onLoadedMetadata}
+    on:canplay={onCanPlay}
     on:error={onError}
   ></video>
 {/if}
