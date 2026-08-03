@@ -17,6 +17,8 @@ export type Display = {
   currentSceneId: string | null;
   rotation: Rotation | null;
   orientation: Orientation;
+  voiceEnabled: boolean;
+  voicePipelineId: string | null;
 };
 
 export type DisplaysRepo = {
@@ -29,6 +31,7 @@ export type DisplaysRepo = {
   setCurrentScene(id: string, sceneId: string | null): void;
   setRotation(id: string, rotation: Rotation | null): void;
   setOrientation(id: string, orientation: Orientation): void;
+  setVoice(id: string, opts: { enabled: boolean; pipelineId: string | null }): void;
   delete(id: string): void;
 };
 
@@ -40,6 +43,8 @@ type Row = {
   current_scene_id: string | null;
   rotation_json: string | null;
   orientation: string | null;
+  voice_enabled: number;
+  voice_pipeline_id: string | null;
 };
 
 function parseRotation(json: string | null): Rotation | null {
@@ -70,10 +75,12 @@ function rowToDisplay(r: Row): Display {
     currentSceneId: r.current_scene_id,
     rotation: parseRotation(r.rotation_json),
     orientation: parseOrientation(r.orientation),
+    voiceEnabled: r.voice_enabled === 1,
+    voicePipelineId: r.voice_pipeline_id,
   };
 }
 
-const SELECT_COLS = 'id, name, last_seen, default_scene_id, current_scene_id, rotation_json, orientation';
+const SELECT_COLS = 'id, name, last_seen, default_scene_id, current_scene_id, rotation_json, orientation, voice_enabled, voice_pipeline_id';
 
 export function createDisplaysRepo(db: DB): DisplaysRepo {
   const selectByName = db.prepare<[string], Row>(`SELECT ${SELECT_COLS} FROM displays WHERE name = ?`);
@@ -85,6 +92,7 @@ export function createDisplaysRepo(db: DB): DisplaysRepo {
   const updateCurrentScene = db.prepare('UPDATE displays SET current_scene_id = ? WHERE id = ?');
   const updateRotation = db.prepare('UPDATE displays SET rotation_json = ? WHERE id = ?');
   const updateOrientation = db.prepare('UPDATE displays SET orientation = ? WHERE id = ?');
+  const updateVoice = db.prepare('UPDATE displays SET voice_enabled = ?, voice_pipeline_id = ? WHERE id = ?');
   const deleteDisplay = db.prepare('DELETE FROM displays WHERE id = ?');
 
   return {
@@ -120,6 +128,9 @@ export function createDisplaysRepo(db: DB): DisplaysRepo {
     },
     setOrientation(id, orientation) {
       updateOrientation.run(orientation, id);
+    },
+    setVoice(id, opts) {
+      updateVoice.run(opts.enabled ? 1 : 0, opts.pipelineId, id);
     },
     delete(id) {
       // FK ON DELETE CASCADE on scenes_displays handles assignment cleanup.

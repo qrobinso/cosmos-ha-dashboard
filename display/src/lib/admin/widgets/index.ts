@@ -10,6 +10,7 @@ import StatisticsConfig from './StatisticsConfig.svelte';
 import TextConfig from './TextConfig.svelte';
 import CameraConfig from './CameraConfig.svelte';
 import CanvasConfig from './CanvasConfig.svelte';
+import MusicVideoConfig from './MusicVideoConfig.svelte';
 
 export const configComponents: Record<WidgetKind, ComponentType> = {
   clock: ClockConfig,
@@ -21,4 +22,5 @@ export const configComponents: Record<WidgetKind, ComponentType> = {
   text: TextConfig,
   camera: CameraConfig,
   canvas: CanvasConfig,
+  musicvideo: MusicVideoConfig,
 };

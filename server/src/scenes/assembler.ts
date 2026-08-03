@@ -10,6 +10,7 @@ import type {
   CameraData,
   CanvasData,
   MediaPlayerData,
+  MusicVideoData,
   StatisticsData,
   StatisticsPoint,
   EntityState,
@@ -22,6 +23,7 @@ import type { TransitionDescriptor } from '../transitions/types.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
 import type { CanvasFetchPolicy } from '../store/canvasFetch.js';
 import { resolveMood } from '../moods/resolve.js';
+import { mvLog } from '../musicvideo/log.js';
 import { resolveSunGradient } from './sunGradient.js';
 import { reducePalette } from './palette.js';
 import {
@@ -62,6 +64,13 @@ export type DataResolvers = {
    *  subscribed to beyond what the rendered template depends on. Returns
    *  an empty array when not provided. */
   canvasExtras?: (widgetId: string) => string[];
+  /** Resolve the current track to a YouTube videoId. Synchronous by design —
+   *  a cache miss returns null immediately and re-pushes later. Without this
+   *  resolver, musicvideo widgets render hidden. */
+  musicVideoResolver?: (
+    widgetId: string,
+    track: { artist?: string; title?: string; querySuffix?: string; durationSec?: number },
+  ) => { videoId: string | null };
 };
 
 /**
@@ -327,6 +336,94 @@ async function mediaPlayerData(
   };
 }
 
+const MV_ACTIVE_STATES = new Set(['playing', 'paused', 'buffering']);
+
+/**
+ * HA `media_content_type` values that are definitely not music. A media player
+ * showing a TV episode reports title/artist too ("Love Island USA" / "S8 · E19"),
+ * which otherwise sends yt-dlp hunting for a music video that cannot exist.
+ *
+ * Deliberately a denylist rather than an allowlist of `music`: plenty of
+ * integrations report no content type at all, or a custom one, and those
+ * should still get a lookup.
+ */
+const MV_NON_MUSIC_TYPES = new Set(['tvshow', 'episode', 'movie', 'video', 'game', 'app', 'url']);
+
+async function musicVideoData(
+  widget: Widget,
+  resolver: EntityResolver,
+  deps: DataResolvers
+): Promise<MusicVideoData> {
+  const cfg = widget.config as Record<string, unknown>;
+  const entityId = readString(cfg, 'entity_id');
+  const empty: MusicVideoData = { entity_id: entityId, video_id: null, state: 'unknown' };
+  if (!entityId) {
+    mvLog(`skip widget=${widget.id} reason=no-entity-id`);
+    return empty;
+  }
+
+  const entity = await resolver(entityId);
+  if (!entity) {
+    mvLog(`skip widget=${widget.id} reason=entity-not-found entity=${entityId}`);
+    return empty;
+  }
+
+  const a = entity.attributes as Record<string, unknown>;
+  const state = entity.state as MusicVideoData['state'];
+  const position = typeof a.media_position === 'number' ? a.media_position : undefined;
+  const positionUpdatedAt =
+    typeof a.media_position_updated_at === 'string' ? a.media_position_updated_at : undefined;
+  const duration = typeof a.media_duration === 'number' ? a.media_duration : undefined;
+
+  const contentType =
+    typeof a.media_content_type === 'string' ? a.media_content_type.toLowerCase() : '';
+  const isNonMusic = MV_NON_MUSIC_TYPES.has(contentType);
+
+  // Only look up a video for a player actually playing music.
+  if (!MV_ACTIVE_STATES.has(entity.state) || isNonMusic || !deps.musicVideoResolver) {
+    mvLog(
+      !deps.musicVideoResolver
+        ? `skip widget=${widget.id} reason=no-resolver-wired (preview render, or lookup not configured)`
+        : isNonMusic
+          ? `skip widget=${widget.id} reason=content-type entity=${entityId} ` +
+            `media_content_type=${contentType} (not music)`
+          : `skip widget=${widget.id} reason=state entity=${entityId} state=${entity.state} ` +
+            `(active states: ${[...MV_ACTIVE_STATES].join(', ')})`,
+    );
+    return {
+      entity_id: entityId,
+      video_id: null,
+      state,
+      position,
+      position_updated_at: positionUpdatedAt,
+      duration,
+    };
+  }
+
+  const suffix = readString(cfg, 'query_suffix');
+  const { videoId } = deps.musicVideoResolver(widget.id, {
+    artist: typeof a.media_artist === 'string' ? a.media_artist : undefined,
+    title: typeof a.media_title === 'string' ? a.media_title : undefined,
+    querySuffix: suffix || undefined,
+    durationSec: duration,
+  });
+
+  mvLog(
+    `assemble widget=${widget.id} entity=${entityId} state=${state} ` +
+      `artist=${JSON.stringify(a.media_artist ?? null)} title=${JSON.stringify(a.media_title ?? null)} ` +
+      `-> video_id=${videoId ?? 'null (hidden)'} position=${position ?? '?'}s`,
+  );
+
+  return {
+    entity_id: entityId,
+    video_id: videoId,
+    state,
+    position,
+    position_updated_at: positionUpdatedAt,
+    duration,
+  };
+}
+
 async function statisticsData(
   widget: Widget,
   deps: DataResolvers,
@@ -451,6 +548,8 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
       const liveEntityIds = Array.from(new Set([...result.entityIds, ...extras]));
       return { resolved: result.resolved, liveEntityIds };
     }
+    case 'musicvideo':
+      return await musicVideoData(widget, resolver, deps);
   }
 }
 
@@ -566,6 +665,7 @@ export type AssemblePushArgs = {
   mediaUrlBase?: string;
   canvasResolver?: DataResolvers['canvasResolver'];
   canvasExtras?: DataResolvers['canvasExtras'];
+  musicVideoResolver?: DataResolvers['musicVideoResolver'];
   /** Global multiplier applied to the resolved transition's `out` and `in`
    *  durations. 1.0 = baked-in builtin durations; <1 faster; >1 slower.
    *  Out-of-range values are caller's responsibility to clamp. */
@@ -613,6 +713,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
       mediaUrlBase: args.mediaUrlBase,
       canvasResolver: args.canvasResolver,
       canvasExtras: args.canvasExtras,
+      musicVideoResolver: args.musicVideoResolver,
     },
     args.canvasFetchPolicy,
     args.adaptiveContributions

@@ -4,10 +4,12 @@ import type { DisplaysRepo } from '../store/displays.js';
 import type { ScenesRepo } from '../store/scenes.js';
 import type { SettingsRepo } from '../store/settings.js';
 import type { TransitionsRepo, OverridesRepo } from '../store/transitions.js';
-import { assemblePush } from '../scenes/assembler.js';
+import { assemblePush, absolutizeMediaUrl } from '../scenes/assembler.js';
 import { readSafeArea, readTransitionSpeed } from './http.js';
 import { readCanvasFetchPolicy } from '../store/canvasFetch.js';
 import type { OverlayMessage } from '../overlay/types.js';
+import type { VoiceRelay } from '../voice/relay.js';
+import type { VoiceResult, VoiceHealth } from '../voice/types.js';
 
 export type PushReason =
   | 'hello'
@@ -46,6 +48,7 @@ export type WsDeps = {
   onDisplayRegistered?: (displayId: string, name: string) => void;
   onSceneActivated?: (displayId: string, sceneName: string | null) => void;
   canvasResolver?: import('../scenes/assembler.js').DataResolvers['canvasResolver'];
+  musicVideoResolver?: import('../scenes/assembler.js').DataResolvers['musicVideoResolver'];
   canvasExtras?: import('../scenes/assembler.js').DataResolvers['canvasExtras'];
   canvasExtrasOnDisconnect?: (displayName: string) => void;
   /** Called from buildPayload before sending so iframe-side subscriptions
@@ -57,6 +60,9 @@ export type WsDeps = {
    *  it into the assembler so adaptive_colors can override gradient.colors.
    *  Also pruned on scene change and cleared on display disconnect. */
   displayPalette?: import('../store/displayPalette.js').DisplayPaletteStore;
+  /** Relay to HA's Assist pipeline. Undefined when voice/HA is unavailable —
+   *  inbound voice_audio frames are then silently ignored (no-op, not an error). */
+  voiceRelay?: VoiceRelay;
 };
 
 export type CosmosWss = WebSocketServer & {
@@ -70,17 +76,36 @@ export type CosmosWss = WebSocketServer & {
   dismissOverlayFor(displayId: string): void;
   dismissOverlayForAll(): void;
   pushDisplayConfigTo(displayId: string): void;
+  pushVoiceResultTo(displayId: string, result: VoiceResult): void;
+  getVoiceHealth(displayId: string): VoiceHealth | null;
 };
 
-type ClientMessage = { type: 'hello'; displayName: string };
+type ClientMessage =
+  | { type: 'hello'; displayName: string }
+  | { type: 'voice_audio'; seq: number; chunk: string; final: boolean }
+  | { type: 'voice_health'; mic: VoiceHealth };
 
-function isHello(value: unknown): value is ClientMessage {
+function isHello(value: unknown): value is Extract<ClientMessage, { type: 'hello' }> {
   return (
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === 'hello' &&
     typeof (value as { displayName?: unknown }).displayName === 'string'
   );
+}
+
+function isVoiceAudio(value: unknown): value is Extract<ClientMessage, { type: 'voice_audio' }> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'voice_audio' &&
+    typeof (value as { chunk?: unknown }).chunk === 'string' &&
+    typeof (value as { final?: unknown }).final === 'boolean'
+  );
+}
+
+function isVoiceHealth(value: unknown): value is Extract<ClientMessage, { type: 'voice_health' }> {
+  return typeof value === 'object' && value !== null && (value as { type?: unknown }).type === 'voice_health';
 }
 
 function activeSceneId(displayId: string, deps: WsDeps): string | null {
@@ -98,6 +123,22 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   const wss = new WebSocketServer({ server, path: '/ws' }) as CosmosWss;
   const sockets = new Map<string, Set<WebSocket>>();
   const lastSceneByDisplay = new Map<string, string>();
+  // Per-connection buffer of decoded audio chunks for the utterance currently
+  // in flight on that socket. Keyed by socket (not displayId) so multiple
+  // sockets for the same display never share a buffer. Drained and deleted
+  // as soon as a `final:true` frame arrives, so a second utterance on the
+  // same socket always starts from a fresh empty buffer — no cross-utterance
+  // mixing even if frames for utterance N+1 arrive before N's relay finishes.
+  // `overflowed` marks a buffer that has already blown past the cap below —
+  // once set it stays true (chunks stop being retained) until the next
+  // `final:true` frame starts a fresh utterance from a clean slate.
+  const voiceAudioBuffers = new Map<WebSocket, { chunks: Buffer[]; bytes: number; overflowed: boolean }>();
+  const lastVoiceHealthByDisplay = new Map<string, VoiceHealth>();
+  // ~60s of 16kHz 16-bit mono PCM (16000 samples/s * 2 bytes/sample * 60s ≈
+  // 1.9MB); round up to 2MB. Caps a single socket's runaway/malicious
+  // buffering — a client that never sends `final:true` would otherwise grow
+  // this Buffer[] unbounded for as long as the connection stays open.
+  const MAX_VOICE_AUDIO_BYTES = 2 * 1024 * 1024;
 
   const pingMsg = JSON.stringify({ type: 'ping' });
   const heartbeat = setInterval(() => {
@@ -152,6 +193,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       mediaUrlBase: deps.mediaUrlBase,
       canvasResolver: deps.canvasResolver,
       canvasExtras: deps.canvasExtras,
+      musicVideoResolver: deps.musicVideoResolver,
     });
     const assembleMs = performance.now() - t0;
     lastSceneByDisplay.set(displayId, scene.id);
@@ -178,6 +220,10 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
   wss.on('connection', (socket: WebSocket) => {
     let ownDisplayId: string | null = null;
     socket.on('close', () => {
+      // Drop any in-progress voice-audio buffer for this socket. Without
+      // this, a disconnect mid-utterance leaks the accumulated Buffer[]
+      // forever since nothing else ever reaches `final:true` for it.
+      voiceAudioBuffers.delete(socket);
       if (!ownDisplayId) return;
       const set = sockets.get(ownDisplayId);
       set?.delete(socket);
@@ -199,6 +245,45 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
           parsed = JSON.parse(raw.toString());
         } catch {
           socket.send(JSON.stringify({ type: 'error', error: 'invalid json' }));
+          return;
+        }
+        if (isVoiceAudio(parsed)) {
+          if (!deps.voiceRelay || !ownDisplayId) return;
+          const displayId = ownDisplayId;
+          let entry = voiceAudioBuffers.get(socket);
+          if (!entry) {
+            entry = { chunks: [], bytes: 0, overflowed: false };
+            voiceAudioBuffers.set(socket, entry);
+          }
+          if (!entry.overflowed) {
+            const chunk = Buffer.from(parsed.chunk, 'base64');
+            entry.chunks.push(chunk);
+            entry.bytes += chunk.length;
+            if (entry.bytes > MAX_VOICE_AUDIO_BYTES) {
+              // Drop what's buffered so far and stop retaining further
+              // chunks; the `final:true` branch below still fires (so the
+              // socket doesn't wedge) but relays nothing for this utterance.
+              entry.overflowed = true;
+              entry.chunks = [];
+            }
+          }
+          if (parsed.final) {
+            voiceAudioBuffers.delete(socket);
+            if (entry.overflowed) return;
+            const chunks = entry.chunks;
+            const display = deps.displays.getById(displayId);
+            const pipelineId = display?.voicePipelineId ?? null;
+            async function* toAsyncIter() {
+              for (const c of chunks) yield new Uint8Array(c);
+            }
+            void deps.voiceRelay.runUtterance(pipelineId, toAsyncIter(), (result) => {
+              wss.pushVoiceResultTo(displayId, result);
+            });
+          }
+          return;
+        }
+        if (isVoiceHealth(parsed)) {
+          if (ownDisplayId) lastVoiceHealthByDisplay.set(ownDisplayId, parsed.mic);
           return;
         }
         if (!isHello(parsed)) {
@@ -226,11 +311,15 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
           })
         );
 
-        // Send the display's current config (orientation, etc.) right after welcome.
+        // Send the display's current config (orientation, voice, etc.) right after welcome.
         socket.send(
           JSON.stringify({
             type: 'display_config',
-            config: { orientation: display.orientation },
+            config: {
+              orientation: display.orientation,
+              voiceEnabled: display.voiceEnabled,
+              voicePipelineId: display.voicePipelineId,
+            },
           })
         );
 
@@ -300,12 +389,40 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
     for (const id of sockets.keys()) sendToDisplay(id, { type: 'overlay_dismiss' });
   };
 
+  wss.pushVoiceResultTo = (displayId, result) => {
+    const set = sockets.get(displayId);
+    if (!set) return;
+    // HA's tts-end audioUrl is HA-relative (e.g. /api/tts_proxy/...). Route
+    // it through the same media-proxy convention as entity_picture/camera
+    // URLs (see absolutizeMediaUrl) — otherwise `new Audio(url)` on the
+    // kiosk resolves it against Cosmos's own origin and 404s.
+    const outgoing: VoiceResult = result.audioUrl
+      ? { ...result, audioUrl: absolutizeMediaUrl(result.audioUrl, deps.mediaUrlBase) }
+      : result;
+    const msg = JSON.stringify({ type: 'voice_result', ...outgoing });
+    for (const s of set) {
+      if (s.readyState === s.OPEN) {
+        try {
+          s.send(msg);
+        } catch {
+          /* socket dying — close handler cleans up */
+        }
+      }
+    }
+  };
+
+  wss.getVoiceHealth = (displayId) => lastVoiceHealthByDisplay.get(displayId) ?? null;
+
   wss.pushDisplayConfigTo = (displayId) => {
     const display = deps.displays.getById(displayId);
     if (!display) return;
     sendToDisplay(displayId, {
       type: 'display_config',
-      config: { orientation: display.orientation },
+      config: {
+        orientation: display.orientation,
+        voiceEnabled: display.voiceEnabled,
+        voicePipelineId: display.voicePipelineId,
+      },
     });
   };
 

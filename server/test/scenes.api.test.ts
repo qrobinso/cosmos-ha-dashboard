@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { runMigrations } from '../src/store/migrations.js';
 import { createDisplaysRepo } from '../src/store/displays.js';
@@ -136,6 +136,60 @@ describe('scenes REST API', () => {
       payload: { sceneId: scene.id, makeDefault: true },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('PUT /api/displays/:name/voice updates voice settings', async () => {
+    const display = ctx.displays.registerByName('kitchen');
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/displays/kitchen/voice',
+      payload: { enabled: true, pipelineId: 'p1' },
+    });
+    expect(res.statusCode).toBe(200);
+    const updated = ctx.displays.getById(display.id);
+    expect(updated?.voiceEnabled).toBe(true);
+    expect(updated?.voicePipelineId).toBe('p1');
+  });
+
+  it('PUT /api/displays/:name/voice 404s for an unknown display', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/displays/nonexistent/voice',
+      payload: { enabled: true, pipelineId: null },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('PUT /api/displays/:name/voice notifies onDisplayConfigChanged so a connected kiosk picks it up live', async () => {
+    ctx.displays.registerByName('kitchen');
+    const onDisplayConfigChanged = vi.fn();
+    const notifyingApp = await buildHttpApp({ ...ctx, onDisplayConfigChanged });
+    const res = await notifyingApp.inject({
+      method: 'PUT',
+      url: '/api/displays/kitchen/voice',
+      payload: { enabled: true, pipelineId: 'p1' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(onDisplayConfigChanged).toHaveBeenCalledTimes(1);
+    const display = ctx.displays.getByName('kitchen');
+    expect(onDisplayConfigChanged).toHaveBeenCalledWith(display?.id);
+  });
+
+  it('PUT /api/displays/:name/voice returns 400 for a non-boolean enabled or invalid pipelineId', async () => {
+    ctx.displays.registerByName('kitchen');
+    const badEnabled = await app.inject({
+      method: 'PUT',
+      url: '/api/displays/kitchen/voice',
+      payload: { enabled: 'yes', pipelineId: null },
+    });
+    expect(badEnabled.statusCode).toBe(400);
+
+    const badPipeline = await app.inject({
+      method: 'PUT',
+      url: '/api/displays/kitchen/voice',
+      payload: { enabled: true, pipelineId: 42 },
+    });
+    expect(badPipeline.statusCode).toBe(400);
   });
 
   it('POST /api/scenes accepts a valid mood config and returns it on the scene', async () => {
@@ -290,6 +344,42 @@ describe('scenes REST API', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toMatch(/view must be one of agenda \| month \| week \| day \| lanes/i);
+  });
+
+  it('POST /api/scenes accepts a musicvideo widget with a valid entity_id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [
+          {
+            kind: 'musicvideo',
+            position: { col: 1, row: 1, w: 4, h: 3 },
+            config: { entity_id: 'media_player.living_room' },
+          },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.widgets[0].kind).toBe('musicvideo');
+    expect(body.widgets[0].config.entity_id).toBe('media_player.living_room');
+  });
+
+  it('POST /api/scenes rejects a musicvideo widget with no entity_id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [
+          { kind: 'musicvideo', position: { col: 1, row: 1, w: 4, h: 3 }, config: {} },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/entity_id is required/i);
   });
 
   it('POST /api/canvases/:widgetId/subscribe records extras and returns 204', async () => {

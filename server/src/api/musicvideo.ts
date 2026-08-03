@@ -1,0 +1,142 @@
+import type { FastifyInstance } from 'fastify';
+import { Readable } from 'node:stream';
+import type { MusicVideoCache } from '../musicvideo/cache.js';
+import { mvLog, mvWarn } from '../musicvideo/log.js';
+import type { VideoLookup } from '../musicvideo/types.js';
+
+/** YouTube ids are 11 chars of [A-Za-z0-9_-]; be strict, this reaches fetch(). */
+const VIDEO_ID_RE = /^[A-Za-z0-9_-]{3,20}$/;
+
+export type MusicVideoRouteDeps = {
+  cache: MusicVideoCache | null;
+  lookup: VideoLookup | null;
+  /** Injected by tests. */
+  fetchImpl?: typeof fetch;
+};
+
+/**
+ * Proxies the YouTube progressive stream to the kiosk.
+ *
+ * The display never sees a googlevideo URL, because those expire in ~6h and
+ * are frequently bound to the IP that resolved them — and the server resolving
+ * them is not the machine playing them. Going through here means an expired
+ * URL is silently re-derived server-side instead of leaving a dead <video>.
+ */
+/**
+ * Re-derive a stream URL, collapsing concurrent requests for the same video.
+ *
+ * Every display showing the scene requests the stream, and a browser opens
+ * several ranged connections per video. Without this, one stale URL meant a
+ * yt-dlp spawn per connection — the exact stampede the resolver's concurrency
+ * cap prevents on the lookup side.
+ */
+const inFlightUrls = new Map<string, Promise<string | null>>();
+
+async function deriveStreamUrl(
+  videoId: string,
+  lookup: VideoLookup,
+  cache: MusicVideoCache,
+): Promise<string | null> {
+  const existing = inFlightUrls.get(videoId);
+  if (existing) return existing;
+
+  const p = (async () => {
+    try {
+      const url = await lookup.streamUrlFor(videoId);
+      if (url) cache.putStream(videoId, url, 0);
+      return url;
+    } finally {
+      inFlightUrls.delete(videoId);
+    }
+  })();
+
+  inFlightUrls.set(videoId, p);
+  return p;
+}
+
+export function registerMusicVideoRoutes(
+  app: FastifyInstance,
+  deps: MusicVideoRouteDeps,
+): void {
+  const doFetch = deps.fetchImpl ?? fetch;
+
+  app.get<{ Params: { videoId: string } }>(
+    '/api/musicvideo/stream/:videoId',
+    async (req, reply) => {
+      const { cache, lookup } = deps;
+      if (!cache || !lookup) {
+        return reply.code(503).send({ error: 'music video lookup not configured' });
+      }
+
+      const videoId = req.params.videoId;
+      if (!VIDEO_ID_RE.test(videoId)) {
+        mvWarn(`stream 400 videoId=${JSON.stringify(videoId)} rejected by charset guard`);
+        return reply.code(400).send({ error: 'invalid videoId' });
+      }
+
+      mvLog(`stream req videoId=${videoId} range=${req.headers.range ?? 'none'}`);
+
+      // Cached URL, or re-derive when absent/stale.
+      let streamUrl = cache.getStream(videoId)?.streamUrl ?? null;
+      if (!streamUrl) {
+        mvLog(`stream url absent or stale videoId=${videoId} — re-deriving via yt-dlp`);
+        streamUrl = await deriveStreamUrl(videoId, lookup, cache);
+        if (!streamUrl) {
+          mvWarn(`stream 404 videoId=${videoId} — could not re-derive a stream url`);
+          return reply.code(404).send({ error: 'video unavailable' });
+        }
+        mvLog(`stream url re-derived videoId=${videoId}`);
+      }
+
+      try {
+        const headers: Record<string, string> = {};
+        const range = req.headers.range;
+        if (typeof range === 'string') headers.Range = range;
+
+        const upstream = await doFetch(streamUrl, { headers });
+        if (!upstream.ok && upstream.status !== 206) {
+          // Almost always an expired or IP-bound URL. Drop it so the next
+          // request re-derives rather than serving the same dead link.
+          cache.invalidateStream(videoId);
+          mvWarn(
+            `stream 404 videoId=${videoId} — upstream returned ${upstream.status} ` +
+              `(url expired or IP-bound); cached url invalidated, next request re-derives`,
+          );
+          return reply.code(404).send({ error: 'stream unavailable' });
+        }
+
+        for (const h of ['content-type', 'content-length', 'accept-ranges', 'content-range']) {
+          const v = upstream.headers.get(h);
+          if (v) reply.header(h, v);
+        }
+        // The bytes behind a videoId never change, so let the browser keep
+        // them. This is the single biggest lever on this feature's footprint:
+        // with `no-store` the kiosk re-downloaded the entire file through this
+        // proxy on every loop of a short video under a longer song, and again
+        // on every replay of the track — a real 5.4 MB per pass for a 3:29
+        // video at 360p. `immutable` also suppresses revalidation round-trips.
+        //
+        // Only the upstream googlevideo URL expires; the content does not, and
+        // the display never sees that URL.
+        reply.header('cache-control', 'public, max-age=604800, immutable');
+        reply.code(upstream.status);
+        mvLog(
+          `stream ok  videoId=${videoId} upstream=${upstream.status} ` +
+            `type=${upstream.headers.get('content-type') ?? '?'} ` +
+            `len=${upstream.headers.get('content-length') ?? '?'}`,
+        );
+
+        if (!upstream.body) return reply.send();
+
+        const nodeStream = Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]);
+        // If the kiosk navigates away mid-song, tear down the upstream socket
+        // instead of letting it drain bandwidth until process exit.
+        req.raw.on('close', () => nodeStream.destroy());
+        return reply.send(nodeStream);
+      } catch (err) {
+        mvWarn(`stream 404 videoId=${videoId} — upstream fetch threw: ${String(err)}`);
+        return reply.code(404).send({ error: 'stream unavailable' });
+      }
+    },
+  );
+}

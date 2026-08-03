@@ -78,7 +78,7 @@ function validateBackground(bg: unknown): string | null {
  *  not yet contain the entity at scene-create time, so we don't enforce
  *  existence here. */
 const ENTITY_BEARING_KINDS = new Set([
-  'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'camera',
+  'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'camera', 'musicvideo',
 ]);
 
 /** Pattern for HA entity ids — `domain.object_id`. Both halves are
@@ -533,6 +533,28 @@ export function registerSceneRoutes(app: FastifyInstance, deps: SceneRoutesDeps)
       deps.displays.setOrientation(display.id, orientation);
       deps.onDisplayConfigChanged?.(display.id);
       return deps.displays.getById(display.id);
+    }
+  );
+
+  app.put<{ Params: { name: string }; Body: { enabled?: unknown; pipelineId?: unknown } }>(
+    '/api/displays/:name/voice',
+    async (req, reply) => {
+      const display = deps.displays.getByName(req.params.name);
+      if (!display) return reply.code(404).send({ error: 'display not found' });
+      const enabled = req.body?.enabled;
+      if (typeof enabled !== 'boolean') {
+        return reply.code(400).send({ error: 'enabled must be a boolean' });
+      }
+      const pipelineId = req.body?.pipelineId;
+      if (pipelineId !== null && typeof pipelineId !== 'string') {
+        return reply.code(400).send({ error: 'pipelineId must be a string or null' });
+      }
+      deps.displays.setVoice(display.id, { enabled, pipelineId });
+      // Mirrors the orientation route: without this, a connected kiosk never
+      // learns voice was toggled until its next reconnect — enabling does
+      // nothing, and disabling leaves the mic hot indefinitely.
+      deps.onDisplayConfigChanged?.(display.id);
+      return { ok: true };
     }
   );
 

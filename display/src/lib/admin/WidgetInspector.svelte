@@ -161,6 +161,20 @@
           </label>
         </div>
         <span class="hint-line">Or drag the tile on the canvas — arrow keys nudge, Shift+arrow resizes.</span>
+
+        <Field
+          label="Layer"
+          hint="Only matters where widgets overlap. Use Behind for a full-bleed backdrop — a music video, say — with the rest of the scene sitting on top of it."
+        >
+          <select
+            value={typeof widget.config.layer === 'number' ? widget.config.layer : 0}
+            on:change={(e) => patchConfig({ layer: Number(e.currentTarget.value) })}
+          >
+            <option value={-1}>Behind other widgets</option>
+            <option value={0}>Normal</option>
+            <option value={1}>In front of other widgets</option>
+          </select>
+        </Field>
       </Section>
     </div>
   </div>

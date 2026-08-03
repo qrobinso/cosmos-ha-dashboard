@@ -6,6 +6,7 @@
 
   let displays: Awaited<ReturnType<typeof api.displays.list>> = [];
   let scenes: Awaited<ReturnType<typeof api.scenes.list>> = [];
+  let assistPipelines: Awaited<ReturnType<typeof api.ha.listAssistPipelines>> = [];
   let loading = true;
   let busy = '';
   /** displayId → "rotation" | "manage" | null */
@@ -20,6 +21,47 @@
       rotationDraft[d.id] = d.rotation ?? { enabled: false, sceneIds: [], intervalSec: 60 };
     }
     loading = false;
+  }
+
+  /** Human label for the in-memory mic-health readout (see `getVoiceHealth`
+   *  in server/src/api/ws.ts). Null means the display has never reported
+   *  health this run — voice is off, or the kiosk hasn't connected/spoken
+   *  since the server last restarted. */
+  function micHealthLabel(h: string | null): string {
+    if (h === null) return 'unavailable';
+    if (h === 'permission_denied') return 'permission denied';
+    if (h === 'model_load_failed') return 'model load failed';
+    return h; // 'ok' | 'idle' | 'error'
+  }
+
+  function micHealthTagClass(h: string | null): string {
+    if (h === 'ok') return 'tag success';
+    if (h === 'permission_denied' || h === 'model_load_failed' || h === 'error') return 'tag danger';
+    return 'tag muted';
+  }
+
+  async function setVoiceEnabled(displayName: string, pipelineId: string | null, enabled: boolean) {
+    busy = displayName;
+    try {
+      await api.displays.setVoice(displayName, { enabled, pipelineId });
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'voice update failed');
+    } finally {
+      busy = '';
+    }
+  }
+
+  async function setVoicePipeline(displayName: string, enabled: boolean, pipelineId: string | null) {
+    busy = displayName;
+    try {
+      await api.displays.setVoice(displayName, { enabled, pipelineId });
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'voice update failed');
+    } finally {
+      busy = '';
+    }
   }
 
   function sceneName(id: string | null): string {
@@ -143,7 +185,10 @@
     }
   }
 
-  onMount(refresh);
+  onMount(async () => {
+    await refresh();
+    assistPipelines = await api.ha.listAssistPipelines();
+  });
 </script>
 
 <header class="page-header reveal reveal-1">
@@ -250,6 +295,40 @@
                       </select>
                     </label>
                   </div>
+                </section>
+
+                <!-- Voice assistant -->
+                <section class="panel-section">
+                  <h4>Voice assistant</h4>
+                  <label class="enable-row">
+                    <input
+                      type="checkbox"
+                      checked={d.voiceEnabled}
+                      disabled={busy === d.name}
+                      on:change={(e) =>
+                        setVoiceEnabled(d.name, d.voicePipelineId, e.currentTarget.checked)}
+                    />
+                    <span>Enable voice assistant on this display</span>
+                  </label>
+                  {#if d.voiceEnabled}
+                    <div class="quick-row">
+                      <label class="quick-field">
+                        <span>Pipeline</span>
+                        <select
+                          value={d.voicePipelineId ?? ''}
+                          disabled={busy === d.name}
+                          on:change={(e) =>
+                            setVoicePipeline(d.name, d.voiceEnabled, e.currentTarget.value || null)}
+                        >
+                          <option value="">HA default pipeline</option>
+                          {#each assistPipelines as p (p.id)}
+                            <option value={p.id}>{p.name}</option>
+                          {/each}
+                        </select>
+                      </label>
+                      <span class={micHealthTagClass(d.micHealth)}>mic: {micHealthLabel(d.micHealth)}</span>
+                    </div>
+                  {/if}
                 </section>
 
                 <!-- Rotation -->

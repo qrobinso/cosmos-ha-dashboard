@@ -55,4 +55,27 @@ describe('displays repo', () => {
     const fetched = repo.getById(d.id);
     expect(fetched?.currentSceneId).toBe('scene-xyz');
   });
+
+  it('defaults voiceEnabled to false and voicePipelineId to null', () => {
+    const d = repo.registerByName('kitchen');
+    expect(d.voiceEnabled).toBe(false);
+    expect(d.voicePipelineId).toBeNull();
+  });
+
+  it('setVoice persists enabled flag and pipeline id', () => {
+    const d = repo.registerByName('kitchen');
+    repo.setVoice(d.id, { enabled: true, pipelineId: 'pipeline-123' });
+    const updated = repo.getById(d.id);
+    expect(updated?.voiceEnabled).toBe(true);
+    expect(updated?.voicePipelineId).toBe('pipeline-123');
+  });
+
+  it('setVoice can clear the pipeline id back to null', () => {
+    const d = repo.registerByName('kitchen');
+    repo.setVoice(d.id, { enabled: true, pipelineId: 'pipeline-123' });
+    repo.setVoice(d.id, { enabled: false, pipelineId: null });
+    const updated = repo.getById(d.id);
+    expect(updated?.voiceEnabled).toBe(false);
+    expect(updated?.voicePipelineId).toBeNull();
+  });
 });

@@ -55,7 +55,8 @@ type Background =
 
 type WidgetKind =
   | 'clock' | 'weather' | 'entity_tile' | 'calendar'
-  | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas';
+  | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas'
+  | 'musicvideo';
 ```
 
 ### Coordinates
@@ -66,7 +67,9 @@ type WidgetKind =
 - `{ col: 4, row: 3, w: 6, h: 4 }` — centered medium card.
 - `{ col: 1, row: 1, w: 12, h: 1 }` — a top strip.
 
-Widgets must not overlap, and every cell of a widget's rectangle must fit inside `cols × rows`.
+Every cell of a widget's rectangle must fit inside `cols × rows`.
+
+Widgets **may** overlap. Stacking order is the order of the `widgets` array (later sits on top), or set `config.layer` explicitly on any kind: `-1` behind its overlapping siblings, `0` default, `1` in front. Overlap is worth reaching for in exactly one situation — a full-bleed backdrop with content on top (see the music video recipe below). Otherwise keep widgets apart; overlapping text is unreadable from across a room.
 
 ### Typography
 
@@ -141,6 +144,44 @@ If the user gave style direction (a described aesthetic, named colors/fonts, "ma
 - Don't use Space Grotesk for body copy — it's a display face. Reserve it for one-word scene names.
 
 ### Canvas pairing rule
+
+### The `musicvideo` widget
+
+Plays the official YouTube music video for whatever a `media_player` is currently playing. Muted — audio stays on the Home Assistant speaker — and position-synced to the track.
+
+```jsonc
+{
+  "kind": "musicvideo",
+  "position": { "col": 1, "row": 1, "w": 12, "h": 8 },
+  "config": {
+    "entity_id": "media_player.living_room",  // required
+    "query_suffix": "official music video",   // optional; appended to "artist title"
+    "opacity": 0.35,                          // optional, 0..1 (default 1)
+    "edge_fade": 120,                         // optional px; softens the edges into the scene
+    "fade_ms": 800,                           // optional; track-change crossfade
+    "layer": -1                               // optional; -1 puts it behind other widgets
+  }
+}
+```
+
+**It is often blank, by design.** A video only plays when one exists on the artist's own channel with "official" and "video" in its title, and only while the player is actually playing music. Tracks with no official video — and TV shows, podcasts, and anything non-music — render nothing at all. Never build a scene that depends on this widget being visible, and never place it as the only widget on a scene: design the scene to read correctly when it is empty.
+
+**The backdrop recipe** — this is what the widget is for:
+
+```jsonc
+{
+  "widgets": [
+    { "kind": "musicvideo", "position": { "col": 1, "row": 1, "w": 12, "h": 8 },
+      "config": { "entity_id": "media_player.living_room", "layer": -1,
+                  "opacity": 0.4, "edge_fade": 140 } },
+    { "kind": "media_player", "position": { "col": 4, "row": 6, "w": 6, "h": 2 },
+      "config": { "entity_id": "media_player.living_room", "transparent": true } },
+    { "kind": "clock", "position": { "col": 1, "row": 1, "w": 4, "h": 2 }, "config": {} }
+  ]
+}
+```
+
+The video fills the scene at reduced opacity behind everything, its edges dissolving into the background, with the now-playing card and clock layered on top. Pair with `transparent: true` on the widgets above it so they sit on the video rather than on their own cards.
 
 When a canvas is involved, prefer **one canvas filling the whole scene** over a canvas plus other widgets. The canvas should set its own typography via `var(--cosmos-font-family)` so it inherits the scene's choice (see `canvas-widget-agent.md`). This keeps the visual layer in one place where you can iterate and the rest of the scene is just background + safe area.
 

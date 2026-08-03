@@ -164,6 +164,30 @@ const migrations: Migration[] = [
       CREATE INDEX design_packs_slug_idx ON design_packs (slug);
     `,
   },
+  {
+    version: 10,
+    up: `
+      ALTER TABLE displays ADD COLUMN voice_enabled INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE displays ADD COLUMN voice_pipeline_id TEXT;
+    `,
+  },
+  {
+    version: 11,
+    up: `
+      CREATE TABLE music_video_cache (
+        track_key   TEXT PRIMARY KEY,
+        video_id    TEXT,
+        miss        INTEGER NOT NULL DEFAULT 0,
+        resolved_at INTEGER NOT NULL
+      );
+      CREATE TABLE music_video_stream (
+        video_id    TEXT PRIMARY KEY,
+        stream_url  TEXT NOT NULL,
+        duration    INTEGER NOT NULL DEFAULT 0,
+        resolved_at INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {
