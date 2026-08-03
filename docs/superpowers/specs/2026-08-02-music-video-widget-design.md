@@ -171,9 +171,10 @@ scene push arrived. This matters because HA does not tick `media_position` for m
 integrations (Chromecast, some DLNA) — it only refreshes it on seek or state change —
 while any unrelated entity change in the scene can trigger a re-push carrying that
 same stale position with a fresh arrival timestamp. Anchoring to push-arrival time was
-tried first and rejected: it made elapsed time run ahead of real playback, so the >3s
-drift guard fired and seeked the video backward, which triggered the guard again on
-the next unrelated push — an endless restart loop that never let the video advance.
+tried first and rejected: because the push arrives long after HA measured the position,
+that anchor undercounts elapsed time, so the computed target lands *behind* real
+playback. The >3s drift guard then seeked the video backward, and the next unrelated
+push repeated it — an endless restart loop that never let the video advance.
 `position_updated_at` falls back to push-arrival time only when HA doesn't supply it.
 Thereafter the video re-syncs only when the reported position diverges from its
 `currentTime` by more than 3s, which catches manual seeks without fighting natural
