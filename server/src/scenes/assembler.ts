@@ -338,6 +338,17 @@ async function mediaPlayerData(
 
 const MV_ACTIVE_STATES = new Set(['playing', 'paused', 'buffering']);
 
+/**
+ * HA `media_content_type` values that are definitely not music. A media player
+ * showing a TV episode reports title/artist too ("Love Island USA" / "S8 · E19"),
+ * which otherwise sends yt-dlp hunting for a music video that cannot exist.
+ *
+ * Deliberately a denylist rather than an allowlist of `music`: plenty of
+ * integrations report no content type at all, or a custom one, and those
+ * should still get a lookup.
+ */
+const MV_NON_MUSIC_TYPES = new Set(['tvshow', 'episode', 'movie', 'video', 'game', 'app', 'url']);
+
 async function musicVideoData(
   widget: Widget,
   resolver: EntityResolver,
@@ -364,12 +375,19 @@ async function musicVideoData(
     typeof a.media_position_updated_at === 'string' ? a.media_position_updated_at : undefined;
   const duration = typeof a.media_duration === 'number' ? a.media_duration : undefined;
 
-  // Only look up a video for a player that actually has a track loaded.
-  if (!MV_ACTIVE_STATES.has(entity.state) || !deps.musicVideoResolver) {
+  const contentType =
+    typeof a.media_content_type === 'string' ? a.media_content_type.toLowerCase() : '';
+  const isNonMusic = MV_NON_MUSIC_TYPES.has(contentType);
+
+  // Only look up a video for a player actually playing music.
+  if (!MV_ACTIVE_STATES.has(entity.state) || isNonMusic || !deps.musicVideoResolver) {
     mvLog(
       !deps.musicVideoResolver
         ? `skip widget=${widget.id} reason=no-resolver-wired (preview render, or lookup not configured)`
-        : `skip widget=${widget.id} reason=state entity=${entityId} state=${entity.state} ` +
+        : isNonMusic
+          ? `skip widget=${widget.id} reason=content-type entity=${entityId} ` +
+            `media_content_type=${contentType} (not music)`
+          : `skip widget=${widget.id} reason=state entity=${entityId} state=${entity.state} ` +
             `(active states: ${[...MV_ACTIVE_STATES].join(', ')})`,
     );
     return {

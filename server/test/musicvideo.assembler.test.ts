@@ -136,6 +136,42 @@ describe('assembler — musicvideo widget', () => {
     expect((state.widgets[0].data as MusicVideoData).video_id).toBeNull();
   });
 
+  it('does not look up a video for a TV episode', async () => {
+    const musicVideoResolver = vi.fn(() => ({ videoId: 'abc123' }));
+    const tvEntity = playingEntity({
+      media_content_type: 'tvshow',
+      media_artist: 'Love Island USA',
+      media_title: 'S8 \u00b7 E19: Episode 19',
+    });
+    const state = await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      { resolveEntity: () => tvEntity, musicVideoResolver },
+    );
+    expect(musicVideoResolver).not.toHaveBeenCalled();
+    expect((state.widgets[0].data as MusicVideoData).video_id).toBeNull();
+  });
+
+  it('still looks up when the player reports no content type', async () => {
+    const musicVideoResolver = vi.fn(() => ({ videoId: 'abc123' }));
+    await buildSceneState(scene({ entity_id: 'media_player.living_room' }), SAFE_AREA, {
+      resolveEntity: () => playingEntity(),
+      musicVideoResolver,
+    });
+    // Many integrations omit media_content_type entirely; a denylist must not
+    // turn that into a silent no-op.
+    expect(musicVideoResolver).toHaveBeenCalled();
+  });
+
+  it('looks up when the content type is music', async () => {
+    const musicVideoResolver = vi.fn(() => ({ videoId: 'abc123' }));
+    await buildSceneState(scene({ entity_id: 'media_player.living_room' }), SAFE_AREA, {
+      resolveEntity: () => playingEntity({ media_content_type: 'music' }),
+      musicVideoResolver,
+    });
+    expect(musicVideoResolver).toHaveBeenCalled();
+  });
+
   it('degrades to a null video_id when no resolver is wired', async () => {
     const state = await buildSceneState(
       scene({ entity_id: 'media_player.living_room' }),

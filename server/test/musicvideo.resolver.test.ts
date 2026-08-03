@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { openDatabase, type DB } from '../src/store/db.js';
 import { runMigrations } from '../src/store/migrations.js';
 import { createMusicVideoCache } from '../src/musicvideo/cache.js';
-import { createMusicVideoResolver, MAX_CONCURRENT_LOOKUPS } from '../src/musicvideo/resolver.js';
+import {
+  createMusicVideoResolver,
+  MAX_CONCURRENT_LOOKUPS,
+  UNAVAILABLE_COOLDOWN_MS,
+} from '../src/musicvideo/resolver.js';
 import type { VideoLookup, ResolvedVideo, VideoSearchResult } from '../src/musicvideo/types.js';
 
 const HEROES: ResolvedVideo = {
@@ -202,8 +206,9 @@ describe('createMusicVideoResolver', () => {
     expect(searches).toHaveLength(1);
   });
 
-  it("does not negative-cache an 'unavailable' lookup and retries on the next call", async () => {
+  it("does not negative-cache an 'unavailable' lookup, and retries after the cooldown", async () => {
     const cache = createMusicVideoCache(db);
+    let clock = 1_000_000;
     let calls = 0;
     const lookup: VideoLookup = {
       search: async () => {
@@ -212,7 +217,7 @@ describe('createMusicVideoResolver', () => {
       },
       streamUrlFor: async () => null,
     };
-    const resolve = createMusicVideoResolver(lookup, cache, vi.fn());
+    const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
 
     resolve('w1', { artist: 'A', title: 'B' });
     await flush();
@@ -220,6 +225,14 @@ describe('createMusicVideoResolver', () => {
     // yt-dlp was missing — nothing was learned, so nothing is remembered.
     expect(cache.getVideoId('a|b')).toBeNull();
 
+    // The next push must NOT spawn again: media_position ticks re-push several
+    // times a second, and retrying each time was a spawn-and-log storm.
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    expect(calls).toBe(1);
+
+    // Once the cooldown lapses it retries on its own — no restart required.
+    clock += UNAVAILABLE_COOLDOWN_MS + 1;
     resolve('w1', { artist: 'A', title: 'B' });
     await flush();
     expect(calls).toBe(2);
@@ -241,6 +254,79 @@ describe('createMusicVideoResolver', () => {
     expect(resolve.inFlightCount()).toBe(0);
     resolve('w99', { artist: 'Fresh', title: 'T' });
     expect(searches).toHaveLength(MAX_CONCURRENT_LOOKUPS + 1);
+  });
+
+  it('stops retrying after an unavailable lookup, then resumes past the cooldown', async () => {
+    let clock = 1_000_000;
+    let calls = 0;
+    const lookup: VideoLookup = {
+      search: async () => {
+        calls++;
+        return { status: 'unavailable' };
+      },
+      streamUrlFor: async () => null,
+    };
+    const cache = createMusicVideoCache(db);
+    const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
+
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    expect(calls).toBe(1);
+
+    // Every subsequent push inside the cooldown must NOT spawn another lookup.
+    for (let i = 0; i < 25; i++) {
+      clock += 1000;
+      resolve('w1', { artist: 'A', title: 'B' });
+      resolve('w1', { artist: 'C', title: 'D' });
+    }
+    await flush();
+    expect(calls).toBe(1);
+
+    // Unavailability is global, not per-track: a different song is also held.
+    expect(resolve('w2', { artist: 'X', title: 'Y' })).toEqual({ videoId: null });
+    await flush();
+    expect(calls).toBe(1);
+
+    // Past the cooldown it retries on its own, no restart needed.
+    clock += UNAVAILABLE_COOLDOWN_MS + 1;
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    expect(calls).toBe(2);
+  });
+
+  it('does not negative-cache an unavailable lookup during the cooldown', async () => {
+    let clock = 1_000_000;
+    const lookup: VideoLookup = {
+      search: async () => ({ status: 'unavailable' }),
+      streamUrlFor: async () => null,
+    };
+    const cache = createMusicVideoCache(db);
+    const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
+
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    // The cooldown must not be implemented by poisoning the cache — that would
+    // survive 24h and outlive the 5min backoff.
+    expect(cache.getVideoId('a|b')).toBeNull();
+  });
+
+  it('still serves cache hits while the unavailable cooldown is active', async () => {
+    let clock = 1_000_000;
+    const lookup: VideoLookup = {
+      search: async () => ({ status: 'unavailable' }),
+      streamUrlFor: async () => null,
+    };
+    const cache = createMusicVideoCache(db);
+    cache.putVideoId('david bowie|heroes', 'abc123');
+    const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
+
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    clock += 1000;
+
+    // A previously-resolved song must keep playing even though yt-dlp is down.
+    expect(resolve('w1', { artist: 'David Bowie', title: 'Heroes' }))
+      .toEqual({ videoId: 'abc123' });
   });
 
   it('never rejects when the lookup itself throws', async () => {

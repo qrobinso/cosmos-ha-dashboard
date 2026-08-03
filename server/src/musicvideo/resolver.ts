@@ -14,6 +14,15 @@ export const DEFAULT_QUERY_SUFFIX = 'official music video';
  */
 export const MAX_CONCURRENT_LOOKUPS = 3;
 
+/**
+ * How long to stop attempting lookups after yt-dlp reports itself unrunnable.
+ *
+ * Long enough that a missing binary costs ~12 spawns an hour instead of
+ * several a second, short enough that installing yt-dlp starts working within
+ * a few minutes without a server restart.
+ */
+export const UNAVAILABLE_COOLDOWN_MS = 5 * 60 * 1000;
+
 export type TrackRef = {
   artist?: string;
   title?: string;
@@ -47,11 +56,26 @@ export function createMusicVideoResolver(
   lookup: VideoLookup,
   cache: MusicVideoCache,
   onUpdate: (widgetId: string) => void,
+  opts: { now?: () => number } = {},
 ): MusicVideoResolver {
+  const now = opts.now ?? (() => Date.now());
+
   /** trackKey → widgetIds awaiting that lookup. Dedupes concurrent searches. */
   const inFlight = new Map<string, Set<string>>();
   /** Widgets that have been disposed/gc'd and must not be notified. */
   const live = new Set<string>();
+  /**
+   * Epoch-ms until which we stop attempting lookups entirely.
+   *
+   * `unavailable` deliberately isn't negative-cached — the whole point is to
+   * retry once yt-dlp appears. But "retry on the next scene push" is far more
+   * often than it sounds: `media_position` ticks constantly, so an active
+   * media player re-pushes several times a second, and a missing binary turned
+   * into an unbounded spawn-and-log storm. Unavailability is a GLOBAL
+   * condition (the binary is absent), not a per-track one, so one cooldown
+   * covers every track.
+   */
+  let unavailableUntil = 0;
 
   function startLookup(trackKey: string, query: string): void {
     const waiters = new Set<string>();
@@ -79,11 +103,15 @@ export function createMusicVideoResolver(
           cache.putVideoId(trackKey, null);
           mvLog(`lookup none  key="${trackKey}" negative-cached 24h in ${ms}ms`);
         } else {
-          // 'unavailable' (yt-dlp missing / spawn refused) writes nothing: the
-          // lookup never ran, so there is no result to remember.
+          // 'unavailable' (yt-dlp missing / spawn refused) writes nothing to
+          // the cache: the lookup never ran, so there is no result to
+          // remember. Instead back off globally, so a missing binary costs one
+          // spawn every UNAVAILABLE_COOLDOWN_MS rather than one per push.
+          unavailableUntil = now() + UNAVAILABLE_COOLDOWN_MS;
           mvWarn(
             `lookup unavailable key="${trackKey}" — yt-dlp could not be run ` +
-              `(missing binary or spawn refused); not cached, will retry`,
+              `(missing binary or spawn refused). Pausing all lookups for ` +
+              `${Math.round(UNAVAILABLE_COOLDOWN_MS / 1000)}s, then retrying automatically.`,
           );
         }
       } catch (err) {
@@ -137,6 +165,17 @@ export function createMusicVideoResolver(
     if (existing) {
       existing.add(widgetId);
       mvLog(`join in-flight key="${trackKey}" widget=${widgetId}`);
+      return { videoId: null };
+    }
+
+    // yt-dlp is known-unavailable; don't spawn again until the cooldown ends.
+    // Flag-gated (not mvWarn) so a wall display with no yt-dlp installed stays
+    // quiet after the one warning that explains it.
+    if (now() < unavailableUntil) {
+      mvLog(
+        `skip widget=${widgetId} reason=unavailable-cooldown key="${trackKey}" ` +
+          `(${Math.ceil((unavailableUntil - now()) / 1000)}s remaining)`,
+      );
       return { videoId: null };
     }
 
