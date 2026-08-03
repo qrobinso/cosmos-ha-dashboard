@@ -211,4 +211,29 @@ describe('createMusicVideoResolver', () => {
     await flush();
     expect(resolve.inFlightCount()).toBe(0);
   });
+
+  it('does not negative-cache a thrown lookup and retries on the next call', async () => {
+    const cache = createMusicVideoCache(db);
+    let calls = 0;
+    const lookup: VideoLookup = {
+      search: async () => {
+        calls++;
+        throw new Error('boom');
+      },
+      streamUrlFor: async () => null,
+    };
+    const resolve = createMusicVideoResolver(lookup, cache, vi.fn());
+
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+
+    // No negative cache entry was written for the throwing lookup.
+    expect(cache.getVideoId('a|b')).toBeNull();
+    expect(calls).toBe(1);
+
+    // A subsequent resolve for the same track must retry, not be suppressed.
+    resolve('w1', { artist: 'A', title: 'B' });
+    await flush();
+    expect(calls).toBe(2);
+  });
 });

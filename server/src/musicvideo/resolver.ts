@@ -67,6 +67,10 @@ export function createMusicVideoResolver(
       }
 
       if (!videoId) return;
+      // A widget may have switched to a different track while this lookup was
+      // in flight; it's still in `waiters` for the old trackKey, so it can get
+      // one spurious onUpdate here. Harmless — the resulting re-push is
+      // idempotent and will simply reflect whatever track it's on by then.
       for (const widgetId of waiters) {
         if (live.has(widgetId)) onUpdate(widgetId);
       }
