@@ -346,6 +346,42 @@ describe('scenes REST API', () => {
     expect(res.json().error).toMatch(/view must be one of agenda \| month \| week \| day \| lanes/i);
   });
 
+  it('POST /api/scenes accepts a musicvideo widget with a valid entity_id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [
+          {
+            kind: 'musicvideo',
+            position: { col: 1, row: 1, w: 4, h: 3 },
+            config: { entity_id: 'media_player.living_room' },
+          },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.widgets[0].kind).toBe('musicvideo');
+    expect(body.widgets[0].config.entity_id).toBe('media_player.living_room');
+  });
+
+  it('POST /api/scenes rejects a musicvideo widget with no entity_id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/scenes',
+      payload: {
+        ...sample,
+        widgets: [
+          { kind: 'musicvideo', position: { col: 1, row: 1, w: 4, h: 3 }, config: {} },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/entity_id is required/i);
+  });
+
   it('POST /api/canvases/:widgetId/subscribe records extras and returns 204', async () => {
     const res = await app.inject({
       method: 'POST',

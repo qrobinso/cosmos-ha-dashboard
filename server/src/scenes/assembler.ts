@@ -10,6 +10,7 @@ import type {
   CameraData,
   CanvasData,
   MediaPlayerData,
+  MusicVideoData,
   StatisticsData,
   StatisticsPoint,
   EntityState,
@@ -62,6 +63,13 @@ export type DataResolvers = {
    *  subscribed to beyond what the rendered template depends on. Returns
    *  an empty array when not provided. */
   canvasExtras?: (widgetId: string) => string[];
+  /** Resolve the current track to a YouTube videoId. Synchronous by design —
+   *  a cache miss returns null immediately and re-pushes later. Without this
+   *  resolver, musicvideo widgets render hidden. */
+  musicVideoResolver?: (
+    widgetId: string,
+    track: { artist?: string; title?: string; querySuffix?: string },
+  ) => { videoId: string | null };
 };
 
 /**
@@ -327,6 +335,41 @@ async function mediaPlayerData(
   };
 }
 
+const MV_ACTIVE_STATES = new Set(['playing', 'paused', 'buffering']);
+
+async function musicVideoData(
+  widget: Widget,
+  resolver: EntityResolver,
+  deps: DataResolvers
+): Promise<MusicVideoData> {
+  const cfg = widget.config as Record<string, unknown>;
+  const entityId = readString(cfg, 'entity_id');
+  const empty: MusicVideoData = { entity_id: entityId, video_id: null, state: 'unknown' };
+  if (!entityId) return empty;
+
+  const entity = await resolver(entityId);
+  if (!entity) return empty;
+
+  const a = entity.attributes as Record<string, unknown>;
+  const state = entity.state as MusicVideoData['state'];
+  const position = typeof a.media_position === 'number' ? a.media_position : undefined;
+  const duration = typeof a.media_duration === 'number' ? a.media_duration : undefined;
+
+  // Only look up a video for a player that actually has a track loaded.
+  if (!MV_ACTIVE_STATES.has(entity.state) || !deps.musicVideoResolver) {
+    return { entity_id: entityId, video_id: null, state, position, duration };
+  }
+
+  const suffix = readString(cfg, 'query_suffix');
+  const { videoId } = deps.musicVideoResolver(widget.id, {
+    artist: typeof a.media_artist === 'string' ? a.media_artist : undefined,
+    title: typeof a.media_title === 'string' ? a.media_title : undefined,
+    querySuffix: suffix || undefined,
+  });
+
+  return { entity_id: entityId, video_id: videoId, state, position, duration };
+}
+
 async function statisticsData(
   widget: Widget,
   deps: DataResolvers,
@@ -451,6 +494,8 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
       const liveEntityIds = Array.from(new Set([...result.entityIds, ...extras]));
       return { resolved: result.resolved, liveEntityIds };
     }
+    case 'musicvideo':
+      return await musicVideoData(widget, resolver, deps);
   }
 }
 

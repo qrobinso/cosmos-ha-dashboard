@@ -41,6 +41,7 @@ export type Typography = {
  *  against this set. */
 export const WIDGET_KINDS = [
   'clock', 'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'text', 'camera', 'canvas',
+  'musicvideo',
 ] as const;
 export type WidgetKind = (typeof WIDGET_KINDS)[number];
 

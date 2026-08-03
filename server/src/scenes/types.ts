@@ -131,6 +131,18 @@ export type MediaPlayerData = {
   };
 };
 
+/** Music video widget — the resolved YouTube video for the current track. */
+export type MusicVideoData = {
+  entity_id: string;
+  /** null while resolving, or when no video matched. The widget hides. */
+  video_id: string | null;
+  state: MediaPlayerData['state'];
+  /** seconds — player position at push time, used to seek the video */
+  position?: number;
+  /** seconds */
+  duration?: number;
+};
+
 /** Statistics / history graph — sparkline series. */
 export type StatisticsPoint = {
   /** Unix epoch milliseconds. */
@@ -183,7 +195,8 @@ export type WidgetData =
   | MediaPlayerData
   | StatisticsData
   | CameraData
-  | CanvasData;
+  | CanvasData
+  | MusicVideoData;
 
 export type WidgetState = Widget & { data: WidgetData };
 
