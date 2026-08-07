@@ -237,6 +237,19 @@ export function registerMusicVideoRoutes(
     },
   );
 
+  app.get('/api/musicvideo/settings', async () => ({
+    entityId: deps.settings?.get(ADMIN_ENTITY_SETTING) ?? null,
+  }));
+
+  app.put<{ Body: { entityId?: unknown } }>('/api/musicvideo/settings', async (req, reply) => {
+    const entityId = typeof req.body?.entityId === 'string' ? req.body.entityId.trim() : '';
+    if (entityId && !entityId.startsWith('media_player.')) {
+      return reply.code(400).send({ error: 'Expected a media_player entity.' });
+    }
+    deps.settings?.set(ADMIN_ENTITY_SETTING, entityId);
+    return { entityId: entityId || null };
+  });
+
   app.get('/api/musicvideo/now-playing', async () => {
     const entityId = deps.settings?.get(ADMIN_ENTITY_SETTING) ?? null;
     if (!entityId) return { entityId: null, status: 'no-entity' as const };

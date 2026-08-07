@@ -379,3 +379,57 @@ describe('override routes', () => {
     expect(res.json()).toMatchObject({ entityId: null, status: 'no-entity' });
   });
 });
+
+describe('musicvideo admin entity settings routes', () => {
+  function harness() {
+    const db = freshDb();
+    const settings = createSettingsRepo(db);
+    return { db, settings };
+  }
+
+  it('GET settings reports null when nothing is configured', async () => {
+    const h = harness();
+    const cache = createMusicVideoCache(h.db);
+    const app = await buildHttpApp({ ...baseDeps({ db: h.db, cache, lookup: {} as VideoLookup }), settings: h.settings });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/settings' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ entityId: null });
+  });
+
+  it('PUT settings saves a media_player entity id', async () => {
+    const h = harness();
+    const cache = createMusicVideoCache(h.db);
+    const app = await buildHttpApp({ ...baseDeps({ db: h.db, cache, lookup: {} as VideoLookup }), settings: h.settings });
+    const res = await app.inject({
+      method: 'PUT', url: '/api/musicvideo/settings',
+      payload: { entityId: 'media_player.kitchen' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ entityId: 'media_player.kitchen' });
+    expect(h.settings.get('musicvideo.admin_entity')).toBe('media_player.kitchen');
+  });
+
+  it('PUT settings rejects a non-media_player entity', async () => {
+    const h = harness();
+    const cache = createMusicVideoCache(h.db);
+    const app = await buildHttpApp({ ...baseDeps({ db: h.db, cache, lookup: {} as VideoLookup }), settings: h.settings });
+    const res = await app.inject({
+      method: 'PUT', url: '/api/musicvideo/settings',
+      payload: { entityId: 'light.kitchen' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/media_player/i);
+    expect(h.settings.get('musicvideo.admin_entity')).toBeNull();
+  });
+
+  it('PUT settings clears the entity when given an empty string', async () => {
+    const h = harness();
+    h.settings.set('musicvideo.admin_entity', 'media_player.kitchen');
+    const cache = createMusicVideoCache(h.db);
+    const app = await buildHttpApp({ ...baseDeps({ db: h.db, cache, lookup: {} as VideoLookup }), settings: h.settings });
+    const res = await app.inject({ method: 'PUT', url: '/api/musicvideo/settings', payload: { entityId: '' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ entityId: null });
+    expect(h.settings.get('musicvideo.admin_entity')).toBe('');
+  });
+});

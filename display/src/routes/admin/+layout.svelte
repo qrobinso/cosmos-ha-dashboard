@@ -8,6 +8,7 @@
     { href: '/admin/scenes', label: 'Scenes' },
     { href: '/admin/designs', label: 'Designs' },
     { href: '/admin/displays', label: 'Displays' },
+    { href: '/admin/musicvideo', label: 'Music Video' },
     { href: '/admin/docs', label: 'Docs' },
     { href: '/admin/settings', label: 'Settings' },
   ];
