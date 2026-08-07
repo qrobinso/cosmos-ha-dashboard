@@ -202,6 +202,14 @@ const migrations: Migration[] = [
       ALTER TABLE music_video_cache ADD COLUMN title TEXT;
     `,
   },
+  {
+    version: 13,
+    up: `
+      -- Why a lookup found nothing, in words a user can act on. Written only
+      -- for negative results; NULL on hits and on pre-v13 rows.
+      ALTER TABLE music_video_cache ADD COLUMN reason TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

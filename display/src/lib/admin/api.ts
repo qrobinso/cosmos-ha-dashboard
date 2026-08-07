@@ -294,14 +294,25 @@ export const api = {
     > {
       return jsonOr(await fetch('/api/musicvideo/overrides'), []);
     },
-    /** Recent resolutions, or — with a query — a search across every song the
-     *  server remembers, not merely a filter over the recent list. */
-    async listHistory(query = ''): Promise<
-      Array<{ trackKey: string; videoId: string | null; miss: boolean; artist: string | null; title: string | null; resolvedAt: string }>
-    > {
-      const q = query.trim();
-      const url = q ? `/api/musicvideo/history?q=${encodeURIComponent(q)}` : '/api/musicvideo/history';
-      return jsonOr(await fetch(url), []);
+    /** One page of recent resolutions, or — with a query — of a search across
+     *  every song the server remembers, not merely a filter over that page.
+     *  `total` counts everything the query reaches, so the caller can page. */
+    async listHistory(
+      opts: { query?: string; limit?: number; offset?: number } = {},
+    ): Promise<{
+      rows: Array<{ trackKey: string; videoId: string | null; miss: boolean; artist: string | null; title: string | null; reason: string | null; resolvedAt: number }>;
+      total: number;
+      limit: number;
+      offset: number;
+    }> {
+      const params = new URLSearchParams();
+      const q = (opts.query ?? '').trim();
+      if (q) params.set('q', q);
+      if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+      if (opts.offset) params.set('offset', String(opts.offset));
+      const qs = params.toString();
+      const empty = { rows: [], total: 0, limit: opts.limit ?? 50, offset: opts.offset ?? 0 };
+      return jsonOr(await fetch(`/api/musicvideo/history${qs ? `?${qs}` : ''}`), empty);
     },
     /** Returns the parsed body even on a non-2xx — Task 6's error messages are meant to be shown verbatim. */
     async pin(payload: { artist: string; title: string; url: string }): Promise<

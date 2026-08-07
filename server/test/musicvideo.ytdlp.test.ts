@@ -104,13 +104,13 @@ describe('createYtDlpLookup — two-phase search', () => {
     const lookup = createYtDlpLookup({
       spawnFn: async () => ({ ok: false, stdout: '' }),
     });
-    expect(await lookup.search('nope')).toEqual({ status: 'none' });
+    expect(await lookup.search('nope')).toMatchObject({ status: 'none' });
   });
 
   it("yields 'none' when phase 1 succeeds but phase 2 fails", async () => {
     const { spawnFn } = twoPhaseFake({ flatLines: [flatJson()], phase2Ok: false });
     const lookup = createYtDlpLookup({ spawnFn });
-    expect(await lookup.search('x')).toEqual({ status: 'none' });
+    expect(await lookup.search('x')).toMatchObject({ status: 'none' });
   });
 
   it("yields 'unavailable' when the phase-1 spawn itself fails", async () => {
@@ -124,14 +124,14 @@ describe('createYtDlpLookup — two-phase search', () => {
     const lookup = createYtDlpLookup({
       spawnFn: async () => ({ ok: true, stdout: 'not json at all' }),
     });
-    expect(await lookup.search('nope')).toEqual({ status: 'none' });
+    expect(await lookup.search('nope')).toMatchObject({ status: 'none' });
   });
 
   it("reports 'none' on empty stdout (no search results)", async () => {
     const lookup = createYtDlpLookup({
       spawnFn: async () => ({ ok: true, stdout: '   \n' }),
     });
-    expect(await lookup.search('nope')).toEqual({ status: 'none' });
+    expect(await lookup.search('nope')).toMatchObject({ status: 'none' });
   });
 
   it('defaults duration to 0 when phase 2 does not report one', async () => {

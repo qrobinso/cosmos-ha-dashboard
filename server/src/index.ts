@@ -277,6 +277,8 @@ async function main() {
     musicVideoCache,
     musicVideoLookup,
     musicVideoOverrides,
+    // Getter: the resolver is built further down, after this app.
+    musicVideoResolver: () => musicVideoResolver,
     onMusicVideoOverridesChanged: () => {
       // An override changes what plays for a song globally, and the API layer
       // has no widget ids to narrow this with. Displays are few and this fires

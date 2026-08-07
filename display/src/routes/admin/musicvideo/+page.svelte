@@ -5,7 +5,7 @@
 
   type NowPlaying = Awaited<ReturnType<typeof api.musicvideo.nowPlaying>>;
   type OverrideRow = Awaited<ReturnType<typeof api.musicvideo.listOverrides>>[number];
-  type HistoryRow = Awaited<ReturnType<typeof api.musicvideo.listHistory>>[number];
+  type HistoryRow = Awaited<ReturnType<typeof api.musicvideo.listHistory>>['rows'][number];
   type Target = {
     artist: string;
     title: string;
@@ -50,6 +50,16 @@
   let search = '';
   let searching = false;
   let searchTimer: ReturnType<typeof setTimeout>;
+
+  /** Paging over the history list. Server-side, so it reaches every song
+   *  rather than slicing whatever one page happened to fetch. */
+  const PAGE_SIZE = 25;
+  let offset = 0;
+  let total = 0;
+  $: pageStart = total === 0 ? 0 : offset + 1;
+  $: pageEnd = Math.min(offset + PAGE_SIZE, total);
+  $: hasPrev = offset > 0;
+  $: hasNext = offset + PAGE_SIZE < total;
 
   /** Song section 2 is editing. Null means "follow whatever is currently playing". */
   let target: Target | null = null;
@@ -123,9 +133,19 @@
 
   async function loadHistory() {
     const q = search;
-    const rows = await api.musicvideo.listHistory(q);
-    // A slow response for an abandoned query must not overwrite a newer one.
-    if (q === search) history = rows;
+    const at = offset;
+    const res = await api.musicvideo.listHistory({ query: q, limit: PAGE_SIZE, offset: at });
+    // A slow response for an abandoned query or page must not overwrite a
+    // newer one — typing fast, or clicking Next twice, would otherwise land
+    // the wrong page.
+    if (q !== search || at !== offset) return;
+    history = res.rows;
+    total = res.total;
+  }
+
+  function goToPage(next: number) {
+    offset = Math.max(0, next);
+    loadHistory();
   }
 
   /**
@@ -136,6 +156,9 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       searching = true;
+      // A new query invalidates the current page number: searching from page 3
+      // would otherwise show an empty result set that looks like "no matches".
+      offset = 0;
       loadHistory().finally(() => (searching = false));
     }, 250);
   }
@@ -143,6 +166,7 @@
   function clearSearch() {
     search = '';
     clearTimeout(searchTimer);
+    offset = 0;
     loadHistory();
   }
 
@@ -319,6 +343,12 @@
       <p class="track">{activeTarget.artist || '(unknown artist)'} — {activeTarget.title || '(unknown title)'}</p>
       <span class={statusTagClass(activeStatus)}>{statusLabel(activeStatus)}</span>
 
+      {#if activeStatus === 'nothing-found' && !target && nowPlaying?.reason}
+        <!-- Without this, "Nothing found" is a dead end: the user cannot tell
+             whether to pin something or whether Cosmos is simply being strict. -->
+        <p class="reason">{nowPlaying.reason}</p>
+      {/if}
+
       <div class="form-row">
         <Field label="Paste a YouTube link">
           <input
@@ -407,9 +437,13 @@
         {/if}
       </p>
     {:else}
-      {#if search}
-        <p class="hint">{history.length} match{history.length === 1 ? '' : 'es'}</p>
-      {/if}
+      <p class="hint">
+        {#if search}
+          {total} match{total === 1 ? '' : 'es'} — showing {pageStart}–{pageEnd}
+        {:else}
+          Showing {pageStart}–{pageEnd} of {total}
+        {/if}
+      </p>
       <div class="rows">
         {#each history as h (h.trackKey + h.resolvedAt)}
           <div class="row">
@@ -422,6 +456,9 @@
                 {/if}
               </p>
               <span class={h.videoId ? 'tag success' : 'tag muted'}>{h.videoId ? 'Auto-matched' : 'Nothing found'}</span>
+              {#if !h.videoId && h.reason}
+                <p class="reason">{h.reason}</p>
+              {/if}
             </div>
             <div class="row-actions">
               <button type="button" class="ghost" on:click={() => prefill(h)}>Pin</button>
@@ -437,6 +474,28 @@
           </div>
         {/each}
       </div>
+
+      {#if hasPrev || hasNext}
+        <div class="pager">
+          <button
+            type="button"
+            class="ghost"
+            on:click={() => goToPage(offset - PAGE_SIZE)}
+            disabled={!hasPrev}
+          >
+            Previous
+          </button>
+          <span class="pager-count">{pageStart}–{pageEnd} of {total}</span>
+          <button
+            type="button"
+            class="ghost"
+            on:click={() => goToPage(offset + PAGE_SIZE)}
+            disabled={!hasNext}
+          >
+            Next
+          </button>
+        </div>
+      {/if}
     {/if}
   </section>
 {/if}
@@ -497,6 +556,31 @@
     color: var(--c-fg-3);
     font-size: 0.92rem;
     margin: 0;
+  }
+
+  /* Why a lookup found nothing. Muted and small — it explains an empty slot,
+     it is not the headline. */
+  .reason {
+    color: var(--c-fg-3);
+    font-size: 0.85rem;
+    line-height: 1.45;
+    margin: 0.35rem 0 0;
+    max-width: 60ch;
+  }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--c-line);
+  }
+  .pager-count {
+    color: var(--c-fg-3);
+    font-size: 0.85rem;
+    font-family: var(--font-mono, monospace);
   }
 
   /* Input styling itself comes from theme.css's global input rule. */

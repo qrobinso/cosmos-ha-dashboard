@@ -11,7 +11,13 @@ export const NEGATIVE_TTL_MS = 24 * 60 * 60 * 1000;
 export const STREAM_TTL_MS = 4 * 60 * 60 * 1000;
 
 /** `null` videoId with `miss: true` means "looked, found nothing, don't retry yet". */
-export type CachedLookup = { videoId: string | null; miss: boolean };
+export type CachedLookup = {
+  videoId: string | null;
+  miss: boolean;
+  /** On a miss, why nothing matched — surfaced in the admin page so
+   *  "Nothing found" is actionable rather than a dead end. */
+  reason?: string | null;
+};
 export type CachedStream = { streamUrl: string; duration: number };
 
 /** One row of the admin History list. */
@@ -22,6 +28,8 @@ export type CacheHistoryEntry = {
   /** Null for rows written before migration v12 — render the trackKey instead. */
   artist: string | null;
   title: string | null;
+  /** On a miss, why nothing matched. Null on hits and pre-v13 rows. */
+  reason: string | null;
   resolvedAt: number;
 };
 
@@ -43,7 +51,7 @@ export type MusicVideoCache = {
   putVideoId(
     trackKey: string,
     videoId: string | null,
-    names?: { artist?: string; title?: string },
+    names?: { artist?: string; title?: string; reason?: string },
   ): void;
   /** null = absent or stale; the caller should re-derive. */
   getStream(videoId: string): CachedStream | null;
@@ -57,7 +65,10 @@ export type MusicVideoCache = {
    *  Returns how many rows went, for logging. Cheap enough to run hourly. */
   prune(): { negatives: number; streams: number; overflow: number };
   /** Most recent resolutions, newest first. Drives the admin History list. */
-  listRecent(limit: number): CacheHistoryEntry[];
+  listRecent(limit: number, offset?: number): CacheHistoryEntry[];
+  /** How many rows a `search` (or, with no query, `listRecent`) can reach.
+   *  The admin list pages through all of them, so it needs the total. */
+  count(query?: string): number;
   /**
    * Substring search across EVERY remembered song, newest first.
    *
@@ -69,7 +80,7 @@ export type MusicVideoCache = {
    * A blank query returns nothing rather than everything, so an empty search
    * box can never be mistaken for "no songs".
    */
-  search(query: string, limit: number): CacheHistoryEntry[];
+  search(query: string, limit: number, offset?: number): CacheHistoryEntry[];
 };
 
 /**
@@ -90,6 +101,7 @@ type HistoryRow = {
   resolved_at: number;
   artist: string | null;
   title: string | null;
+  reason: string | null;
 };
 
 function toHistoryEntry(r: HistoryRow): CacheHistoryEntry {
@@ -99,6 +111,7 @@ function toHistoryEntry(r: HistoryRow): CacheHistoryEntry {
     miss: !!r.miss,
     artist: r.artist,
     title: r.title,
+    reason: r.reason,
     resolvedAt: r.resolved_at,
   };
 }
@@ -110,33 +123,41 @@ export function createMusicVideoCache(
   const now = opts.now ?? (() => Date.now());
 
   const selLookup = db.prepare(
-    'SELECT video_id, miss, resolved_at FROM music_video_cache WHERE track_key = ?',
+    'SELECT video_id, miss, resolved_at, reason FROM music_video_cache WHERE track_key = ?',
   );
   const upsertLookup = db.prepare(`
-    INSERT INTO music_video_cache (track_key, video_id, miss, resolved_at, artist, title)
-    VALUES (@key, @videoId, @miss, @at, @artist, @title)
+    INSERT INTO music_video_cache (track_key, video_id, miss, resolved_at, artist, title, reason)
+    VALUES (@key, @videoId, @miss, @at, @artist, @title, @reason)
     ON CONFLICT(track_key) DO UPDATE SET
       video_id    = excluded.video_id,
       miss        = excluded.miss,
       resolved_at = excluded.resolved_at,
+      reason      = excluded.reason,
       -- Keep names we already have when a re-resolve supplies none.
       artist      = COALESCE(excluded.artist, music_video_cache.artist),
       title       = COALESCE(excluded.title, music_video_cache.title)
   `);
   const selRecent = db.prepare(
-    `SELECT track_key, video_id, miss, resolved_at, artist, title
-       FROM music_video_cache ORDER BY resolved_at DESC LIMIT ?`,
+    `SELECT track_key, video_id, miss, resolved_at, artist, title, reason
+       FROM music_video_cache ORDER BY resolved_at DESC LIMIT @limit OFFSET @offset`,
+  );
+  const selCountAll = db.prepare('SELECT COUNT(*) AS n FROM music_video_cache');
+  const selCountSearch = db.prepare(
+    `SELECT COUNT(*) AS n FROM music_video_cache
+      WHERE track_key LIKE @pattern ESCAPE '\\' COLLATE NOCASE
+         OR artist    LIKE @pattern ESCAPE '\\' COLLATE NOCASE
+         OR title     LIKE @pattern ESCAPE '\\' COLLATE NOCASE`,
   );
   // COLLATE NOCASE gives case-insensitive matching. Note SQLite's built-in
   // collations only fold ASCII, so a query for "JAY" will not match "jaÿ" —
   // acceptable here, and fixing it would mean linking ICU.
   const selSearch = db.prepare(
-    `SELECT track_key, video_id, miss, resolved_at, artist, title
+    `SELECT track_key, video_id, miss, resolved_at, artist, title, reason
        FROM music_video_cache
       WHERE track_key LIKE @pattern ESCAPE '\\' COLLATE NOCASE
          OR artist    LIKE @pattern ESCAPE '\\' COLLATE NOCASE
          OR title     LIKE @pattern ESCAPE '\\' COLLATE NOCASE
-      ORDER BY resolved_at DESC LIMIT @limit`,
+      ORDER BY resolved_at DESC LIMIT @limit OFFSET @offset`,
   );
 
   const selStream = db.prepare(
@@ -155,13 +176,13 @@ export function createMusicVideoCache(
   return {
     getVideoId(trackKey) {
       const row = selLookup.get(trackKey) as
-        | { video_id: string | null; miss: number; resolved_at: number }
+        | { video_id: string | null; miss: number; resolved_at: number; reason: string | null }
         | undefined;
       if (!row) return null;
       if (row.miss) {
         // Negative results age out; positive ones never do.
         if (now() - row.resolved_at > NEGATIVE_TTL_MS) return null;
-        return { videoId: null, miss: true };
+        return { videoId: null, miss: true, reason: row.reason };
       }
       if (!row.video_id) return null;
       return { videoId: row.video_id, miss: false };
@@ -175,6 +196,8 @@ export function createMusicVideoCache(
         at: now(),
         artist: names?.artist ?? null,
         title: names?.title ?? null,
+        // A hit has nothing to explain; clear any reason left from a prior miss.
+        reason: videoId ? null : (names?.reason ?? null),
       });
     },
 
@@ -230,7 +253,14 @@ export function createMusicVideoCache(
       return { negatives, streams, overflow };
     },
 
-    search(query, limit) {
+    count(query) {
+      const trimmed = (query ?? '').trim();
+      if (!trimmed) return (selCountAll.get() as { n: number }).n;
+      const row = selCountSearch.get({ pattern: `%${escapeLike(trimmed)}%` }) as { n: number };
+      return row.n;
+    },
+
+    search(query, limit, offset = 0) {
       const trimmed = (query ?? '').trim();
       // An empty box means "no search", not "match everything" — returning the
       // whole library here would read as a result set the user asked for.
@@ -238,12 +268,13 @@ export function createMusicVideoCache(
       const rows = selSearch.all({
         pattern: `%${escapeLike(trimmed)}%`,
         limit,
+        offset,
       }) as HistoryRow[];
       return rows.map(toHistoryEntry);
     },
 
-    listRecent(limit) {
-      return (selRecent.all(limit) as HistoryRow[]).map(toHistoryEntry);
+    listRecent(limit, offset = 0) {
+      return (selRecent.all({ limit, offset }) as HistoryRow[]).map(toHistoryEntry);
     },
   };
 }

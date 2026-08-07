@@ -110,8 +110,18 @@ export function createMusicVideoResolver(
         } else if (found.status === 'none') {
           // The lookup RAN and found nothing — negative-cache it so we stop
           // respawning yt-dlp for an unmatchable track.
-          cache.putVideoId(trackKey, null, { artist: hint.artist, title: hint.title });
-          mvLog(`lookup none  key="${trackKey}" negative-cached 24h in ${ms}ms`);
+          cache.putVideoId(trackKey, null, {
+            artist: hint.artist,
+            title: hint.title,
+            // Kept so the admin page can explain the empty slot instead of
+            // just asserting one. Without this the only account of why a song
+            // shows nothing lives in the server log.
+            reason: found.reason,
+          });
+          mvLog(
+            `lookup none  key="${trackKey}" negative-cached 24h in ${ms}ms` +
+              (found.reason ? ` reason="${found.reason}"` : ''),
+          );
         } else {
           // 'unavailable' (yt-dlp missing / spawn refused) writes nothing to
           // the cache: the lookup never ran, so there is no result to

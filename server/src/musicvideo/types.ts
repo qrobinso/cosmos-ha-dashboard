@@ -28,7 +28,14 @@ export interface ResolvedVideo {
  */
 export type VideoSearchResult =
   | { status: 'ok'; video: ResolvedVideo }
-  | { status: 'none' }
+  /**
+   * `reason` is a short, user-facing explanation of why nothing matched —
+   * "none of the 5 results were on the artist's channel", not a stack trace.
+   * It is stored with the negative cache entry and surfaced in the admin
+   * overrides page, because "Nothing found" on its own gives a user no idea
+   * whether to pin something or just wait.
+   */
+  | { status: 'none'; reason?: string }
   | { status: 'unavailable' };
 
 /**

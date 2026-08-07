@@ -26,6 +26,22 @@ const HISTORY_LIMIT = 50;
  */
 const SEARCH_LIMIT = 200;
 
+/**
+ * Widget id used when the admin page triggers its own lookup. Deliberately not
+ * a real widget id: the resolver's `onUpdate` callback matches it against
+ * scene widgets, finds nothing, and marks no display dirty — this lookup exists
+ * to answer the admin page, not to change what any wall is showing.
+ */
+const ADMIN_LOOKUP_WIDGET_ID = 'admin:musicvideo';
+
+/** Parse a query-string integer, falling back and clamping — a hand-edited
+ *  `?limit=99999` must not turn into an unbounded query. */
+function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const n = raw === undefined ? NaN : Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
 export type MusicVideoRouteDeps = {
   cache: MusicVideoCache | null;
   lookup: VideoLookup | null;
@@ -35,6 +51,9 @@ export type MusicVideoRouteDeps = {
   haClient?: HaClient | null;
   /** Fired after any override mutation so the host can re-push displays. */
   onOverridesChanged?: () => void;
+  /** Lets `now-playing` resolve a track the scene widgets are not watching.
+   *  A getter because the resolver is constructed after the HTTP app. */
+  musicVideoResolver?: () => import('../musicvideo/resolver.js').MusicVideoResolver | null;
   /** Injected by tests. */
   fetchImpl?: typeof fetch;
 };
@@ -175,11 +194,23 @@ export function registerMusicVideoRoutes(
   /** Recent resolutions, or — with `?q=` — a search across every remembered
    *  song. Search is a superset of the list rather than a filter over it: the
    *  rows worth fixing are usually the ones that scrolled out of Recent. */
-  app.get<{ Querystring: { q?: string } }>('/api/musicvideo/history', async (req) => {
-    if (!deps.cache) return [];
-    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    return q ? deps.cache.search(q, SEARCH_LIMIT) : deps.cache.listRecent(HISTORY_LIMIT);
-  });
+  app.get<{ Querystring: { q?: string; limit?: string; offset?: string } }>(
+    '/api/musicvideo/history',
+    async (req) => {
+      if (!deps.cache) return { rows: [], total: 0, limit: HISTORY_LIMIT, offset: 0 };
+
+      const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+      const limit = clampInt(req.query.limit, HISTORY_LIMIT, 1, SEARCH_LIMIT);
+      const offset = clampInt(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+
+      const rows = q
+        ? deps.cache.search(q, limit, offset)
+        : deps.cache.listRecent(limit, offset);
+      // `total` counts every row the query can reach, not just this page —
+      // it is what lets the client show "x–y of N" and disable Next honestly.
+      return { rows, total: deps.cache.count(q), limit, offset };
+    },
+  );
 
   app.post<{ Body: { artist?: unknown; title?: unknown; url?: unknown; block?: unknown } }>(
     '/api/musicvideo/overrides',
@@ -297,7 +328,34 @@ export function registerMusicVideoRoutes(
     }
 
     const override = deps.musicVideoOverrides?.get(trackKey) ?? null;
-    const cached = deps.cache?.getVideoId(trackKey) ?? null;
+    let cached = deps.cache?.getVideoId(trackKey) ?? null;
+
+    /*
+     * Start a lookup ourselves when there is no answer yet.
+     *
+     * This page must not depend on some scene widget happening to watch the
+     * same media_player. The widget's `entity_id` and this page's watched
+     * entity are independent settings, so for any player no widget follows,
+     * nothing would ever populate the cache — and the page would sit on
+     * "Looking…" forever while, in truth, nobody was looking.
+     *
+     * The resolver is non-blocking: this returns immediately with no answer,
+     * the lookup lands in the background, and the page's 5s poll picks it up.
+     * The synthetic widget id matches no scene widget, so the resulting
+     * `onUpdate` marks nothing dirty — exactly what we want, since this
+     * lookup is for the admin page, not a display.
+     */
+    const resolver = deps.musicVideoResolver?.() ?? null;
+    if (!override && !cached && entity.state === 'playing' && resolver) {
+      resolver(ADMIN_LOOKUP_WIDGET_ID, {
+        artist,
+        title,
+        durationSec: typeof a.media_duration === 'number' ? a.media_duration : undefined,
+      });
+      // The resolver writes through the cache synchronously on a hit, so a
+      // result that was already in flight may be available right now.
+      cached = deps.cache?.getVideoId(trackKey) ?? null;
+    }
 
     // Precedence here MUST mirror the resolver's, or the page will describe a
     // state the wall display is not in.
@@ -319,6 +377,8 @@ export function registerMusicVideoRoutes(
       trackKey,
       status,
       videoId: override ? override.videoId : (cached?.videoId ?? null),
+      /** Why nothing matched, when we know. Null unless status is nothing-found. */
+      reason: cached?.reason ?? null,
     };
   });
 }

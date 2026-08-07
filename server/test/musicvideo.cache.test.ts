@@ -47,7 +47,7 @@ describe('music video cache', () => {
   it('records a negative result distinctly from an absent one', () => {
     const cache = createMusicVideoCache(db, { now });
     cache.putVideoId('obscure|track', null);
-    expect(cache.getVideoId('obscure|track')).toEqual({ videoId: null, miss: true });
+    expect(cache.getVideoId('obscure|track')).toEqual({ videoId: null, miss: true, reason: null });
   });
 
   it('expires a negative result after the negative TTL', () => {
@@ -97,7 +97,7 @@ describe('music video cache', () => {
 
     const { negatives } = cache.prune();
     expect(negatives).toBe(1);
-    expect(cache.getVideoId('fresh|miss')).toEqual({ videoId: null, miss: true });
+    expect(cache.getVideoId('fresh|miss')).toEqual({ videoId: null, miss: true, reason: null });
   });
 
   it('prune drops stale stream urls but keeps fresh ones', () => {
@@ -164,6 +164,7 @@ describe('display names and history', () => {
       miss: false,
       artist: 'Solange',
       title: 'Weary',
+      reason: null,
       resolvedAt: 1000,
     });
   });
@@ -309,5 +310,110 @@ describe('history search', () => {
 
     expect(cache.search('', 50)).toEqual([]);
     expect(cache.search('   ', 50)).toEqual([]);
+  });
+});
+
+describe('why nothing was found', () => {
+  it('stores and returns the reason for a negative result', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1000 });
+    cache.putVideoId('radiohead|karma police', null, {
+      artist: 'Radiohead',
+      title: 'Karma Police',
+      reason: 'None of the 5 search results were on the artist’s channel.',
+    });
+
+    const cached = cache.getVideoId('radiohead|karma police');
+    expect(cached).toMatchObject({
+      videoId: null,
+      miss: true,
+      reason: 'None of the 5 search results were on the artist’s channel.',
+    });
+    // The History list needs it too — that is where a user reads it.
+    expect(cache.listRecent(10)[0].reason).toBe(
+      'None of the 5 search results were on the artist’s channel.',
+    );
+  });
+
+  it('clears a stale reason once the track resolves successfully', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1000 });
+    cache.putVideoId('a|b', null, { reason: 'nothing qualified' });
+    cache.putVideoId('a|b', 'aaa11111111');
+
+    // A hit has nothing to explain; leaving the old text would be actively
+    // misleading next to a video that is now playing.
+    expect(cache.listRecent(10)[0].reason).toBeNull();
+  });
+
+  it('leaves reason null when a miss is recorded without one', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1000 });
+    cache.putVideoId('a|b', null);
+    expect(cache.listRecent(10)[0].reason).toBeNull();
+  });
+});
+
+describe('history paging', () => {
+  function seededWith(n: number) {
+    const db = freshDb();
+    let t = 0;
+    const cache = createMusicVideoCache(db, { now: () => t });
+    for (let i = 0; i < n; i++) {
+      t += 100;
+      cache.putVideoId(`artist${i}|song${i}`, 'aaa11111111', {
+        artist: `Artist ${i}`,
+        title: `Song ${i}`,
+      });
+    }
+    return cache;
+  }
+
+  it('pages through the full list without repeating or skipping a row', () => {
+    const cache = seededWith(10);
+    const page1 = cache.listRecent(4, 0).map((e) => e.trackKey);
+    const page2 = cache.listRecent(4, 4).map((e) => e.trackKey);
+    const page3 = cache.listRecent(4, 8).map((e) => e.trackKey);
+
+    expect(page1).toHaveLength(4);
+    expect(page2).toHaveLength(4);
+    expect(page3).toHaveLength(2); // last partial page
+    // Every row appears exactly once across the three pages.
+    expect(new Set([...page1, ...page2, ...page3]).size).toBe(10);
+  });
+
+  it('counts every row so the page can size its pager', () => {
+    expect(seededWith(7).count()).toBe(7);
+  });
+
+  it('counts only matching rows when searching', () => {
+    const cache = seededWith(10);
+    expect(cache.count('Song 1')).toBe(1);
+    expect(cache.count('Artist')).toBe(10);
+    expect(cache.count('nothing here')).toBe(0);
+  });
+
+  it('pages through search results too', () => {
+    const cache = seededWith(10);
+    const first = cache.search('Artist', 3, 0).map((e) => e.trackKey);
+    const second = cache.search('Artist', 3, 3).map((e) => e.trackKey);
+    expect(first).toHaveLength(3);
+    expect(second).toHaveLength(3);
+    expect(first.some((k) => second.includes(k))).toBe(false);
+  });
+
+  it('counts a blank query as the whole table, matching listRecent', () => {
+    const cache = seededWith(5);
+    expect(cache.count('')).toBe(5);
+    expect(cache.count('   ')).toBe(5);
+  });
+
+  it('escapes LIKE wildcards when counting, exactly as when searching', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1 });
+    cache.putVideoId('a|hello', 'aaa11111111', { artist: 'A', title: 'Hello' });
+    cache.putVideoId('b|pct', 'bbb22222222', { artist: 'B', title: '100% Real' });
+    // A count that forgot to escape would report both rows.
+    expect(cache.count('%')).toBe(1);
   });
 });

@@ -372,7 +372,7 @@ describe('override routes', () => {
     const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
     const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()[0]).toMatchObject({ trackKey: 'radiohead|karma police', videoId: null, artist: 'Radiohead' });
+    expect(res.json().rows[0]).toMatchObject({ trackKey: 'radiohead|karma police', videoId: null, artist: 'Radiohead' });
   });
 
   it('GET history?q= returns matches from beyond the capped recent list', async () => {
@@ -388,11 +388,13 @@ describe('override routes', () => {
     // down deterministically in musicvideo.cache.test.ts, which controls the
     // clock; here the rows share a timestamp so ordering is not stable.)
     const unfiltered = await app.inject({ method: 'GET', url: '/api/musicvideo/history' });
-    expect(unfiltered.json()).toHaveLength(50);
+    expect(unfiltered.json().rows).toHaveLength(50);
+    // `total` reports everything reachable, not just this page.
+    expect(unfiltered.json().total).toBe(81);
 
     const found = await app.inject({ method: 'GET', url: '/api/musicvideo/history?q=weary' });
     expect(found.statusCode).toBe(200);
-    expect(found.json().map((e: { trackKey: string }) => e.trackKey)).toEqual(['solange|weary']);
+    expect(found.json().rows.map((e: { trackKey: string }) => e.trackKey)).toEqual(['solange|weary']);
   });
 
   it('GET history with a blank q falls back to the recent list', async () => {
@@ -401,7 +403,7 @@ describe('override routes', () => {
     const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
 
     const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history?q=%20%20' });
-    expect(res.json()).toHaveLength(1);
+    expect(res.json().rows).toHaveLength(1);
   });
 
   it('GET now-playing reports the configured entity and its override state', async () => {
@@ -517,5 +519,210 @@ describe('musicvideo admin entity settings routes', () => {
     const getRes = await app.inject({ method: 'GET', url: '/api/musicvideo/settings' });
     expect(getRes.statusCode).toBe(200);
     expect(getRes.json()).toEqual({ entityId: null });
+  });
+});
+
+describe('now-playing resolves tracks nothing else is watching', () => {
+  /**
+   * The regression this guards: the page's watched media_player and a scene
+   * widget's `entity_id` are independent settings. For a player no widget
+   * follows, nothing ever populated the cache, so the page reported
+   * "unresolved" — rendered as "Looking…" — forever, while in fact nobody was
+   * looking. now-playing must start the lookup itself.
+   */
+  function nowPlayingHarness(entityState = 'playing') {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const musicVideoOverrides = createMusicVideoOverrideRepo(db);
+    const settings = createSettingsRepo(db);
+    settings.set('musicvideo.admin_entity', 'media_player.kitchen');
+    const haClient = fakeHaClientWith([
+      {
+        entity_id: 'media_player.kitchen',
+        state: entityState,
+        attributes: { media_artist: 'Radiohead', media_title: 'Karma Police', media_duration: 261 },
+      },
+    ]);
+    return { db, cache, musicVideoOverrides, settings, haClient };
+  }
+
+  it('starts a lookup when nothing has resolved the track yet', async () => {
+    const h = nowPlayingHarness();
+    const calls: Array<{ artist?: string; title?: string }> = [];
+    const musicVideoResolver = Object.assign(
+      (_id: string, track: { artist?: string; title?: string }) => {
+        calls.push(track);
+        return { videoId: null };
+      },
+      { dispose() {}, gc() {}, inFlightCount: () => 0 },
+    );
+
+    const app = await buildHttpApp({
+      ...baseDeps(h as never),
+      settings: h.settings,
+      haClient: h.haClient,
+      musicVideoOverrides: h.musicVideoOverrides,
+      musicVideoResolver: () => musicVideoResolver,
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+
+    expect(res.statusCode).toBe(200);
+    expect(calls).toEqual([{ artist: 'Radiohead', title: 'Karma Police', durationSec: 261 }]);
+  });
+
+  it('does not re-resolve a track that already has a cached answer', async () => {
+    const h = nowPlayingHarness();
+    h.cache.putVideoId('radiohead|karma police', 'aaa11111111');
+    let called = 0;
+    const musicVideoResolver = Object.assign(
+      () => { called++; return { videoId: null }; },
+      { dispose() {}, gc() {}, inFlightCount: () => 0 },
+    );
+
+    const app = await buildHttpApp({
+      ...baseDeps(h as never),
+      settings: h.settings,
+      haClient: h.haClient,
+      musicVideoOverrides: h.musicVideoOverrides,
+      musicVideoResolver: () => musicVideoResolver,
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+
+    expect(called).toBe(0);
+    expect(res.json()).toMatchObject({ status: 'auto', videoId: 'aaa11111111' });
+  });
+
+  it('does not resolve a track that is already pinned', async () => {
+    const h = nowPlayingHarness();
+    h.musicVideoOverrides.put({
+      trackKey: 'radiohead|karma police',
+      videoId: 'pinned12345',
+      artist: 'Radiohead',
+      title: 'Karma Police',
+    });
+    let called = 0;
+    const musicVideoResolver = Object.assign(
+      () => { called++; return { videoId: null }; },
+      { dispose() {}, gc() {}, inFlightCount: () => 0 },
+    );
+
+    const app = await buildHttpApp({
+      ...baseDeps(h as never),
+      settings: h.settings,
+      haClient: h.haClient,
+      musicVideoOverrides: h.musicVideoOverrides,
+      musicVideoResolver: () => musicVideoResolver,
+    });
+    await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+    expect(called).toBe(0);
+  });
+
+  it('does not resolve a paused player — a lookup is only worth it while playing', async () => {
+    const h = nowPlayingHarness('paused');
+    let called = 0;
+    const musicVideoResolver = Object.assign(
+      () => { called++; return { videoId: null }; },
+      { dispose() {}, gc() {}, inFlightCount: () => 0 },
+    );
+
+    const app = await buildHttpApp({
+      ...baseDeps(h as never),
+      settings: h.settings,
+      haClient: h.haClient,
+      musicVideoOverrides: h.musicVideoOverrides,
+      musicVideoResolver: () => musicVideoResolver,
+    });
+    await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+    expect(called).toBe(0);
+  });
+
+  it('reports why nothing was found, so the empty slot is explainable', async () => {
+    const h = nowPlayingHarness();
+    h.cache.putVideoId('radiohead|karma police', null, {
+      artist: 'Radiohead',
+      title: 'Karma Police',
+      reason: 'None of the 5 results were on the artist’s channel.',
+    });
+
+    const app = await buildHttpApp({
+      ...baseDeps(h as never),
+      settings: h.settings,
+      haClient: h.haClient,
+      musicVideoOverrides: h.musicVideoOverrides,
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+
+    expect(res.json()).toMatchObject({
+      status: 'nothing-found',
+      reason: 'None of the 5 results were on the artist’s channel.',
+    });
+  });
+});
+
+describe('history pagination', () => {
+  function seeded(n: number) {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const musicVideoOverrides = createMusicVideoOverrideRepo(db);
+    const lookup: VideoLookup = {
+      search: async () => ({ status: 'none' }) as const,
+      streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
+    };
+    for (let i = 0; i < n; i++) {
+      cache.putVideoId(`artist${i}|song${i}`, 'aaa11111111', {
+        artist: `Artist ${i}`,
+        title: `Song ${i}`,
+      });
+    }
+    return { db, cache, lookup, musicVideoOverrides };
+  }
+
+  it('honours limit and offset, reporting the full total', async () => {
+    const h = seeded(30);
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+
+    const page1 = await app.inject({ method: 'GET', url: '/api/musicvideo/history?limit=10&offset=0' });
+    expect(page1.json().rows).toHaveLength(10);
+    expect(page1.json()).toMatchObject({ total: 30, limit: 10, offset: 0 });
+
+    const page3 = await app.inject({ method: 'GET', url: '/api/musicvideo/history?limit=10&offset=20' });
+    expect(page3.json().rows).toHaveLength(10);
+    expect(page3.json().offset).toBe(20);
+
+    const keys = (r: { json(): { rows: Array<{ trackKey: string }> } }) =>
+      r.json().rows.map((e) => e.trackKey);
+    expect(keys(page1).some((k) => keys(page3).includes(k))).toBe(false);
+  });
+
+  it('returns an empty page past the end rather than erroring', async () => {
+    const h = seeded(5);
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history?limit=10&offset=500' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().rows).toEqual([]);
+    expect(res.json().total).toBe(5);
+  });
+
+  it('clamps a hand-edited limit instead of running an unbounded query', async () => {
+    const h = seeded(5);
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history?limit=999999' });
+    expect(res.json().limit).toBe(200);
+  });
+
+  it('ignores junk limit/offset values', async () => {
+    const h = seeded(5);
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history?limit=abc&offset=-9' });
+    expect(res.json()).toMatchObject({ limit: 50, offset: 0 });
+  });
+
+  it('paginates a filtered search, with total reflecting the filter', async () => {
+    const h = seeded(30);
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history?q=Artist&limit=8&offset=8' });
+    expect(res.json().rows).toHaveLength(8);
+    expect(res.json().total).toBe(30);
   });
 });

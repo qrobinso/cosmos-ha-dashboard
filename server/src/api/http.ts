@@ -85,6 +85,9 @@ export type HttpDeps = {
   musicVideoCache?: import('../musicvideo/cache.js').MusicVideoCache;
   musicVideoLookup?: import('../musicvideo/types.js').VideoLookup;
   musicVideoOverrides?: import('../musicvideo/overrides.js').MusicVideoOverrideRepo;
+  /** Lets the overrides page resolve a track no scene widget is watching.
+   *  A getter because the resolver is constructed after the HTTP app. */
+  musicVideoResolver?: () => import('../musicvideo/resolver.js').MusicVideoResolver | null;
   /** Fired after any music-video override mutation, so the host can re-push. */
   onMusicVideoOverridesChanged?: () => void;
   onSceneChanged?: (
@@ -284,6 +287,7 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     settings: deps.settings,
     haClient: deps.haClient ?? null,
     onOverridesChanged: deps.onMusicVideoOverridesChanged,
+    musicVideoResolver: deps.musicVideoResolver,
   });
 
   registerSceneRoutes(app, {

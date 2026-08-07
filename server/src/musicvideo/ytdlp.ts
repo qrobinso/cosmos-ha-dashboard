@@ -198,7 +198,10 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
           `candidate search. Nothing will play. A broken extractor is the usual ` +
           `cause — try \`yt-dlp -U\`.`,
       );
-      return { status: 'none' };
+      return {
+        status: 'none',
+        reason: 'The YouTube search itself failed — yt-dlp may need updating.',
+      };
     }
 
     const candidates = parseAllJson(phase1.stdout)
@@ -209,7 +212,7 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
         `no search results for "${describeTrack(hint)}" (query: "${query}"). ` +
           `Nothing will play; the widget stays hidden.`,
       );
-      return { status: 'none' };
+      return { status: 'none', reason: 'YouTube returned no results for this track.' };
     }
 
     // TWO HARD REQUIREMENTS, both required — a candidate is excluded before
@@ -258,7 +261,17 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
             })
             .join('\n'),
       );
-      return { status: 'none' };
+      return {
+        status: 'none',
+        reason:
+          `None of the ${candidates.length} search results qualified. ` +
+          `A video must be on the artist's own channel AND have both ` +
+          `"official" and "video" in its title. Closest: ` +
+          candidates
+            .slice(0, 3)
+            .map((c) => `"${c.title}" (${c.channel})`)
+            .join('; '),
+      };
     }
 
     const winner = pickBest(eligible, {
@@ -294,7 +307,12 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
           reasons.map((r) => `      · ${r}`).join('\n') +
           `\n    Widget stays hidden. Adjust the widget's "Search suffix" if this track needs a better query.`,
       );
-      return { status: 'none' };
+      return {
+        status: 'none',
+        reason:
+          `Best candidate "${winner.title}" (${winner.channel}) scored ${score}, ` +
+          `below the ${MIN_SCORE} needed to play. ${reasons.join('; ')}`,
+      };
     }
 
     const resolved = await invoke(`https://www.youtube.com/watch?v=${winner.videoId}`);
