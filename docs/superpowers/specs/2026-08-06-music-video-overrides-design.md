@@ -103,17 +103,20 @@ duration, which lives in the stream cache beside the URL. `VideoLookup.streamUrl
 returns a bare URL — no title, no duration. So the interface gains one method:
 
 ```ts
-probe(videoId: string): Promise<{
-  videoId: string;
-  title: string;
-  durationSec: number;
-  streamUrl: string;
-} | null>
+probe(videoId: string): Promise<VideoSearchResult>
 ```
 
-One `yt-dlp -f 18 -j` call. It serves save-time validation (returning the title and
-duration to display back, `null` if unplayable) *and* populates the stream cache in the
-same step, so a pin is immediately playable. It sits behind the existing `VideoLookup`
+It reuses the existing `VideoSearchResult` union rather than returning a nullable, because
+the API needs exactly the distinction that union already draws: `none` means the video is
+unplayable (so reject the save), while `unavailable` means yt-dlp could not run (so tell
+the user to retry rather than hunt for a different link). A nullable return would collapse
+those two into one unhelpful error.
+
+Internally it is one `yt-dlp -f 18 -j` call against the video's watch URL — the same
+`invoke()` helper `streamUrlFor` already uses, which returns a full `ResolvedVideo`
+carrying the title and duration that `streamUrlFor` currently discards. It serves
+save-time validation (returning the title and duration to display back) *and* populates
+the stream cache in the same step, so a pin is immediately playable. It sits behind the existing `VideoLookup`
 interface, preserving the property that a YouTube Data API implementation could be
 swapped in by writing one new file.
 
