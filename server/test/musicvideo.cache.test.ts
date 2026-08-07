@@ -9,6 +9,12 @@ import {
   MAX_CACHE_ROWS,
 } from '../src/musicvideo/cache.js';
 
+function freshDb(): DB {
+  const db = openDatabase(':memory:');
+  runMigrations(db);
+  return db;
+}
+
 describe('music video cache', () => {
   let db: DB;
   let clock: number;
@@ -142,5 +148,65 @@ describe('music video cache', () => {
     cache.putStream('abc123', 'https://x', 1);
     cache.invalidateStream('abc123');
     expect(cache.getVideoId('bowie|heroes')).toEqual({ videoId: 'abc123', miss: false });
+  });
+});
+
+describe('display names and history', () => {
+  it('stores display names alongside a resolution', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1000 });
+    cache.putVideoId('solange|weary', 'abc12345678', { artist: 'Solange', title: 'Weary' });
+
+    const [entry] = cache.listRecent(10);
+    expect(entry).toEqual({
+      trackKey: 'solange|weary',
+      videoId: 'abc12345678',
+      miss: false,
+      artist: 'Solange',
+      title: 'Weary',
+      resolvedAt: 1000,
+    });
+  });
+
+  it('records negative results in history so they can be pinned', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1000 });
+    cache.putVideoId('radiohead|karma police', null, { artist: 'Radiohead', title: 'Karma Police' });
+
+    const [entry] = cache.listRecent(10);
+    // This is the case the admin page exists to fix — it must be listed.
+    expect(entry.miss).toBe(true);
+    expect(entry.videoId).toBeNull();
+    expect(entry.artist).toBe('Radiohead');
+  });
+
+  it('tolerates a call with no display names', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1000 });
+    cache.putVideoId('a|b', 'abc12345678');
+    const [entry] = cache.listRecent(10);
+    expect(entry.artist).toBeNull();
+    expect(entry.title).toBeNull();
+  });
+
+  it('lists newest first and honours the limit', () => {
+    const db = freshDb();
+    let t = 0;
+    const cache = createMusicVideoCache(db, { now: () => t });
+    t = 100; cache.putVideoId('a|one', 'aaa11111111');
+    t = 200; cache.putVideoId('b|two', 'bbb22222222');
+    t = 300; cache.putVideoId('c|three', 'ccc33333333');
+
+    expect(cache.listRecent(2).map((e) => e.trackKey)).toEqual(['c|three', 'b|two']);
+  });
+
+  it('does not erase existing display names when re-resolved without them', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db, { now: () => 1000 });
+    cache.putVideoId('a|b', 'aaa11111111', { artist: 'A', title: 'B' });
+    cache.putVideoId('a|b', 'ccc33333333');
+    const [entry] = cache.listRecent(10);
+    expect(entry.artist).toBe('A');
+    expect(entry.videoId).toBe('ccc33333333');
   });
 });

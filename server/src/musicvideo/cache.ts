@@ -14,6 +14,17 @@ export const STREAM_TTL_MS = 4 * 60 * 60 * 1000;
 export type CachedLookup = { videoId: string | null; miss: boolean };
 export type CachedStream = { streamUrl: string; duration: number };
 
+/** One row of the admin History list. */
+export type CacheHistoryEntry = {
+  trackKey: string;
+  videoId: string | null;
+  miss: boolean;
+  /** Null for rows written before migration v12 — render the trackKey instead. */
+  artist: string | null;
+  title: string | null;
+  resolvedAt: number;
+};
+
 /**
  * Hard ceiling on remembered `trackKey -> videoId` rows.
  *
@@ -27,8 +38,13 @@ export const MAX_CACHE_ROWS = 5000;
 export type MusicVideoCache = {
   /** null = nothing usable cached, go look it up. */
   getVideoId(trackKey: string): CachedLookup | null;
-  /** Pass null to record a negative result. */
-  putVideoId(trackKey: string, videoId: string | null): void;
+  /** Pass null to record a negative result. `names` are stored for the admin
+   *  History list only — resolution itself keys entirely off `trackKey`. */
+  putVideoId(
+    trackKey: string,
+    videoId: string | null,
+    names?: { artist?: string; title?: string },
+  ): void;
   /** null = absent or stale; the caller should re-derive. */
   getStream(videoId: string): CachedStream | null;
   putStream(videoId: string, streamUrl: string, duration: number): void;
@@ -36,6 +52,8 @@ export type MusicVideoCache = {
   /** Drop expired negatives and stale stream URLs, then cap the lookup table.
    *  Returns how many rows went, for logging. Cheap enough to run hourly. */
   prune(): { negatives: number; streams: number; overflow: number };
+  /** Most recent resolutions, newest first. Drives the admin History list. */
+  listRecent(limit: number): CacheHistoryEntry[];
 };
 
 export function createMusicVideoCache(
@@ -48,13 +66,20 @@ export function createMusicVideoCache(
     'SELECT video_id, miss, resolved_at FROM music_video_cache WHERE track_key = ?',
   );
   const upsertLookup = db.prepare(`
-    INSERT INTO music_video_cache (track_key, video_id, miss, resolved_at)
-    VALUES (@key, @videoId, @miss, @at)
+    INSERT INTO music_video_cache (track_key, video_id, miss, resolved_at, artist, title)
+    VALUES (@key, @videoId, @miss, @at, @artist, @title)
     ON CONFLICT(track_key) DO UPDATE SET
-      video_id = excluded.video_id,
-      miss = excluded.miss,
-      resolved_at = excluded.resolved_at
+      video_id    = excluded.video_id,
+      miss        = excluded.miss,
+      resolved_at = excluded.resolved_at,
+      -- Keep names we already have when a re-resolve supplies none.
+      artist      = COALESCE(excluded.artist, music_video_cache.artist),
+      title       = COALESCE(excluded.title, music_video_cache.title)
   `);
+  const selRecent = db.prepare(
+    `SELECT track_key, video_id, miss, resolved_at, artist, title
+       FROM music_video_cache ORDER BY resolved_at DESC LIMIT ?`,
+  );
   const selStream = db.prepare(
     'SELECT stream_url, duration, resolved_at FROM music_video_stream WHERE video_id = ?',
   );
@@ -83,12 +108,14 @@ export function createMusicVideoCache(
       return { videoId: row.video_id, miss: false };
     },
 
-    putVideoId(trackKey, videoId) {
+    putVideoId(trackKey, videoId, names) {
       upsertLookup.run({
         key: trackKey,
         videoId,
         miss: videoId ? 0 : 1,
         at: now(),
+        artist: names?.artist ?? null,
+        title: names?.title ?? null,
       });
     },
 
@@ -137,6 +164,25 @@ export function createMusicVideoCache(
         .run(MAX_CACHE_ROWS).changes;
 
       return { negatives, streams, overflow };
+    },
+
+    listRecent(limit) {
+      const rows = selRecent.all(limit) as Array<{
+        track_key: string;
+        video_id: string | null;
+        miss: number;
+        resolved_at: number;
+        artist: string | null;
+        title: string | null;
+      }>;
+      return rows.map((r) => ({
+        trackKey: r.track_key,
+        videoId: r.video_id,
+        miss: !!r.miss,
+        artist: r.artist,
+        title: r.title,
+        resolvedAt: r.resolved_at,
+      }));
     },
   };
 }
