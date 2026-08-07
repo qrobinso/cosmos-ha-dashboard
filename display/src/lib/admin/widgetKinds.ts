@@ -232,16 +232,16 @@ export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
   },
   musicvideo: {
     kind: 'musicvideo',
-    label: 'Music Video',
+    label: 'Video Backdrop',
     category: 'ha',
     icon: widgetIcons.musicvideo,
     accent: '#d9639b', // music video pink
-    blurb: 'Plays the YouTube music video for the current track.',
+    blurb: 'Plays the official video for the current track as a backdrop.',
     defaultSize: { w: 6, h: 4 },
     defaultConfig: (entities) => ({
       entity_id: firstEntityOfDomain(entities, 'media_player'),
     }),
-    instanceLabel: (c) => labelFrom(c, 'Music Video'),
+    instanceLabel: (c) => labelFrom(c, 'Video Backdrop'),
   },
 };
 

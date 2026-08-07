@@ -26,7 +26,7 @@
   const sceneTabs = [
     { href: '/admin/scenes', label: 'Scenes' },
     { href: '/admin/designs', label: 'Designs' },
-    { href: '/admin/musicvideo', label: 'Music Video' },
+    { href: '/admin/musicvideo', label: 'Video Backdrop' },
   ];
 
   $: pathname = $page.url.pathname;

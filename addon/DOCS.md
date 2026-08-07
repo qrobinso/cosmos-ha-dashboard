@@ -76,7 +76,7 @@ data:
 | `mqtt_username`  | MQTT username. Used only when `mqtt_host` is set. Leave blank for anonymous brokers.                                                     | *empty*  |
 | `mqtt_password`  | MQTT password. Used only when `mqtt_host` is set.                                                                                        | *empty*  |
 | `mqtt_use_ssl`   | Connect with TLS (`mqtts://`). Leave off for the standard local-network broker.                                                          | `false`  |
-| `log_musicvideo` | Trace the music video widget: candidates considered, how each scored, and why nothing plays when nothing does. Errors log regardless.     | `false`  |
+| `log_musicvideo` | Trace the video backdrop widget: candidates considered, how each scored, and why nothing plays when nothing does. Errors log regardless.     | `false`  |
 
 If `mqtt_host` is left blank, Cosmos transparently uses the broker exposed by Home Assistant's Mosquitto app (no further setup needed). The manual fields take precedence when filled in.
 
@@ -92,9 +92,9 @@ See [`docs/canvas-widget.md`](https://github.com/qrobinso/cosmos-ha-dashboard/bl
 
 Recommended: one canvas per scene. Multiple sandboxed iframes on a tablet running 24/7 are measurably expensive on memory + CPU.
 
-## Music video widget
+## Video backdrop widget
 
-Point it at a `media_player` and it plays the official YouTube music video for whatever is playing — muted, synced to the track's position, in whatever grid slot you give it. Audio keeps coming from your Home Assistant speaker; the video is just the visual. `yt-dlp` is bundled in this app, so there is nothing to install.
+Point it at a `media_player` and it plays the official YouTube video for whatever is playing — muted, synced to the track's position, in whatever grid slot you give it. Audio keeps coming from your Home Assistant speaker; the video is just the visual. `yt-dlp` is bundled in this app, so there is nothing to install.
 
 **It shows nothing more often than you might expect, and that is deliberate.** A video plays only when one exists on the artist's own YouTube channel with "official" and "video" in the title. Songs whose real video is titled plainly — Radiohead's "Karma Police", Taylor Swift's "Blank Space" — show nothing rather than risk playing a fan re-upload or a lyric video. TV shows, podcasts, and anything that is not music are skipped entirely.
 
@@ -113,7 +113,7 @@ For an ambient now-playing wall: size it to the full grid, set Layer to *Behind*
 
 If a widget stays blank and you want to know why, switch on `log_musicvideo` in Configuration — the app log will name the reason, from "no official video" through to the score every candidate received.
 
-**Fixing a specific song.** The **Music Video** page in the sidebar (`/admin/musicvideo`) lets you pin an exact YouTube link to a song, or block a song from ever playing a video — useful for the songs the automatic matcher deliberately skips, or ones you'd just rather not see a video for. A pin or block is permanent until you remove it. See [`docs/music-video-overrides.md`](https://github.com/qrobinso/cosmos-ha-dashboard/blob/main/docs/music-video-overrides.md).
+**Fixing a specific song.** The **Video Backdrop** page in the sidebar (`/admin/musicvideo`) lets you pin an exact YouTube link to a song, or block a song from ever playing a video — useful for the songs the automatic matcher deliberately skips, or ones you'd just rather not see a video for. A pin or block is permanent until you remove it. See [`docs/video-backdrop-overrides.md`](https://github.com/qrobinso/cosmos-ha-dashboard/blob/main/docs/video-backdrop-overrides.md).
 
 **Updating yt-dlp.** YouTube changes break `yt-dlp` extractors from time to time; a new app release picks up a current version. To patch in place without waiting, run `pip3 install -U --break-system-packages yt-dlp` inside the app container. (`yt-dlp -U` does not work here — that self-updater only applies to yt-dlp's standalone builds, and this app installs it from PyPI.) An in-place update is lost when the app restarts or updates, which is expected.
 

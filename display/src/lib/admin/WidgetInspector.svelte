@@ -164,7 +164,7 @@
 
         <Field
           label="Layer"
-          hint="Only matters where widgets overlap. Use Behind for a full-bleed backdrop — a music video, say — with the rest of the scene sitting on top of it."
+          hint="Only matters where widgets overlap. Use Behind for a full-bleed backdrop — a video backdrop, say — with the rest of the scene sitting on top of it."
         >
           <select
             value={typeof widget.config.layer === 'number' ? widget.config.layer : 0}

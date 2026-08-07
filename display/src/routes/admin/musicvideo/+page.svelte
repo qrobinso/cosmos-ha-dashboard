@@ -307,10 +307,10 @@
   });
 </script>
 
-<svelte:head><title>Cosmos - Music Video</title></svelte:head>
+<svelte:head><title>Cosmos - Video Backdrop</title></svelte:head>
 
 <header class="page-header reveal reveal-1">
-  <span class="eyebrow">Music video</span>
+  <span class="eyebrow">Video backdrop</span>
   <h1>Overrides</h1>
   <p class="sub">Pin a specific YouTube video to a song, or stop one playing entirely.</p>
 </header>

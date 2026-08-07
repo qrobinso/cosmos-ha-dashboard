@@ -156,7 +156,7 @@
         {/each}
       </span>
       <span class="np-cta">
-        Music video<span class="np-arrow" aria-hidden="true">→</span>
+        Video backdrop<span class="np-arrow" aria-hidden="true">→</span>
       </span>
     </a>
   {/if}
@@ -283,7 +283,7 @@
 
 <style>
   /* Now playing — a link, not a panel: its whole job is to get you to the
-     Music Video page for the song you can currently hear. */
+     Video Backdrop page for the song you can currently hear. */
   .now-playing {
     display: flex;
     align-items: center;

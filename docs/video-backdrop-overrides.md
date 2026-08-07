@@ -1,10 +1,10 @@
-# Music video overrides
+# Video backdrop overrides
 
-The Music Video widget picks a YouTube video automatically for whatever song is playing. It's
-deliberately strict about what counts as a match (see the "Music video widget" section of the
+The Video Backdrop widget picks a YouTube video automatically for whatever song is playing. It's
+deliberately strict about what counts as a match (see the "Video backdrop widget" section of the
 app's `DOCS.md`), which means some songs — even ones with a well-known official video — show
 nothing, because the automatic matcher won't gamble on a fan re-upload or a lyric video. The
-**Music Video** admin page (`/admin/musicvideo`) is where you fix that by hand, for individual
+**Video Backdrop** admin page (`/admin/musicvideo`) is where you fix that by hand, for individual
 songs.
 
 ## Watching a player
