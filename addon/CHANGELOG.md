@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- Feat: **Music Video overrides.** New **Music Video** page in the sidebar (`/admin/musicvideo`) lets you pin a specific YouTube video to a song, or block a song from ever playing a video — by hand, per song. Pick the media_player Cosmos should watch, and the page shows what's playing right now and how it currently resolves. Paste a YouTube link (watch, `youtu.be`, `music.youtube.com`, or Shorts) and save — Cosmos checks the link actually plays before storing it. A pin or block is permanent and always wins over the automatic matcher, on every display, until you remove it. Also lists the last 50 automatic resolutions (including misses) so you can pin or block straight from history. See `docs/music-video-overrides.md`.
+
 ## 0.7.1
 
 - Fix: **0.7.0 failed to build.** The bundled `yt-dlp` used its standalone musllinux build, which embeds Python 3.14 and needs a libc symbol (`pwritev2`) that this app's Alpine base does not have — the build aborted with `Error relocating libpython3.14.so.1.0`. It now installs from PyPI against the image's own Python. If you saw that error, updating to 0.7.1 is the fix; nothing else changed.

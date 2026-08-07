@@ -113,6 +113,8 @@ For an ambient now-playing wall: size it to the full grid, set Layer to *Behind*
 
 If a widget stays blank and you want to know why, switch on `log_musicvideo` in Configuration — the app log will name the reason, from "no official video" through to the score every candidate received.
 
+**Fixing a specific song.** The **Music Video** page in the sidebar (`/admin/musicvideo`) lets you pin an exact YouTube link to a song, or block a song from ever playing a video — useful for the songs the automatic matcher deliberately skips, or ones you'd just rather not see a video for. A pin or block is permanent until you remove it. See [`docs/music-video-overrides.md`](https://github.com/qrobinso/cosmos-ha-dashboard/blob/main/docs/music-video-overrides.md).
+
 **Updating yt-dlp.** YouTube changes break `yt-dlp` extractors from time to time; a new app release picks up a current version. To patch in place without waiting, run `pip3 install -U --break-system-packages yt-dlp` inside the app container. (`yt-dlp -U` does not work here — that self-updater only applies to yt-dlp's standalone builds, and this app installs it from PyPI.) An in-place update is lost when the app restarts or updates, which is expected.
 
 ## Support
