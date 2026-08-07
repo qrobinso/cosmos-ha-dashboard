@@ -28,6 +28,7 @@ function deferredLookup() {
       });
     },
     streamUrlFor: async () => null,
+    probe: async () => ({ status: 'none' }) as const,
   };
   /** Release every pending search; `null` means "ran, found nothing". */
   const release = (v: ResolvedVideo | null | VideoSearchResult) => {
@@ -216,6 +217,7 @@ describe('createMusicVideoResolver', () => {
         return { status: 'unavailable' } as VideoSearchResult;
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
 
@@ -265,6 +267,7 @@ describe('createMusicVideoResolver', () => {
         return { status: 'unavailable' };
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const cache = createMusicVideoCache(db);
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
@@ -299,6 +302,7 @@ describe('createMusicVideoResolver', () => {
     const lookup: VideoLookup = {
       search: async () => ({ status: 'unavailable' }),
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const cache = createMusicVideoCache(db);
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
@@ -315,6 +319,7 @@ describe('createMusicVideoResolver', () => {
     const lookup: VideoLookup = {
       search: async () => ({ status: 'unavailable' }),
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const cache = createMusicVideoCache(db);
     cache.putVideoId('david bowie|heroes', 'abc123');
@@ -337,6 +342,7 @@ describe('createMusicVideoResolver', () => {
         throw new Error('boom');
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const resolve = createMusicVideoResolver(lookup, cache, onUpdate);
 
@@ -354,6 +360,7 @@ describe('createMusicVideoResolver', () => {
         throw new Error('boom');
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn());
 

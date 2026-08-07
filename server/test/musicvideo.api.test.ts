@@ -24,7 +24,11 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
     db = openDatabase(':memory:');
     runMigrations(db);
     cache = createMusicVideoCache(db);
-    lookup = { search: async () => ({ status: 'none' }), streamUrlFor: vi.fn(async () => 'https://fresh/url') };
+    lookup = {
+      search: async () => ({ status: 'none' }),
+      streamUrlFor: vi.fn(async () => 'https://fresh/url'),
+      probe: async () => ({ status: 'none' }) as const,
+    };
     fetchImpl = vi.fn(async () => okResponse());
     app = Fastify({ logger: false });
     registerMusicVideoRoutes(app, { cache, lookup, fetchImpl: fetchImpl as unknown as typeof fetch });
@@ -80,7 +84,11 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
   });
 
   it('404s when the video cannot be resolved', async () => {
-    lookup = { search: async () => ({ status: 'none' }), streamUrlFor: async () => null };
+    lookup = {
+      search: async () => ({ status: 'none' }),
+      streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
+    };
     const app2 = Fastify({ logger: false });
     registerMusicVideoRoutes(app2, { cache, lookup, fetchImpl: fetchImpl as unknown as typeof fetch });
     await app2.ready();
@@ -142,6 +150,7 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
           release = res;
         });
       },
+      probe: async () => ({ status: 'none' }) as const,
     };
     const app2 = Fastify({ logger: false });
     registerMusicVideoRoutes(app2, {

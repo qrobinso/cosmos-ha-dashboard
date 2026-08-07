@@ -56,4 +56,14 @@ export interface VideoLookup {
   search(query: string, hint?: SearchHint): Promise<VideoSearchResult>;
   /** Re-derive a fresh stream URL for a known videoId. */
   streamUrlFor(videoId: string): Promise<string | null>;
+  /**
+   * Resolve a KNOWN videoId to its full metadata + stream, without searching.
+   *
+   * Used by the manual-override admin flow to validate a pasted link before
+   * saving it, and to populate the stream cache so the pin is immediately
+   * playable. Returns the same three-state union as `search` because the
+   * caller must distinguish "this video will not play" (`none`) from "we could
+   * not check" (`unavailable`) — the user's next action differs.
+   */
+  probe(videoId: string): Promise<VideoSearchResult>;
 }

@@ -314,6 +314,8 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
       const r = await invoke(`https://www.youtube.com/watch?v=${videoId}`);
       return r.status === 'ok' ? r.video.streamUrl : null;
     },
+    // Same single call as streamUrlFor, but keeping the metadata it discards.
+    probe: (videoId) => invoke(`https://www.youtube.com/watch?v=${videoId}`),
   };
 }
 
