@@ -188,6 +188,20 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 12,
+    up: `
+      CREATE TABLE music_video_override (
+        track_key  TEXT PRIMARY KEY,
+        video_id   TEXT,
+        artist     TEXT NOT NULL,
+        title      TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      ALTER TABLE music_video_cache ADD COLUMN artist TEXT;
+      ALTER TABLE music_video_cache ADD COLUMN title TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {
