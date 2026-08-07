@@ -3,13 +3,29 @@ import { Readable } from 'node:stream';
 import type { MusicVideoCache } from '../musicvideo/cache.js';
 import { mvLog, mvWarn } from '../musicvideo/log.js';
 import type { VideoLookup } from '../musicvideo/types.js';
+import type { MusicVideoOverrideRepo } from '../musicvideo/overrides.js';
+import type { SettingsRepo } from '../store/settings.js';
+import type { HaClient } from '../ha/types.js';
+import { parseYouTubeId } from '../musicvideo/youtubeUrl.js';
+import { normalizeTrackKey } from '../musicvideo/trackKey.js';
 
 /** YouTube ids are 11 chars of [A-Za-z0-9_-]; be strict, this reaches fetch(). */
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{3,20}$/;
 
+/** Settings key for the media_player the admin overrides page watches. */
+export const ADMIN_ENTITY_SETTING = 'musicvideo.admin_entity';
+
+const HISTORY_LIMIT = 50;
+
 export type MusicVideoRouteDeps = {
   cache: MusicVideoCache | null;
   lookup: VideoLookup | null;
+  /** Manual pin/block store. Null when the feature is not wired (tests). */
+  musicVideoOverrides?: MusicVideoOverrideRepo | null;
+  settings?: SettingsRepo | null;
+  haClient?: HaClient | null;
+  /** Fired after any override mutation so the host can re-push displays. */
+  onOverridesChanged?: () => void;
   /** Injected by tests. */
   fetchImpl?: typeof fetch;
 };
@@ -139,4 +155,126 @@ export function registerMusicVideoRoutes(
       }
     },
   );
+
+  app.get('/api/musicvideo/overrides', async () => deps.musicVideoOverrides?.list() ?? []);
+
+  app.get('/api/musicvideo/history', async () => deps.cache?.listRecent(HISTORY_LIMIT) ?? []);
+
+  app.post<{ Body: { artist?: unknown; title?: unknown; url?: unknown; block?: unknown } }>(
+    '/api/musicvideo/overrides',
+    async (req, reply) => {
+      const overrides = deps.musicVideoOverrides;
+      if (!overrides) return reply.code(503).send({ error: 'Music video overrides are not available.' });
+
+      const artist = typeof req.body?.artist === 'string' ? req.body.artist.trim() : '';
+      const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+
+      // The client never computes a track key. Deriving it here is what
+      // guarantees the admin page and the resolver can never disagree about
+      // which song a pin applies to.
+      const trackKey = normalizeTrackKey(artist, title);
+      if (!trackKey) {
+        return reply.code(400).send({ error: 'A non-empty artist and title are required.' });
+      }
+
+      if (req.body?.block === true) {
+        // Nothing to validate — there is no video.
+        overrides.put({ trackKey, videoId: null, artist, title });
+        deps.onOverridesChanged?.();
+        return { trackKey, videoId: null, artist, title, blocked: true };
+      }
+
+      const rawUrl = typeof req.body?.url === 'string' ? req.body.url : '';
+      const videoId = parseYouTubeId(rawUrl);
+      if (!videoId) {
+        return reply.code(400).send({
+          error: 'That does not look like a YouTube link. Paste a youtube.com/watch, youtu.be, or music.youtube.com URL.',
+        });
+      }
+
+      if (!deps.lookup) {
+        return reply.code(400).send({ error: 'Video lookup is not configured, so the link cannot be checked. Try again once yt-dlp is available.' });
+      }
+
+      const probed = await deps.lookup.probe(videoId);
+      if (probed.status === 'unavailable') {
+        // Distinct from a bad video: the link may be perfectly fine. Say so,
+        // or the user goes hunting for a replacement that will not help.
+        return reply.code(400).send({ error: 'yt-dlp could not be run, so the link could not be checked. Try again in a few minutes.' });
+      }
+      if (probed.status !== 'ok') {
+        return reply.code(400).send({ error: 'That video could not be played — it may be private, removed, age-restricted, or region-locked. Try a different link.' });
+      }
+
+      // Populating the stream cache here is what makes the pin playable on the
+      // very next push instead of costing another yt-dlp call.
+      deps.cache?.putStream(videoId, probed.video.streamUrl, probed.video.duration);
+      overrides.put({ trackKey, videoId, artist, title });
+      deps.onOverridesChanged?.();
+
+      return {
+        trackKey,
+        videoId,
+        artist,
+        title,
+        blocked: false,
+        resolvedTitle: probed.video.title,
+        durationSec: probed.video.duration,
+      };
+    },
+  );
+
+  app.delete<{ Params: { trackKey: string } }>(
+    '/api/musicvideo/overrides/:trackKey',
+    async (req, reply) => {
+      const overrides = deps.musicVideoOverrides;
+      if (!overrides) return reply.code(503).send({ error: 'Music video overrides are not available.' });
+      if (!overrides.remove(req.params.trackKey)) {
+        return reply.code(404).send({ error: 'No override for that track.' });
+      }
+      deps.onOverridesChanged?.();
+      return { ok: true };
+    },
+  );
+
+  app.get('/api/musicvideo/now-playing', async () => {
+    const entityId = deps.settings?.get(ADMIN_ENTITY_SETTING) ?? null;
+    if (!entityId) return { entityId: null, status: 'no-entity' as const };
+
+    const entity = deps.haClient?.listEntities().find((e) => e.entity_id === entityId) ?? null;
+    if (!entity) return { entityId, status: 'entity-missing' as const };
+
+    const a = (entity.attributes ?? {}) as Record<string, unknown>;
+    const artist = typeof a.media_artist === 'string' ? a.media_artist : '';
+    const title = typeof a.media_title === 'string' ? a.media_title : '';
+    const trackKey = normalizeTrackKey(artist, title);
+    if (!trackKey) {
+      return { entityId, state: entity.state, artist, title, trackKey: null, status: 'nothing-playing' as const };
+    }
+
+    const override = deps.musicVideoOverrides?.get(trackKey) ?? null;
+    const cached = deps.cache?.getVideoId(trackKey) ?? null;
+
+    // Precedence here MUST mirror the resolver's, or the page will describe a
+    // state the wall display is not in.
+    const status = override
+      ? override.videoId
+        ? ('pinned' as const)
+        : ('blocked' as const)
+      : cached?.videoId
+        ? ('auto' as const)
+        : cached
+          ? ('nothing-found' as const)
+          : ('unresolved' as const);
+
+    return {
+      entityId,
+      state: entity.state,
+      artist,
+      title,
+      trackKey,
+      status,
+      videoId: override ? override.videoId : (cached?.videoId ?? null),
+    };
+  });
 }

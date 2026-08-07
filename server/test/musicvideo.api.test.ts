@@ -3,8 +3,44 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { openDatabase, type DB } from '../src/store/db.js';
 import { runMigrations } from '../src/store/migrations.js';
 import { createMusicVideoCache, type MusicVideoCache } from '../src/musicvideo/cache.js';
+import { createMusicVideoOverrideRepo } from '../src/musicvideo/overrides.js';
 import { registerMusicVideoRoutes } from '../src/api/musicvideo.js';
-import type { VideoLookup } from '../src/musicvideo/types.js';
+import { buildHttpApp, type HttpDeps } from '../src/api/http.js';
+import { createDisplaysRepo } from '../src/store/displays.js';
+import { createSettingsRepo } from '../src/store/settings.js';
+import { createScenesRepo } from '../src/store/scenes.js';
+import { createTransitionsRepo, createOverridesRepo } from '../src/store/transitions.js';
+import { createDesignPacksRepo } from '../src/store/design-packs.js';
+import { createFakeHaClient } from '../src/ha/fakeClient.js';
+import type { VideoLookup, VideoSearchResult } from '../src/musicvideo/types.js';
+
+function freshDb(): DB {
+  const db = openDatabase(':memory:');
+  runMigrations(db);
+  return db;
+}
+
+function fakeHaClientWith(entities: Parameters<typeof createFakeHaClient>[0]) {
+  return createFakeHaClient(entities);
+}
+
+/** Minimal full HttpDeps, built around whatever a harness() call produced. */
+function baseDeps(h: {
+  db: DB;
+  cache: MusicVideoCache;
+  lookup: VideoLookup;
+}): HttpDeps {
+  return {
+    displays: createDisplaysRepo(h.db),
+    settings: createSettingsRepo(h.db),
+    scenes: createScenesRepo(h.db),
+    transitions: createTransitionsRepo(h.db),
+    overrides: createOverridesRepo(h.db),
+    designs: createDesignPacksRepo(h.db),
+    musicVideoCache: h.cache,
+    musicVideoLookup: h.lookup,
+  };
+}
 
 function okResponse(body = 'VIDEOBYTES', headers: Record<string, string> = {}) {
   return new Response(body, {
@@ -171,5 +207,175 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
 
     expect(calls).toBe(1);
     for (const r of results) expect(r.statusCode).toBe(200);
+  });
+});
+
+describe('override routes', () => {
+  const PIN = 'dQw4w9WgXcQ';
+
+  function harness(over: Partial<{ probeResult: VideoSearchResult }> = {}) {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const musicVideoOverrides = createMusicVideoOverrideRepo(db);
+    let dirtied = 0;
+    const lookup: VideoLookup = {
+      search: async () => ({ status: 'none' } as const),
+      streamUrlFor: async () => null,
+      probe: async () =>
+        over.probeResult ?? ({
+          status: 'ok',
+          video: { videoId: PIN, streamUrl: 'https://rr1.googlevideo.com/x', duration: 213, title: 'A Song (Official Video)' },
+        } as const),
+    };
+    return { db, cache, musicVideoOverrides, lookup, dirtied: () => dirtied, onChanged: () => { dirtied++; } };
+  }
+
+  it('POST pins a video, returning the resolved title and duration', async () => {
+    const h = harness();
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides, onMusicVideoOverridesChanged: h.onChanged });
+    const res = await app.inject({
+      method: 'POST', url: '/api/musicvideo/overrides',
+      payload: { artist: 'Solange', title: 'Weary', url: `https://youtu.be/${PIN}?si=abc` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ trackKey: 'solange|weary', videoId: PIN, resolvedTitle: 'A Song (Official Video)', durationSec: 213 });
+    expect(h.musicVideoOverrides.get('solange|weary')!.videoId).toBe(PIN);
+    // The pin must be playable right away, without a second yt-dlp call.
+    expect(h.cache.getStream(PIN)).toMatchObject({ streamUrl: 'https://rr1.googlevideo.com/x', duration: 213 });
+    expect(h.dirtied()).toBe(1);
+  });
+
+  it('POST derives the track key server-side, so the client cannot disagree with the resolver', async () => {
+    const h = harness();
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({
+      method: 'POST', url: '/api/musicvideo/overrides',
+      // Decoration that normalizeTrackKey strips.
+      payload: { artist: 'Solange', title: 'Weary (feat. Nobody)', url: PIN },
+    });
+    expect(res.json().trackKey).toBe('solange|weary');
+  });
+
+  it('POST with block:true stores a block and never probes', async () => {
+    const h = harness();
+    let probed = 0;
+    const lookup = { ...h.lookup, probe: async () => { probed++; return { status: 'none' } as const; } };
+    const app = await buildHttpApp({ ...baseDeps({ ...h, lookup }), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({
+      method: 'POST', url: '/api/musicvideo/overrides',
+      payload: { artist: 'Solange', title: 'Weary', block: true },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(h.musicVideoOverrides.get('solange|weary')).toMatchObject({ videoId: null });
+    expect(probed).toBe(0);
+  });
+
+  it('POST rejects an unparseable link without saving', async () => {
+    const h = harness();
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({
+      method: 'POST', url: '/api/musicvideo/overrides',
+      payload: { artist: 'A', title: 'B', url: 'https://vimeo.com/12345' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/youtube/i);
+    expect(h.musicVideoOverrides.get('a|b')).toBeNull();
+  });
+
+  it('POST rejects an unplayable video without saving', async () => {
+    const h = harness({ probeResult: { status: 'none' } });
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({
+      method: 'POST', url: '/api/musicvideo/overrides',
+      payload: { artist: 'A', title: 'B', url: PIN },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/could not be played/i);
+    expect(h.musicVideoOverrides.get('a|b')).toBeNull();
+  });
+
+  it('POST distinguishes yt-dlp being unavailable from a bad video', async () => {
+    const h = harness({ probeResult: { status: 'unavailable' } });
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({
+      method: 'POST', url: '/api/musicvideo/overrides',
+      payload: { artist: 'A', title: 'B', url: PIN },
+    });
+    expect(res.statusCode).toBe(400);
+    // The user's next action differs: retry, don't hunt for another link.
+    expect(res.json().error).toMatch(/yt-dlp|try again/i);
+  });
+
+  it('POST rejects a track with no usable artist/title', async () => {
+    const h = harness();
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({
+      method: 'POST', url: '/api/musicvideo/overrides',
+      payload: { artist: '', title: '', url: PIN },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET lists overrides newest first', async () => {
+    const h = harness();
+    h.musicVideoOverrides.put({ trackKey: 'a|b', videoId: PIN, artist: 'A', title: 'B' });
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/overrides' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveLength(1);
+  });
+
+  it('DELETE removes an override and marks displays dirty', async () => {
+    const h = harness();
+    h.musicVideoOverrides.put({ trackKey: 'a|b', videoId: PIN, artist: 'A', title: 'B' });
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides, onMusicVideoOverridesChanged: h.onChanged });
+    const res = await app.inject({ method: 'DELETE', url: '/api/musicvideo/overrides/a%7Cb' });
+    expect(res.statusCode).toBe(200);
+    expect(h.musicVideoOverrides.get('a|b')).toBeNull();
+    expect(h.dirtied()).toBe(1);
+  });
+
+  it('DELETE of an unknown key is a 404', async () => {
+    const h = harness();
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'DELETE', url: '/api/musicvideo/overrides/nope%7Cnope' });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('GET history lists recent resolutions including misses', async () => {
+    const h = harness();
+    h.cache.putVideoId('radiohead|karma police', null, { artist: 'Radiohead', title: 'Karma Police' });
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()[0]).toMatchObject({ trackKey: 'radiohead|karma police', videoId: null, artist: 'Radiohead' });
+  });
+
+  it('GET now-playing reports the configured entity and its override state', async () => {
+    const h = harness();
+    h.musicVideoOverrides.put({ trackKey: 'solange|weary', videoId: PIN, artist: 'Solange', title: 'Weary' });
+    const settings = createSettingsRepo(h.db);
+    settings.set('musicvideo.admin_entity', 'media_player.kitchen');
+    const haClient = fakeHaClientWith([
+      { entity_id: 'media_player.kitchen', state: 'playing',
+        attributes: { media_artist: 'Solange', media_title: 'Weary', media_duration: 213 } },
+    ]);
+    const app = await buildHttpApp({ ...baseDeps(h), settings, haClient, musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+    expect(res.json()).toMatchObject({
+      entityId: 'media_player.kitchen',
+      artist: 'Solange',
+      title: 'Weary',
+      trackKey: 'solange|weary',
+      status: 'pinned',
+    });
+  });
+
+  it('GET now-playing reports an empty state when no entity is configured', async () => {
+    const h = harness();
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ entityId: null, status: 'no-entity' });
   });
 });

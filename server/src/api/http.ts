@@ -84,6 +84,9 @@ export type HttpDeps = {
   moodsDir?: () => string | null;
   musicVideoCache?: import('../musicvideo/cache.js').MusicVideoCache;
   musicVideoLookup?: import('../musicvideo/types.js').VideoLookup;
+  musicVideoOverrides?: import('../musicvideo/overrides.js').MusicVideoOverrideRepo;
+  /** Fired after any music-video override mutation, so the host can re-push. */
+  onMusicVideoOverridesChanged?: () => void;
   onSceneChanged?: (
     displayId: string,
     opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
@@ -277,6 +280,10 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
   registerMusicVideoRoutes(app, {
     cache: deps.musicVideoCache ?? null,
     lookup: deps.musicVideoLookup ?? null,
+    musicVideoOverrides: deps.musicVideoOverrides ?? null,
+    settings: deps.settings,
+    haClient: deps.haClient ?? null,
+    onOverridesChanged: deps.onMusicVideoOverridesChanged,
   });
 
   registerSceneRoutes(app, {
