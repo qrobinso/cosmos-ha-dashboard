@@ -283,7 +283,7 @@ export const api = {
       artist?: string;
       title?: string;
       trackKey?: string | null;
-      status: 'no-entity' | 'entity-missing' | 'nothing-playing' | 'pinned' | 'blocked' | 'auto' | 'nothing-found' | 'unresolved';
+      status: 'no-entity' | 'entity-missing' | 'nothing-playing' | 'non-music' | 'pinned' | 'blocked' | 'auto' | 'nothing-found' | 'unresolved';
       videoId?: string | null;
     }> {
       const res = await fetch('/api/musicvideo/now-playing');

@@ -8,6 +8,7 @@ import type { SettingsRepo } from '../store/settings.js';
 import type { HaClient } from '../ha/types.js';
 import { parseYouTubeId } from '../musicvideo/youtubeUrl.js';
 import { normalizeTrackKey } from '../musicvideo/trackKey.js';
+import { MV_NON_MUSIC_TYPES } from '../scenes/assembler.js';
 
 /** YouTube ids are 11 chars of [A-Za-z0-9_-]; be strict, this reaches fetch(). */
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{3,20}$/;
@@ -59,7 +60,12 @@ async function deriveStreamUrl(
   const p = (async () => {
     try {
       const url = await lookup.streamUrlFor(videoId);
-      if (url) cache.putStream(videoId, url, 0);
+      // streamUrlFor only re-derives the URL, not the duration. `duration`
+      // has no reader today (the widget reads it off the <video> element
+      // instead), so this would be harmless to get wrong — but keep it
+      // honest rather than clobbering a previously-known value to 0, in
+      // case something later wires it into SceneState.
+      if (url) cache.putStream(videoId, url, cache.peekStreamDuration(videoId));
       return url;
     } finally {
       inFlightUrls.delete(videoId);
@@ -260,6 +266,16 @@ export function registerMusicVideoRoutes(
     const a = (entity.attributes ?? {}) as Record<string, unknown>;
     const artist = typeof a.media_artist === 'string' ? a.media_artist : '';
     const title = typeof a.media_title === 'string' ? a.media_title : '';
+
+    // Mirror the assembler's denylist: a TV episode reports artist/title too,
+    // and without this check a pin here would look active but never play —
+    // the resolver skips lookups for these content types entirely.
+    const contentType =
+      typeof a.media_content_type === 'string' ? a.media_content_type.toLowerCase() : '';
+    if (MV_NON_MUSIC_TYPES.has(contentType)) {
+      return { entityId, state: entity.state, artist, title, trackKey: null, status: 'non-music' as const };
+    }
+
     const trackKey = normalizeTrackKey(artist, title);
     if (!trackKey) {
       return { entityId, state: entity.state, artist, title, trackKey: null, status: 'nothing-playing' as const };

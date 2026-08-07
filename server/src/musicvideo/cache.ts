@@ -48,6 +48,10 @@ export type MusicVideoCache = {
   /** null = absent or stale; the caller should re-derive. */
   getStream(videoId: string): CachedStream | null;
   putStream(videoId: string, streamUrl: string, duration: number): void;
+  /** Duration only, ignoring the URL's TTL — a re-derive that only has a
+   *  fresh URL (no duration of its own) can carry a previously known value
+   *  forward instead of clobbering it to 0. 0 if nothing was ever recorded. */
+  peekStreamDuration(videoId: string): number;
   invalidateStream(videoId: string): void;
   /** Drop expired negatives and stale stream URLs, then cap the lookup table.
    *  Returns how many rows went, for logging. Cheap enough to run hourly. */
@@ -130,6 +134,11 @@ export function createMusicVideoCache(
 
     putStream(videoId, streamUrl, duration) {
       upsertStream.run({ videoId, url: streamUrl, duration, at: now() });
+    },
+
+    peekStreamDuration(videoId) {
+      const row = selStream.get(videoId) as { duration: number } | undefined;
+      return row?.duration ?? 0;
     },
 
     invalidateStream(videoId) {

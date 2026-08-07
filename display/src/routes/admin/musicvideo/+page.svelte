@@ -6,7 +6,14 @@
   type NowPlaying = Awaited<ReturnType<typeof api.musicvideo.nowPlaying>>;
   type OverrideRow = Awaited<ReturnType<typeof api.musicvideo.listOverrides>>[number];
   type HistoryRow = Awaited<ReturnType<typeof api.musicvideo.listHistory>>[number];
-  type Target = { artist: string; title: string; trackKey: string };
+  type Target = {
+    artist: string;
+    title: string;
+    trackKey: string;
+    /** Status carried over from the row this target was prefilled from, used
+     *  only while no override exists yet — see activeStatus below. */
+    sourceStatus?: 'auto' | 'nothing-found';
+  };
 
   const POLL_MS = 5000;
   const STATUS_LABELS: Record<string, string> = {
@@ -18,6 +25,7 @@
     'no-entity': 'No player selected',
     'entity-missing': 'Player unavailable',
     'nothing-playing': 'Nothing playing',
+    'non-music': 'Not music — no video will play',
   };
   const STATUS_TAG_CLASS: Record<string, string> = {
     pinned: 'tag accent',
@@ -28,6 +36,7 @@
     'no-entity': 'tag muted',
     'entity-missing': 'tag danger',
     'nothing-playing': 'tag muted',
+    'non-music': 'tag muted',
   };
 
   let mediaPlayers: Array<{ entity_id: string; state: string; attributes: Record<string, unknown> }> = [];
@@ -62,7 +71,7 @@
       ? overrideForActive.videoId
         ? 'pinned'
         : 'blocked'
-      : 'unresolved'
+      : (target.sourceStatus ?? 'unresolved')
     : (nowPlaying?.status ?? 'no-entity');
 
   function statusLabel(status: string): string {
@@ -124,9 +133,18 @@
     }
   }
 
-  function prefill(row: { trackKey: string; artist: string | null; title: string | null }) {
+  function prefill(row: {
+    trackKey: string;
+    artist: string | null;
+    title: string | null;
+    /** Present on History rows (auto-match/miss); absent on Overrides rows,
+     *  where an override always exists and takes precedence anyway. */
+    videoId?: string | null;
+  }) {
     const [artist, title] = row.artist && row.title ? [row.artist, row.title] : splitTrackKey(row.trackKey);
-    target = { artist, title, trackKey: row.trackKey };
+    const sourceStatus: Target['sourceStatus'] =
+      'videoId' in row ? (row.videoId ? 'auto' : 'nothing-found') : undefined;
+    target = { artist, title, trackKey: row.trackKey, sourceStatus };
     pasteUrl = '';
     saveError = null;
     saveOk = null;
@@ -156,9 +174,12 @@
         saveError = res.error;
         return;
       }
+      // Deliberately leave `target` as-is: nulling it here would swap the
+      // header back to "Now playing" while the confirmation below still
+      // describes the song that was just pinned, misattributing it if that
+      // song isn't what's currently playing (see Recent → Pin).
       saveOk = { resolvedTitle: res.resolvedTitle, durationSec: res.durationSec };
       pasteUrl = '';
-      target = null;
       await refreshAll();
     } catch (err) {
       saveError = err instanceof Error ? err.message : 'Save failed.';
@@ -179,7 +200,6 @@
         return;
       }
       pasteUrl = '';
-      target = null;
       await refreshAll();
     } catch (err) {
       saveError = err instanceof Error ? err.message : 'Save failed.';

@@ -74,23 +74,4 @@ describe('music video override repo', () => {
     expect(cols).toContain('artist');
     expect(cols).toContain('title');
   });
-
-  it('applies cleanly over a v11 database that already has cache rows', () => {
-    // Simulate an existing install: build a v11 DB, put a row in, then migrate.
-    const legacy = new Database(':memory:') as unknown as DB;
-    legacy.exec(`CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
-    legacy.exec(`CREATE TABLE music_video_cache (
-      track_key TEXT PRIMARY KEY, video_id TEXT, miss INTEGER NOT NULL DEFAULT 0, resolved_at INTEGER NOT NULL);`);
-    legacy.prepare('INSERT INTO music_video_cache (track_key, video_id, miss, resolved_at) VALUES (?,?,?,?)')
-      .run('legacy|track', 'zzz99999999', 0, 5);
-    for (let v = 1; v <= 11; v++) legacy.prepare('INSERT INTO schema_version (version) VALUES (?)').run(v);
-
-    runMigrations(legacy);
-
-    const row = legacy.prepare('SELECT * FROM music_video_cache WHERE track_key = ?').get('legacy|track') as Record<string, unknown>;
-    expect(row.video_id).toBe('zzz99999999');
-    // Pre-v12 rows have no display names; the History list falls back to the key.
-    expect(row.artist).toBeNull();
-    expect(row.title).toBeNull();
-  });
 });

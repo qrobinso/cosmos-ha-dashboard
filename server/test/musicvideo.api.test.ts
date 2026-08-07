@@ -119,6 +119,30 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
     expect(cache.getStream('abc123')?.streamUrl).toBe('https://fresh/url');
   });
 
+  it("preserves a stale stream url's previously known duration on re-derive", async () => {
+    // duration currently has no reader, but the value must stay honest —
+    // deriveStreamUrl used to clobber it to 0 whenever it re-derived an
+    // expired url.
+    let t = 0;
+    const c = createMusicVideoCache(db, { now: () => t });
+    c.putStream('abc123', 'https://old/url', 214);
+    t = 5 * 60 * 60 * 1000; // past the 4h stream TTL — getStream now reports absent/stale
+    expect(c.getStream('abc123')).toBeNull();
+
+    const lookup2: VideoLookup = {
+      search: async () => ({ status: 'none' }),
+      streamUrlFor: vi.fn(async () => 'https://fresh/url'),
+      probe: async () => ({ status: 'none' }) as const,
+    };
+    const app2 = Fastify({ logger: false });
+    registerMusicVideoRoutes(app2, { cache: c, lookup: lookup2, fetchImpl: fetchImpl as unknown as typeof fetch });
+    await app2.ready();
+
+    const res = await app2.inject({ method: 'GET', url: '/api/musicvideo/stream/abc123' });
+    expect(res.statusCode).toBe(200);
+    expect(c.getStream('abc123')).toMatchObject({ streamUrl: 'https://fresh/url', duration: 214 });
+  });
+
   it('404s when the video cannot be resolved', async () => {
     lookup = {
       search: async () => ({ status: 'none' }),
@@ -368,6 +392,25 @@ describe('override routes', () => {
       title: 'Weary',
       trackKey: 'solange|weary',
       status: 'pinned',
+    });
+  });
+
+  it('GET now-playing reports non-music status for a denylisted content type, even if pinned', async () => {
+    const h = harness();
+    h.musicVideoOverrides.put({ trackKey: 'love island usa|s8 · e19', videoId: PIN, artist: 'Love Island USA', title: 'S8 · E19' });
+    const settings = createSettingsRepo(h.db);
+    settings.set('musicvideo.admin_entity', 'media_player.living_room');
+    const haClient = fakeHaClientWith([
+      { entity_id: 'media_player.living_room', state: 'playing',
+        attributes: { media_artist: 'Love Island USA', media_title: 'S8 · E19', media_content_type: 'tvshow' } },
+    ]);
+    const app = await buildHttpApp({ ...baseDeps(h), settings, haClient, musicVideoOverrides: h.musicVideoOverrides });
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/now-playing' });
+    expect(res.json()).toMatchObject({
+      entityId: 'media_player.living_room',
+      artist: 'Love Island USA',
+      title: 'S8 · E19',
+      status: 'non-music',
     });
   });
 
