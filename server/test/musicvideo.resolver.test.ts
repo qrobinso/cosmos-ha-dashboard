@@ -2,12 +2,34 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { openDatabase, type DB } from '../src/store/db.js';
 import { runMigrations } from '../src/store/migrations.js';
 import { createMusicVideoCache } from '../src/musicvideo/cache.js';
+import { createMusicVideoOverrideRepo } from '../src/musicvideo/overrides.js';
 import {
   createMusicVideoResolver,
   MAX_CONCURRENT_LOOKUPS,
   UNAVAILABLE_COOLDOWN_MS,
 } from '../src/musicvideo/resolver.js';
 import type { VideoLookup, ResolvedVideo, VideoSearchResult } from '../src/musicvideo/types.js';
+
+function freshDb(): DB {
+  const db = openDatabase(':memory:');
+  runMigrations(db);
+  return db;
+}
+
+/** A lookup whose result/behavior the test controls; records each search call. */
+function fakeLookup(opts: {
+  onSearch?: () => void;
+  result?: VideoSearchResult;
+}): VideoLookup {
+  return {
+    search: async (q) => {
+      opts.onSearch?.();
+      return opts.result ?? ({ status: 'none' } as const);
+    },
+    streamUrlFor: async () => null,
+    probe: async () => ({ status: 'none' }) as const,
+  };
+}
 
 const HEROES: ResolvedVideo = {
   videoId: 'abc123',
@@ -28,6 +50,7 @@ function deferredLookup() {
       });
     },
     streamUrlFor: async () => null,
+    probe: async () => ({ status: 'none' }) as const,
   };
   /** Release every pending search; `null` means "ran, found nothing". */
   const release = (v: ResolvedVideo | null | VideoSearchResult) => {
@@ -216,6 +239,7 @@ describe('createMusicVideoResolver', () => {
         return { status: 'unavailable' } as VideoSearchResult;
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
 
@@ -265,6 +289,7 @@ describe('createMusicVideoResolver', () => {
         return { status: 'unavailable' };
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const cache = createMusicVideoCache(db);
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
@@ -299,6 +324,7 @@ describe('createMusicVideoResolver', () => {
     const lookup: VideoLookup = {
       search: async () => ({ status: 'unavailable' }),
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const cache = createMusicVideoCache(db);
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn(), { now: () => clock });
@@ -315,6 +341,7 @@ describe('createMusicVideoResolver', () => {
     const lookup: VideoLookup = {
       search: async () => ({ status: 'unavailable' }),
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const cache = createMusicVideoCache(db);
     cache.putVideoId('david bowie|heroes', 'abc123');
@@ -337,6 +364,7 @@ describe('createMusicVideoResolver', () => {
         throw new Error('boom');
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const resolve = createMusicVideoResolver(lookup, cache, onUpdate);
 
@@ -354,6 +382,7 @@ describe('createMusicVideoResolver', () => {
         throw new Error('boom');
       },
       streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
     };
     const resolve = createMusicVideoResolver(lookup, cache, vi.fn());
 
@@ -368,5 +397,84 @@ describe('createMusicVideoResolver', () => {
     resolve('w1', { artist: 'A', title: 'B' });
     await flush();
     expect(calls).toBe(2);
+  });
+});
+
+describe('manual overrides', () => {
+  it('a pin beats a conflicting cache row, without spawning a lookup', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const overrides = createMusicVideoOverrideRepo(db);
+    let searches = 0;
+    const lookup = fakeLookup({ onSearch: () => { searches++; } });
+
+    cache.putVideoId('solange|weary', 'wrongidxxxx');
+    overrides.put({ trackKey: 'solange|weary', videoId: 'right123456', artist: 'Solange', title: 'Weary' });
+
+    const resolver = createMusicVideoResolver(lookup, cache, () => {}, { overrides });
+    expect(resolver('w1', { artist: 'Solange', title: 'Weary' })).toEqual({ videoId: 'right123456' });
+    expect(searches).toBe(0);
+  });
+
+  it('a block suppresses the lookup entirely', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const overrides = createMusicVideoOverrideRepo(db);
+    let searches = 0;
+    const lookup = fakeLookup({ onSearch: () => { searches++; } });
+
+    overrides.put({ trackKey: 'solange|weary', videoId: null, artist: 'Solange', title: 'Weary' });
+
+    const resolver = createMusicVideoResolver(lookup, cache, () => {}, { overrides });
+    expect(resolver('w1', { artist: 'Solange', title: 'Weary' })).toEqual({ videoId: null });
+    // Not merely "returned null" — it must not have gone looking.
+    expect(searches).toBe(0);
+    expect(resolver.inFlightCount()).toBe(0);
+  });
+
+  it('a block still suppresses after the negative-cache TTL would have expired', () => {
+    const db = freshDb();
+    let t = 0;
+    const cache = createMusicVideoCache(db, { now: () => t });
+    const overrides = createMusicVideoOverrideRepo(db, { now: () => t });
+    let searches = 0;
+    const lookup = fakeLookup({ onSearch: () => { searches++; } });
+
+    overrides.put({ trackKey: 'a|b', videoId: null, artist: 'A', title: 'B' });
+    const resolver = createMusicVideoResolver(lookup, cache, () => {}, { overrides, now: () => t });
+
+    t = 25 * 60 * 60 * 1000; // past NEGATIVE_TTL_MS
+    expect(resolver('w1', { artist: 'A', title: 'B' })).toEqual({ videoId: null });
+    expect(searches).toBe(0);
+  });
+
+  it('falls through to the normal path when no override exists', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const overrides = createMusicVideoOverrideRepo(db);
+    let searches = 0;
+    const lookup = fakeLookup({ onSearch: () => { searches++; } });
+
+    const resolver = createMusicVideoResolver(lookup, cache, () => {}, { overrides });
+    expect(resolver('w1', { artist: 'A', title: 'B' })).toEqual({ videoId: null });
+    expect(searches).toBe(1);
+  });
+
+  it('works with no overrides repo wired at all', () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const resolver = createMusicVideoResolver(fakeLookup({}), cache, () => {});
+    expect(() => resolver('w1', { artist: 'A', title: 'B' })).not.toThrow();
+  });
+
+  it('passes display names through to the cache so history is readable', async () => {
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const lookup = fakeLookup({ result: { status: 'none' } });
+    const resolver = createMusicVideoResolver(lookup, cache, () => {});
+
+    resolver('w1', { artist: 'Radiohead', title: 'Karma Police' });
+    await vi.waitFor(() => expect(cache.listRecent(10)).toHaveLength(1));
+    expect(cache.listRecent(10)[0].artist).toBe('Radiohead');
   });
 });

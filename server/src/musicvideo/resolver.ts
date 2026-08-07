@@ -2,6 +2,7 @@ import type { MusicVideoCache } from './cache.js';
 import { mvLog, mvWarn } from './log.js';
 import { normalizeTrackKey } from './trackKey.js';
 import type { VideoLookup } from './types.js';
+import type { MusicVideoOverrideRepo } from './overrides.js';
 
 export const DEFAULT_QUERY_SUFFIX = 'official music video';
 
@@ -60,9 +61,10 @@ export function createMusicVideoResolver(
   lookup: VideoLookup,
   cache: MusicVideoCache,
   onUpdate: (widgetId: string) => void,
-  opts: { now?: () => number } = {},
+  opts: { now?: () => number; overrides?: MusicVideoOverrideRepo } = {},
 ): MusicVideoResolver {
   const now = opts.now ?? (() => Date.now());
+  const overrides = opts.overrides ?? null;
 
   /** trackKey → widgetIds awaiting that lookup. Dedupes concurrent searches. */
   const inFlight = new Map<string, Set<string>>();
@@ -100,7 +102,7 @@ export function createMusicVideoResolver(
         if (found.status === 'ok') {
           videoId = found.video.videoId;
           cache.putStream(found.video.videoId, found.video.streamUrl, found.video.duration);
-          cache.putVideoId(trackKey, videoId);
+          cache.putVideoId(trackKey, videoId, { artist: hint.artist, title: hint.title });
           mvLog(
             `lookup ok    key="${trackKey}" videoId=${videoId} ` +
               `duration=${found.video.duration}s title="${found.video.title}" in ${ms}ms`,
@@ -108,8 +110,18 @@ export function createMusicVideoResolver(
         } else if (found.status === 'none') {
           // The lookup RAN and found nothing — negative-cache it so we stop
           // respawning yt-dlp for an unmatchable track.
-          cache.putVideoId(trackKey, null);
-          mvLog(`lookup none  key="${trackKey}" negative-cached 24h in ${ms}ms`);
+          cache.putVideoId(trackKey, null, {
+            artist: hint.artist,
+            title: hint.title,
+            // Kept so the admin page can explain the empty slot instead of
+            // just asserting one. Without this the only account of why a song
+            // shows nothing lives in the server log.
+            reason: found.reason,
+          });
+          mvLog(
+            `lookup none  key="${trackKey}" negative-cached 24h in ${ms}ms` +
+              (found.reason ? ` reason="${found.reason}"` : ''),
+          );
         } else {
           // 'unavailable' (yt-dlp missing / spawn refused) writes nothing to
           // the cache: the lookup never ran, so there is no result to
@@ -157,6 +169,20 @@ export function createMusicVideoResolver(
           `artist=${JSON.stringify(track.artist ?? null)} title=${JSON.stringify(track.title ?? null)}`,
       );
       return { videoId: null };
+    }
+
+    // A manual override outranks everything — cache, cooldowns, concurrency
+    // caps, the lot. It is an explicit user decision, so nothing automatic
+    // gets to second-guess it, and a stale or wrong cache row is simply
+    // shadowed rather than needing deletion.
+    const override = overrides?.get(trackKey);
+    if (override) {
+      mvLog(
+        override.videoId
+          ? `override pin  key="${trackKey}" videoId=${override.videoId}`
+          : `override block key="${trackKey}" — widget stays hidden by user request`,
+      );
+      return { videoId: override.videoId };
     }
 
     const cached = cache.getVideoId(trackKey);

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { api } from '$lib/admin/api';
+  import { agentOpen } from '$lib/admin/agentPanel';
 
   type Scene = Awaited<ReturnType<typeof api.scenes.list>>[number];
   type Display = Awaited<ReturnType<typeof api.displays.list>>[number];
@@ -16,6 +17,11 @@
   let loadedDisplayId: string | null = null;
   let pollHandle: ReturnType<typeof setInterval> | null = null;
 
+  /** Anything currently playing on any media_player, so the card appears
+   *  without the user first nominating a device. */
+  type NowPlaying = { entityId: string; player: string; artist: string; title: string };
+  let nowPlaying: NowPlaying[] = [];
+
   // 60s online threshold matches the Displays page convention.
   function isOnline(d: Display): boolean {
     if (!d.lastSeen) return false;
@@ -27,10 +33,37 @@
   }
 
   async function refresh() {
-    const [s, ds] = await Promise.all([api.scenes.list(), api.displays.list()]);
+    const [s, ds, players] = await Promise.all([
+      api.scenes.list(),
+      api.displays.list(),
+      // Never let a media read break the page it decorates.
+      api.ha.listEntities('media_player').catch(() => []),
+    ]);
     scenes = s;
     displays = ds;
+    nowPlaying = readNowPlaying(players);
     loading = false;
+  }
+
+  /** Every player actually playing something with a title. A player can be
+   *  'playing' with no metadata (a stream just starting), which would render
+   *  an empty row, so a title is required. */
+  function readNowPlaying(
+    players: Array<{ entity_id: string; state: string; attributes: Record<string, unknown> }>,
+  ): NowPlaying[] {
+    return players
+      .filter((p) => p.state === 'playing')
+      .map((p) => {
+        const a = p.attributes ?? {};
+        const str = (v: unknown) => (typeof v === 'string' ? v : '');
+        return {
+          entityId: p.entity_id,
+          player: str(a.friendly_name) || p.entity_id,
+          artist: str(a.media_artist),
+          title: str(a.media_title),
+        };
+      })
+      .filter((n) => n.title !== '');
   }
 
   async function activate(displayName: string, displayId: string, sceneId: string) {
@@ -91,16 +124,43 @@
 
 <header class="hero reveal reveal-1">
   <h1>Overview</h1>
-  <a class="agent-cta" href="/admin/agent">
+  <!-- Opens the same slide-over as the topbar icon: one action, one behaviour. -->
+  <button class="agent-cta" type="button" on:click={() => agentOpen.set(true)}>
     <span class="agent-cta-icon" aria-hidden="true">✨</span>
     <span class="agent-cta-label">Ask the agent</span>
     <span class="agent-cta-arrow" aria-hidden="true">→</span>
-  </a>
+  </button>
 </header>
 
 {#if loading}
   <p class="loading">Loading…</p>
 {:else}
+  {#if nowPlaying.length > 0}
+    <!-- Only rendered while something is actually playing: a permanent empty
+         "nothing playing" panel above the displays would be pure noise. -->
+    <a class="now-playing reveal reveal-2" href="/admin/musicvideo">
+      <span class="np-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M9 18V5l11-2v13" />
+          <circle cx="6.5" cy="18" r="2.5" />
+          <circle cx="17.5" cy="16" r="2.5" />
+        </svg>
+      </span>
+      <span class="np-body">
+        <span class="np-label">Now playing</span>
+        {#each nowPlaying as n (n.entityId)}
+          <span class="np-track">
+            <strong>{n.artist ? `${n.artist} — ${n.title}` : n.title}</strong>
+            <span class="np-player">{n.player}</span>
+          </span>
+        {/each}
+      </span>
+      <span class="np-cta">
+        Video backdrop<span class="np-arrow" aria-hidden="true">→</span>
+      </span>
+    </a>
+  {/if}
+
   {#if displays.length === 0}
     <section class="empty-card reveal reveal-2">
       <h2>No displays yet</h2>
@@ -222,6 +282,95 @@
 {/if}
 
 <style>
+  /* Now playing — a link, not a panel: its whole job is to get you to the
+     Video Backdrop page for the song you can currently hear. */
+  .now-playing {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 1.25rem;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius-md, 14px);
+    color: var(--c-fg);
+    text-decoration: none;
+    transition: background 150ms var(--ease), border-color 150ms var(--ease);
+  }
+  .now-playing:hover {
+    background: var(--c-surface-hover);
+    border-color: var(--c-line-strong);
+  }
+  .np-icon {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 999px;
+    background: var(--c-accent-tint);
+    color: var(--c-accent);
+  }
+  .np-icon svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .np-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
+  }
+  .np-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-fg-3);
+  }
+  .np-track {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .np-track strong {
+    font-weight: 600;
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .np-player {
+    flex: none;
+    font-size: 0.78rem;
+    color: var(--c-fg-3);
+  }
+  .np-cta {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--c-accent);
+  }
+  .np-arrow { transition: transform 150ms var(--ease); }
+  .now-playing:hover .np-arrow { transform: translateX(3px); }
+
+  @media (max-width: 599px) {
+    /* The player name and CTA label are the first things to go — the track
+       itself is what the user is scanning for. */
+    .np-player { display: none; }
+    .np-cta { font-size: 0; gap: 0; }
+    .np-arrow { font-size: 1rem; }
+  }
+
   .hero {
     margin-bottom: 2rem;
     display: flex;

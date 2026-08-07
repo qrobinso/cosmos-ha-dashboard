@@ -1,5 +1,5 @@
 name: Cosmos
-version: "0.7.1"
+version: "0.8.0"
 slug: cosmos_dashboard
 description: A beautiful wall dashboard for Home Assistant.
 url: https://github.com/qrobinso/cosmos-ha-dashboard
@@ -25,7 +25,7 @@ map:
   - addon_config:rw
 options:
   log_level: info
-  # Verbose tracing for the music video widget: which candidate videos were
+  # Verbose tracing for the video backdrop widget: which candidate videos were
   # considered, why one was picked, and why nothing plays when nothing does.
   log_musicvideo: false
   # MQTT — leave blank to auto-discover via Supervisor (the bundled

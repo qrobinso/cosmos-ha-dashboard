@@ -188,6 +188,28 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 12,
+    up: `
+      CREATE TABLE music_video_override (
+        track_key  TEXT PRIMARY KEY,
+        video_id   TEXT,
+        artist     TEXT NOT NULL,
+        title      TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      ALTER TABLE music_video_cache ADD COLUMN artist TEXT;
+      ALTER TABLE music_video_cache ADD COLUMN title TEXT;
+    `,
+  },
+  {
+    version: 13,
+    up: `
+      -- Why a lookup found nothing, in words a user can act on. Written only
+      -- for negative results; NULL on hits and on pre-v13 rows.
+      ALTER TABLE music_video_cache ADD COLUMN reason TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

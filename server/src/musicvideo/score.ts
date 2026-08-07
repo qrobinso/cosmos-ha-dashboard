@@ -124,15 +124,42 @@ export function isArtistChannel(channel: string, artist: string | undefined): bo
   return containsEither(channel, artist);
 }
 
+/**
+ * Strip diacritics so one ASCII pattern matches every accented spelling.
+ *
+ * Without this, matching "vídeo" or "officielle" means either duplicating
+ * every pattern per accent or relying on `\b`, which is defined by the ASCII
+ * `\w` — so in "vídeo" JavaScript sees a word boundary between "v" and "í"
+ * and `/\bvídeo\b/` silently fails. Folding first sidesteps all of it.
+ */
+function fold(title: string): string {
+  return title.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Patterns are matched against the DIACRITIC-FOLDED title, so write them in
+ * plain ASCII: "letra" catches "Letra", "vivo" catches "vívo".
+ *
+ * The non-English entries are load-bearing rather than decorative. The
+ * official/video check below accepts several languages, and without matching
+ * disqualifiers a Spanish lyric video on the artist's own channel would sail
+ * through — trading one wrong answer for another.
+ */
 const TITLE_PENALTIES: Array<{ pattern: RegExp; points: number }> = [
   { pattern: /karaoke/i, points: -40 },
   { pattern: /reaction/i, points: -40 },
-  { pattern: /\blive\b|live at|live from/i, points: -35 },
+  {
+    // en vivo / ao vivo / en directo / dal vivo are the Romance-language
+    // equivalents of "live". Matched as phrases, not on a bare "vivo", which
+    // turns up inside artist and album names.
+    pattern: /\blive\b|live at|live from|en vivo|ao vivo|en directo|dal vivo/i,
+    points: -35,
+  },
   { pattern: /\bcover\b/i, points: -30 },
   { pattern: /full album/i, points: -30 },
   // An explicit "(Audio)" label is the artist telling us this is not a video.
   { pattern: /\baudio\b/i, points: -35 },
-  { pattern: /lyrics?/i, points: -25 },
+  { pattern: /lyrics?|\bletras?\b|\bparoles\b|\btesto\b|\bliedtext\b/i, points: -25 },
   { pattern: /remix/i, points: -25 },
   { pattern: /sped up|slowed/i, points: -25 },
   { pattern: /instrumental/i, points: -20 },
@@ -142,12 +169,33 @@ const TITLE_PENALTIES: Array<{ pattern: RegExp; points: number }> = [
  * "Official" and "video" both present, in any order and not necessarily
  * adjacent — `Official Video`, `Official Music Video`, `[Official] … Video`
  * all count. Matched loosely on purpose, since orderings vary widely.
+ *
+ * Both accept the common non-English spellings. This is not politeness: the
+ * English-only version silently discarded EVERY Spanish-language official
+ * video, because artists label them "Video Oficial". That was found in a real
+ * library, where Bad Bunny's own videos on his own channel were being
+ * rejected — a systematic blind spot across whole catalogues, not an edge case.
+ *
+ * Matched against the folded title, so no accent variants are needed here.
  */
-const OFFICIAL_WORD = /\bofficial\b/i;
-const VIDEO_WORD = /\bvideos?\b/i;
+const OFFICIAL_WORD =
+  /\b(?:official|oficial|officiel(?:le)?s?|offiziell(?:es|e|er)?|ufficiale)\b/i;
+
+/**
+ * `video` is matched as a SUBSTRING rather than a whole word, because the
+ * compounds are where the other languages live: "Musikvideo", "Videoclip",
+ * "videoclipe". `clip` / `clipe` are whole-word, since French and Portuguese
+ * label a music video that way with no "video" in sight ("Clip Officiel").
+ *
+ * Loose matching is safe here only because it is one of THREE requirements —
+ * the title must also claim to be official, and the upload must be on the
+ * artist's own channel.
+ */
+const VIDEO_WORD = /video|\bclips?\b|\bclipes?\b/i;
 
 export function hasOfficialVideoWords(title: string): boolean {
-  return OFFICIAL_WORD.test(title) && VIDEO_WORD.test(title);
+  const folded = fold(title);
+  return OFFICIAL_WORD.test(folded) && VIDEO_WORD.test(folded);
 }
 
 function titleScore(title: string, ctxTitle: string | undefined): number {
@@ -162,8 +210,9 @@ function titleScore(title: string, ctxTitle: string | undefined): number {
     if (!containsEither(title, ctxTitle)) score -= 20;
   }
 
+  const folded = fold(title);
   for (const { pattern, points } of TITLE_PENALTIES) {
-    if (pattern.test(title)) score += points;
+    if (pattern.test(folded)) score += points;
   }
 
   return score;
@@ -235,8 +284,9 @@ export function explainCandidate(
   if (ctx.title && ctx.title.length >= 3 && !containsEither(c.title, ctx.title)) {
     reasons.push(`title does not contain "${ctx.title}" ${fmt(-20)}`);
   }
+  const foldedTitle = fold(c.title);
   for (const { pattern, points } of TITLE_PENALTIES) {
-    if (pattern.test(c.title)) {
+    if (pattern.test(foldedTitle)) {
       reasons.push(`title matches /${pattern.source}/ ${fmt(points)}`);
     }
   }

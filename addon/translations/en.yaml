@@ -3,9 +3,9 @@ configuration:
     name: Log level
     description: Verbosity of the Cosmos server logs. `trace`/`debug` enable verbose Node logging.
   log_musicvideo:
-    name: Music video tracing
+    name: Video backdrop tracing
     description: >-
-      Log which YouTube candidates the music video widget considered, how each
+      Log which YouTube candidates the video backdrop widget considered, how each
       scored, and why nothing plays when nothing does. Errors are always logged;
       this adds the detail. Leave off for normal use.
 network:

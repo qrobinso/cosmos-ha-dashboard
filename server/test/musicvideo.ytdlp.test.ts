@@ -104,13 +104,13 @@ describe('createYtDlpLookup — two-phase search', () => {
     const lookup = createYtDlpLookup({
       spawnFn: async () => ({ ok: false, stdout: '' }),
     });
-    expect(await lookup.search('nope')).toEqual({ status: 'none' });
+    expect(await lookup.search('nope')).toMatchObject({ status: 'none' });
   });
 
   it("yields 'none' when phase 1 succeeds but phase 2 fails", async () => {
     const { spawnFn } = twoPhaseFake({ flatLines: [flatJson()], phase2Ok: false });
     const lookup = createYtDlpLookup({ spawnFn });
-    expect(await lookup.search('x')).toEqual({ status: 'none' });
+    expect(await lookup.search('x')).toMatchObject({ status: 'none' });
   });
 
   it("yields 'unavailable' when the phase-1 spawn itself fails", async () => {
@@ -124,14 +124,14 @@ describe('createYtDlpLookup — two-phase search', () => {
     const lookup = createYtDlpLookup({
       spawnFn: async () => ({ ok: true, stdout: 'not json at all' }),
     });
-    expect(await lookup.search('nope')).toEqual({ status: 'none' });
+    expect(await lookup.search('nope')).toMatchObject({ status: 'none' });
   });
 
   it("reports 'none' on empty stdout (no search results)", async () => {
     const lookup = createYtDlpLookup({
       spawnFn: async () => ({ ok: true, stdout: '   \n' }),
     });
-    expect(await lookup.search('nope')).toEqual({ status: 'none' });
+    expect(await lookup.search('nope')).toMatchObject({ status: 'none' });
   });
 
   it('defaults duration to 0 when phase 2 does not report one', async () => {
@@ -231,5 +231,55 @@ describe('probeYtDlpAvailable', () => {
         },
       }),
     ).resolves.toBe(false);
+  });
+});
+
+describe('probe', () => {
+  const ID = 'dQw4w9WgXcQ';
+
+  it('returns ok with title, duration and stream url for a playable video', async () => {
+    const calls: string[][] = [];
+    const lookup = createYtDlpLookup({
+      spawnFn: async (args) => {
+        calls.push(args);
+        return {
+          ok: true,
+          stdout: JSON.stringify({
+            id: ID,
+            title: 'Some Artist - Some Song (Official Video)',
+            duration: 213,
+            url: 'https://rr1.googlevideo.com/videoplayback?stream',
+          }),
+        };
+      },
+    });
+
+    const r = await lookup.probe(ID);
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') throw new Error('unreachable');
+    expect(r.video).toEqual({
+      videoId: ID,
+      title: 'Some Artist - Some Song (Official Video)',
+      duration: 213,
+      streamUrl: 'https://rr1.googlevideo.com/videoplayback?stream',
+    });
+    // Exactly one spawn — probe must not run a search.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].join(' ')).toContain(`https://www.youtube.com/watch?v=${ID}`);
+  });
+
+  it('returns none for a video that cannot be resolved (private, removed, region-locked)', async () => {
+    const lookup = createYtDlpLookup({
+      spawnFn: async () => ({ ok: false, stdout: '' }),
+    });
+    expect((await lookup.probe(ID)).status).toBe('none');
+  });
+
+  it('returns unavailable when yt-dlp itself cannot be started', async () => {
+    const lookup = createYtDlpLookup({
+      spawnFn: async () => ({ ok: false, stdout: '', spawnFailed: true }),
+    });
+    // Distinct from `none`: the video may be perfectly fine, we just could not check.
+    expect((await lookup.probe(ID)).status).toBe('unavailable');
   });
 });

@@ -25,7 +25,7 @@
 </script>
 
 <Section label="Source">
-  <Field label="Media player" hint="Resolves the YouTube video for whatever this player is currently playing.">
+  <Field label="Media player" hint="Resolves the official video for whatever this player is currently playing.">
     <EntityPicker
       value={str('entity_id')}
       entities={mediaPlayers}

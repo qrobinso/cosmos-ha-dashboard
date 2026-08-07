@@ -193,3 +193,105 @@ describe('MusicVideo — element', () => {
     expect((await mount(widget()))!.getAttribute('src')).toBe('/api/musicvideo/stream/abc123');
   });
 });
+
+describe('MusicVideo — a pin landing mid-song', () => {
+  /**
+   * jsdom has no media pipeline: `duration` is NaN and `currentTime` is inert.
+   * Stub both so the seek arithmetic under test is observable.
+   */
+  function stubMedia(el: HTMLVideoElement, duration: number) {
+    let current = 0;
+    Object.defineProperty(el, 'duration', { value: duration, configurable: true });
+    Object.defineProperty(el, 'currentTime', {
+      get: () => current,
+      set: (v: number) => { current = v; },
+      configurable: true,
+    });
+    Object.defineProperty(el, 'paused', { value: false, configurable: true });
+    el.play = () => Promise.resolve();
+  }
+
+  /** A widget whose media player is 90s into a track. */
+  function playingAt(seconds: number, videoId: string | null) {
+    return {
+      id: 'w1',
+      kind: 'musicvideo',
+      position: { col: 1, row: 1, w: 2, h: 2 },
+      config: { fade_ms: 0 },
+      data: {
+        entity_id: 'media_player.x',
+        video_id: videoId,
+        state: 'playing',
+        position: seconds,
+        // Stamped now, so elapsed-since-anchor is ~0 and the expected seek is
+        // exactly `position`.
+        position_updated_at: new Date().toISOString(),
+        duration: 240,
+      },
+    } as unknown as WidgetState;
+  }
+
+  it('starts a newly pinned video at the song position, not from zero', async () => {
+    // The song has been playing 90s with nothing on screen — the widget was
+    // hidden because automatic matching found no video.
+    await mount(playingAt(90, null), { settle: false });
+    expect(video()).toBeNull();
+
+    // The pin lands and the server re-pushes with a video id.
+    await retrack(playingAt(90, 'pinned12345'));
+    const el = video()!;
+    expect(el).not.toBeNull();
+
+    stubMedia(el, 213);
+    el.dispatchEvent(new Event('loadedmetadata'));
+    await tick();
+
+    // Must join the song already in progress, not restart it.
+    expect(el.currentTime).toBeGreaterThan(89);
+    expect(el.currentTime).toBeLessThan(92);
+  });
+
+  it('plays the pinned video rather than leaving it paused', async () => {
+    await mount(playingAt(90, null), { settle: false });
+    await retrack(playingAt(90, 'pinned12345'));
+    const el = video()!;
+
+    let played = false;
+    Object.defineProperty(el, 'duration', { value: 213, configurable: true });
+    Object.defineProperty(el, 'currentTime', {
+      get: () => 0, set: () => {}, configurable: true,
+    });
+    el.play = () => { played = true; return Promise.resolve(); };
+
+    el.dispatchEvent(new Event('loadedmetadata'));
+    await tick();
+
+    expect(played).toBe(true);
+  });
+
+  it('wraps into a video shorter than the elapsed song position', async () => {
+    // 200s into the song, but the pinned video only runs 120s.
+    await mount(playingAt(200, null), { settle: false });
+    await retrack(playingAt(200, 'shortvid123'));
+    const el = video()!;
+
+    stubMedia(el, 120);
+    el.dispatchEvent(new Event('loadedmetadata'));
+    await tick();
+
+    // 200 % 120 = 80 — inside the video rather than past its end.
+    expect(el.currentTime).toBeGreaterThan(79);
+    expect(el.currentTime).toBeLessThan(82);
+  });
+
+  it('becomes visible once the pinned video can play', async () => {
+    await mount(playingAt(90, null), { settle: false });
+    await retrack(playingAt(90, 'pinned12345'));
+    const el = video()!;
+
+    expect(el.style.opacity).toBe('0');
+    el.dispatchEvent(new Event('canplay'));
+    await tick();
+    expect(el.style.opacity).toBe('1');
+  });
+});

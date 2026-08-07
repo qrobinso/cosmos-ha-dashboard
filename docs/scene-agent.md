@@ -69,7 +69,7 @@ type WidgetKind =
 
 Every cell of a widget's rectangle must fit inside `cols × rows`.
 
-Widgets **may** overlap. Stacking order is the order of the `widgets` array (later sits on top), or set `config.layer` explicitly on any kind: `-1` behind its overlapping siblings, `0` default, `1` in front. Overlap is worth reaching for in exactly one situation — a full-bleed backdrop with content on top (see the music video recipe below). Otherwise keep widgets apart; overlapping text is unreadable from across a room.
+Widgets **may** overlap. Stacking order is the order of the `widgets` array (later sits on top), or set `config.layer` explicitly on any kind: `-1` behind its overlapping siblings, `0` default, `1` in front. Overlap is worth reaching for in exactly one situation — a full-bleed backdrop with content on top (see the video backdrop recipe below). Otherwise keep widgets apart; overlapping text is unreadable from across a room.
 
 ### Typography
 
@@ -145,9 +145,9 @@ If the user gave style direction (a described aesthetic, named colors/fonts, "ma
 
 ### Canvas pairing rule
 
-### The `musicvideo` widget
+### The `musicvideo` widget (Video Backdrop)
 
-Plays the official YouTube music video for whatever a `media_player` is currently playing. Muted — audio stays on the Home Assistant speaker — and position-synced to the track.
+Plays the official YouTube video for whatever a `media_player` is currently playing, as a backdrop. Muted — audio stays on the Home Assistant speaker — and position-synced to the track.
 
 ```jsonc
 {

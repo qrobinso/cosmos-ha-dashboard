@@ -263,6 +263,86 @@ export const api = {
       });
     },
   },
+  musicvideo: {
+    async getSettings(): Promise<{ entityId: string | null }> {
+      const res = await fetch('/api/musicvideo/settings');
+      return (await res.json()) as { entityId: string | null };
+    },
+    async setSettings(entityId: string): Promise<{ entityId: string | null }> {
+      const res = await fetch('/api/musicvideo/settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ entityId }),
+      });
+      await ensureOk(res);
+      return (await res.json()) as { entityId: string | null };
+    },
+    async nowPlaying(): Promise<{
+      entityId: string | null;
+      state?: string;
+      artist?: string;
+      title?: string;
+      trackKey?: string | null;
+      status: 'no-entity' | 'entity-missing' | 'nothing-playing' | 'non-music' | 'pinned' | 'blocked' | 'auto' | 'nothing-found' | 'unresolved';
+      videoId?: string | null;
+    }> {
+      const res = await fetch('/api/musicvideo/now-playing');
+      return (await res.json());
+    },
+    async listOverrides(): Promise<
+      Array<{ trackKey: string; videoId: string | null; artist: string; title: string; createdAt: string }>
+    > {
+      return jsonOr(await fetch('/api/musicvideo/overrides'), []);
+    },
+    /** One page of recent resolutions, or — with a query — of a search across
+     *  every song the server remembers, not merely a filter over that page.
+     *  `total` counts everything the query reaches, so the caller can page. */
+    async listHistory(
+      opts: { query?: string; limit?: number; offset?: number } = {},
+    ): Promise<{
+      rows: Array<{ trackKey: string; videoId: string | null; miss: boolean; artist: string | null; title: string | null; reason: string | null; resolvedAt: number }>;
+      total: number;
+      limit: number;
+      offset: number;
+    }> {
+      const params = new URLSearchParams();
+      const q = (opts.query ?? '').trim();
+      if (q) params.set('q', q);
+      if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+      if (opts.offset) params.set('offset', String(opts.offset));
+      const qs = params.toString();
+      const empty = { rows: [], total: 0, limit: opts.limit ?? 50, offset: opts.offset ?? 0 };
+      return jsonOr(await fetch(`/api/musicvideo/history${qs ? `?${qs}` : ''}`), empty);
+    },
+    /** Returns the parsed body even on a non-2xx — Task 6's error messages are meant to be shown verbatim. */
+    async pin(payload: { artist: string; title: string; url: string }): Promise<
+      { ok: true; trackKey: string; videoId: string; resolvedTitle: string; durationSec: number } | { ok: false; error: string }
+    > {
+      const res = await fetch('/api/musicvideo/overrides', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) return { ok: false, error: body?.error ?? 'Save failed.' };
+      return { ok: true, ...body };
+    },
+    async block(payload: { artist: string; title: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+      const res = await fetch('/api/musicvideo/overrides', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...payload, block: true }),
+      });
+      const body = await res.json();
+      if (!res.ok) return { ok: false, error: body?.error ?? 'Save failed.' };
+      return { ok: true };
+    },
+    async removeOverride(trackKey: string): Promise<void> {
+      await ensureOk(
+        await fetch(`/api/musicvideo/overrides/${encodeURIComponent(trackKey)}`, { method: 'DELETE' })
+      );
+    },
+  },
   docs: {
     async list(): Promise<{ slug: string; title: string }[]> {
       return jsonOr(await fetch('/api/docs'), []);

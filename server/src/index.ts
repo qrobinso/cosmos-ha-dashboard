@@ -23,6 +23,7 @@ import { createMusicVideoCache } from './musicvideo/cache.js';
 import { mvLog } from './musicvideo/log.js';
 import { createYtDlpLookup, probeYtDlpAvailable } from './musicvideo/ytdlp.js';
 import { createMusicVideoResolver } from './musicvideo/resolver.js';
+import { createMusicVideoOverrideRepo } from './musicvideo/overrides.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
 import { createCalendarCache } from './ha/calendarCache.js';
@@ -50,6 +51,7 @@ async function main() {
   const db = openDatabase(config.dbPath);
   runMigrations(db);
   const musicVideoCache = createMusicVideoCache(db);
+  const musicVideoOverrides = createMusicVideoOverrideRepo(db);
   // The music-video tables are written on every newly played track and were
   // never pruned. Sweep at boot and hourly: expired negatives and stale stream
   // URLs are already ignored by reads, so they are pure dead weight, and the
@@ -274,6 +276,16 @@ async function main() {
     haToken: effectiveHaToken, // matching auth token for the proxy's upstream fetches
     musicVideoCache,
     musicVideoLookup,
+    musicVideoOverrides,
+    // Getter: the resolver is built further down, after this app.
+    musicVideoResolver: () => musicVideoResolver,
+    onMusicVideoOverridesChanged: () => {
+      // An override changes what plays for a song globally, and the API layer
+      // has no widget ids to narrow this with. Displays are few and this fires
+      // only on an explicit admin action, so a blanket re-push is the right
+      // trade against threading widget ids through the route.
+      for (const d of displays.list()) markDisplayDirty(d.id);
+    },
     moodsDir: () => resolveMoodsDir({ explicit: config.moodsDir, staticDir: config.staticDir, repoRoot: __cosmos_repo_root }),
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
@@ -461,6 +473,7 @@ async function main() {
         if (scene.widgets.some((w) => w.id === widgetId)) markDisplayDirty(d.id);
       }
     },
+    { overrides: musicVideoOverrides },
   );
 
   const wss = attachWsHub(app.server, {

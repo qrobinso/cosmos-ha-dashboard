@@ -3,6 +3,11 @@ import { buildSceneState } from '../src/scenes/assembler.js';
 import type { Scene } from '../src/store/scenes.js';
 import type { EntityState } from '../src/scenes/types.js';
 import type { MusicVideoData } from '../src/scenes/types.js';
+import { openDatabase } from '../src/store/db.js';
+import { runMigrations } from '../src/store/migrations.js';
+import { createMusicVideoCache } from '../src/musicvideo/cache.js';
+import { createMusicVideoOverrideRepo } from '../src/musicvideo/overrides.js';
+import { createMusicVideoResolver } from '../src/musicvideo/resolver.js';
 
 const SAFE_AREA = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -222,5 +227,103 @@ describe('assembler — musicvideo widget', () => {
       musicVideoResolver: () => ({ videoId: null }),
     });
     expect((state.widgets[0].data as MusicVideoData).video_id).toBeNull();
+  });
+});
+
+describe('assembler — a saved pin reaches the display', () => {
+  /**
+   * End to end across the real pieces, no fakes except yt-dlp: override repo →
+   * resolver → assembler. This is the guarantee the admin page depends on —
+   * saving a pin marks displays dirty, and the very next push must carry the
+   * pinned video at the song's current position, so the wall joins the track
+   * already in progress instead of restarting it.
+   */
+  function realStack() {
+    const db = openDatabase(':memory:');
+    runMigrations(db);
+    const cache = createMusicVideoCache(db);
+    const overrides = createMusicVideoOverrideRepo(db);
+    let searches = 0;
+    const lookup = {
+      search: async () => { searches++; return { status: 'none' } as const; },
+      streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' } as const),
+    };
+    const resolver = createMusicVideoResolver(lookup, cache, () => {}, { overrides });
+    return { cache, overrides, resolver, searchCount: () => searches };
+  }
+
+  it('serves the pinned video on the next push, with the live song position', async () => {
+    const { overrides, resolver, searchCount } = realStack();
+
+    // Automatic matching found nothing for this track.
+    const before = await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      { resolveEntity: () => playingEntity(), musicVideoResolver: resolver },
+    );
+    expect((before.widgets[0].data as MusicVideoData).video_id).toBeNull();
+
+    // The user pins one from the admin page.
+    overrides.put({
+      trackKey: 'david bowie|heroes',
+      videoId: 'pinned12345',
+      artist: 'David Bowie',
+      title: 'Heroes',
+    });
+
+    const after = await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      { resolveEntity: () => playingEntity(), musicVideoResolver: resolver },
+    );
+    const data = after.widgets[0].data as MusicVideoData;
+
+    expect(data.video_id).toBe('pinned12345');
+    // The widget seeks using these two together; without them it would restart
+    // the video from zero on a pin saved mid-song.
+    expect(data.position).toBe(42);
+    expect(data.position_updated_at).toBe('2026-08-02T10:00:00+00:00');
+    expect(data.state).toBe('playing');
+    // A pin must not cost a lookup — it is already the answer.
+    expect(searchCount()).toBe(1); // only the pre-pin resolve searched
+  });
+
+  it('keeps serving the pin after the song is re-resolved, without searching again', async () => {
+    const { overrides, resolver, searchCount } = realStack();
+    overrides.put({
+      trackKey: 'david bowie|heroes',
+      videoId: 'pinned12345',
+      artist: 'David Bowie',
+      title: 'Heroes',
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const state = await buildSceneState(
+        scene({ entity_id: 'media_player.living_room' }),
+        SAFE_AREA,
+        { resolveEntity: () => playingEntity(), musicVideoResolver: resolver },
+      );
+      expect((state.widgets[0].data as MusicVideoData).video_id).toBe('pinned12345');
+    }
+    expect(searchCount()).toBe(0);
+  });
+
+  it('hides the widget for a blocked song and never looks one up', async () => {
+    const { overrides, resolver, searchCount } = realStack();
+    overrides.put({
+      trackKey: 'david bowie|heroes',
+      videoId: null,
+      artist: 'David Bowie',
+      title: 'Heroes',
+    });
+
+    const state = await buildSceneState(
+      scene({ entity_id: 'media_player.living_room' }),
+      SAFE_AREA,
+      { resolveEntity: () => playingEntity(), musicVideoResolver: resolver },
+    );
+    expect((state.widgets[0].data as MusicVideoData).video_id).toBeNull();
+    expect(searchCount()).toBe(0);
   });
 });

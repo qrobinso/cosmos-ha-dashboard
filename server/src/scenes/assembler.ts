@@ -347,7 +347,7 @@ const MV_ACTIVE_STATES = new Set(['playing', 'paused', 'buffering']);
  * integrations report no content type at all, or a custom one, and those
  * should still get a lookup.
  */
-const MV_NON_MUSIC_TYPES = new Set(['tvshow', 'episode', 'movie', 'video', 'game', 'app', 'url']);
+export const MV_NON_MUSIC_TYPES = new Set(['tvshow', 'episode', 'movie', 'video', 'game', 'app', 'url']);
 
 async function musicVideoData(
   widget: Widget,

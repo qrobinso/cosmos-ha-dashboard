@@ -3,13 +3,57 @@ import { Readable } from 'node:stream';
 import type { MusicVideoCache } from '../musicvideo/cache.js';
 import { mvLog, mvWarn } from '../musicvideo/log.js';
 import type { VideoLookup } from '../musicvideo/types.js';
+import type { MusicVideoOverrideRepo } from '../musicvideo/overrides.js';
+import type { SettingsRepo } from '../store/settings.js';
+import type { HaClient } from '../ha/types.js';
+import { parseYouTubeId } from '../musicvideo/youtubeUrl.js';
+import { normalizeTrackKey } from '../musicvideo/trackKey.js';
+import { MV_NON_MUSIC_TYPES } from '../scenes/assembler.js';
 
 /** YouTube ids are 11 chars of [A-Za-z0-9_-]; be strict, this reaches fetch(). */
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{3,20}$/;
 
+/** Settings key for the media_player the admin overrides page watches. */
+export const ADMIN_ENTITY_SETTING = 'musicvideo.admin_entity';
+
+const HISTORY_LIMIT = 50;
+
+/**
+ * Search reaches every remembered song, so it needs its own ceiling — but a
+ * higher one than the Recent list, since a broad term like "love" legitimately
+ * matches more than 50 and silently truncating to the Recent limit would hide
+ * the very row the user is hunting for.
+ */
+const SEARCH_LIMIT = 200;
+
+/**
+ * Widget id used when the admin page triggers its own lookup. Deliberately not
+ * a real widget id: the resolver's `onUpdate` callback matches it against
+ * scene widgets, finds nothing, and marks no display dirty — this lookup exists
+ * to answer the admin page, not to change what any wall is showing.
+ */
+const ADMIN_LOOKUP_WIDGET_ID = 'admin:musicvideo';
+
+/** Parse a query-string integer, falling back and clamping — a hand-edited
+ *  `?limit=99999` must not turn into an unbounded query. */
+function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const n = raw === undefined ? NaN : Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
 export type MusicVideoRouteDeps = {
   cache: MusicVideoCache | null;
   lookup: VideoLookup | null;
+  /** Manual pin/block store. Null when the feature is not wired (tests). */
+  musicVideoOverrides?: MusicVideoOverrideRepo | null;
+  settings?: SettingsRepo | null;
+  haClient?: HaClient | null;
+  /** Fired after any override mutation so the host can re-push displays. */
+  onOverridesChanged?: () => void;
+  /** Lets `now-playing` resolve a track the scene widgets are not watching.
+   *  A getter because the resolver is constructed after the HTTP app. */
+  musicVideoResolver?: () => import('../musicvideo/resolver.js').MusicVideoResolver | null;
   /** Injected by tests. */
   fetchImpl?: typeof fetch;
 };
@@ -43,7 +87,12 @@ async function deriveStreamUrl(
   const p = (async () => {
     try {
       const url = await lookup.streamUrlFor(videoId);
-      if (url) cache.putStream(videoId, url, 0);
+      // streamUrlFor only re-derives the URL, not the duration. `duration`
+      // has no reader today (the widget reads it off the <video> element
+      // instead), so this would be harmless to get wrong — but keep it
+      // honest rather than clobbering a previously-known value to 0, in
+      // case something later wires it into SceneState.
+      if (url) cache.putStream(videoId, url, cache.peekStreamDuration(videoId));
       return url;
     } finally {
       inFlightUrls.delete(videoId);
@@ -139,4 +188,197 @@ export function registerMusicVideoRoutes(
       }
     },
   );
+
+  app.get('/api/musicvideo/overrides', async () => deps.musicVideoOverrides?.list() ?? []);
+
+  /** Recent resolutions, or — with `?q=` — a search across every remembered
+   *  song. Search is a superset of the list rather than a filter over it: the
+   *  rows worth fixing are usually the ones that scrolled out of Recent. */
+  app.get<{ Querystring: { q?: string; limit?: string; offset?: string } }>(
+    '/api/musicvideo/history',
+    async (req) => {
+      if (!deps.cache) return { rows: [], total: 0, limit: HISTORY_LIMIT, offset: 0 };
+
+      const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+      const limit = clampInt(req.query.limit, HISTORY_LIMIT, 1, SEARCH_LIMIT);
+      const offset = clampInt(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+
+      const rows = q
+        ? deps.cache.search(q, limit, offset)
+        : deps.cache.listRecent(limit, offset);
+      // `total` counts every row the query can reach, not just this page —
+      // it is what lets the client show "x–y of N" and disable Next honestly.
+      return { rows, total: deps.cache.count(q), limit, offset };
+    },
+  );
+
+  app.post<{ Body: { artist?: unknown; title?: unknown; url?: unknown; block?: unknown } }>(
+    '/api/musicvideo/overrides',
+    async (req, reply) => {
+      const overrides = deps.musicVideoOverrides;
+      if (!overrides) return reply.code(503).send({ error: 'Music video overrides are not available.' });
+
+      const artist = typeof req.body?.artist === 'string' ? req.body.artist.trim() : '';
+      const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+
+      // The client never computes a track key. Deriving it here is what
+      // guarantees the admin page and the resolver can never disagree about
+      // which song a pin applies to.
+      const trackKey = normalizeTrackKey(artist, title);
+      if (!trackKey) {
+        return reply.code(400).send({ error: 'A non-empty artist and title are required.' });
+      }
+
+      if (req.body?.block === true) {
+        // Nothing to validate — there is no video.
+        overrides.put({ trackKey, videoId: null, artist, title });
+        deps.onOverridesChanged?.();
+        return { trackKey, videoId: null, artist, title, blocked: true };
+      }
+
+      const rawUrl = typeof req.body?.url === 'string' ? req.body.url : '';
+      const videoId = parseYouTubeId(rawUrl);
+      if (!videoId) {
+        return reply.code(400).send({
+          error: 'That does not look like a YouTube link. Paste a youtube.com/watch, youtu.be, or music.youtube.com URL.',
+        });
+      }
+
+      if (!deps.lookup) {
+        return reply.code(400).send({ error: 'Video lookup is not configured, so the link cannot be checked. Try again once yt-dlp is available.' });
+      }
+
+      const probed = await deps.lookup.probe(videoId);
+      if (probed.status === 'unavailable') {
+        // Distinct from a bad video: the link may be perfectly fine. Say so,
+        // or the user goes hunting for a replacement that will not help.
+        return reply.code(400).send({ error: 'yt-dlp could not be run, so the link could not be checked. Try again in a few minutes.' });
+      }
+      if (probed.status !== 'ok') {
+        return reply.code(400).send({ error: 'That video could not be played — it may be private, removed, age-restricted, or region-locked. Try a different link.' });
+      }
+
+      // Populating the stream cache here is what makes the pin playable on the
+      // very next push instead of costing another yt-dlp call.
+      deps.cache?.putStream(videoId, probed.video.streamUrl, probed.video.duration);
+      overrides.put({ trackKey, videoId, artist, title });
+      deps.onOverridesChanged?.();
+
+      return {
+        trackKey,
+        videoId,
+        artist,
+        title,
+        blocked: false,
+        resolvedTitle: probed.video.title,
+        durationSec: probed.video.duration,
+      };
+    },
+  );
+
+  app.delete<{ Params: { trackKey: string } }>(
+    '/api/musicvideo/overrides/:trackKey',
+    async (req, reply) => {
+      const overrides = deps.musicVideoOverrides;
+      if (!overrides) return reply.code(503).send({ error: 'Music video overrides are not available.' });
+      if (!overrides.remove(req.params.trackKey)) {
+        return reply.code(404).send({ error: 'No override for that track.' });
+      }
+      deps.onOverridesChanged?.();
+      return { ok: true };
+    },
+  );
+
+  app.get('/api/musicvideo/settings', async () => ({
+    entityId: deps.settings?.get(ADMIN_ENTITY_SETTING) || null,
+  }));
+
+  app.put<{ Body: { entityId?: unknown } }>('/api/musicvideo/settings', async (req, reply) => {
+    const entityId = typeof req.body?.entityId === 'string' ? req.body.entityId.trim() : '';
+    if (entityId && !entityId.startsWith('media_player.')) {
+      return reply.code(400).send({ error: 'Expected a media_player entity.' });
+    }
+    deps.settings?.set(ADMIN_ENTITY_SETTING, entityId);
+    return { entityId: entityId || null };
+  });
+
+  app.get('/api/musicvideo/now-playing', async () => {
+    const entityId = deps.settings?.get(ADMIN_ENTITY_SETTING) ?? null;
+    if (!entityId) return { entityId: null, status: 'no-entity' as const };
+
+    const entity = deps.haClient?.listEntities().find((e) => e.entity_id === entityId) ?? null;
+    if (!entity) return { entityId, status: 'entity-missing' as const };
+
+    const a = (entity.attributes ?? {}) as Record<string, unknown>;
+    const artist = typeof a.media_artist === 'string' ? a.media_artist : '';
+    const title = typeof a.media_title === 'string' ? a.media_title : '';
+
+    // Mirror the assembler's denylist: a TV episode reports artist/title too,
+    // and without this check a pin here would look active but never play —
+    // the resolver skips lookups for these content types entirely.
+    const contentType =
+      typeof a.media_content_type === 'string' ? a.media_content_type.toLowerCase() : '';
+    if (MV_NON_MUSIC_TYPES.has(contentType)) {
+      return { entityId, state: entity.state, artist, title, trackKey: null, status: 'non-music' as const };
+    }
+
+    const trackKey = normalizeTrackKey(artist, title);
+    if (!trackKey) {
+      return { entityId, state: entity.state, artist, title, trackKey: null, status: 'nothing-playing' as const };
+    }
+
+    const override = deps.musicVideoOverrides?.get(trackKey) ?? null;
+    let cached = deps.cache?.getVideoId(trackKey) ?? null;
+
+    /*
+     * Start a lookup ourselves when there is no answer yet.
+     *
+     * This page must not depend on some scene widget happening to watch the
+     * same media_player. The widget's `entity_id` and this page's watched
+     * entity are independent settings, so for any player no widget follows,
+     * nothing would ever populate the cache — and the page would sit on
+     * "Looking…" forever while, in truth, nobody was looking.
+     *
+     * The resolver is non-blocking: this returns immediately with no answer,
+     * the lookup lands in the background, and the page's 5s poll picks it up.
+     * The synthetic widget id matches no scene widget, so the resulting
+     * `onUpdate` marks nothing dirty — exactly what we want, since this
+     * lookup is for the admin page, not a display.
+     */
+    const resolver = deps.musicVideoResolver?.() ?? null;
+    if (!override && !cached && entity.state === 'playing' && resolver) {
+      resolver(ADMIN_LOOKUP_WIDGET_ID, {
+        artist,
+        title,
+        durationSec: typeof a.media_duration === 'number' ? a.media_duration : undefined,
+      });
+      // The resolver writes through the cache synchronously on a hit, so a
+      // result that was already in flight may be available right now.
+      cached = deps.cache?.getVideoId(trackKey) ?? null;
+    }
+
+    // Precedence here MUST mirror the resolver's, or the page will describe a
+    // state the wall display is not in.
+    const status = override
+      ? override.videoId
+        ? ('pinned' as const)
+        : ('blocked' as const)
+      : cached?.videoId
+        ? ('auto' as const)
+        : cached
+          ? ('nothing-found' as const)
+          : ('unresolved' as const);
+
+    return {
+      entityId,
+      state: entity.state,
+      artist,
+      title,
+      trackKey,
+      status,
+      videoId: override ? override.videoId : (cached?.videoId ?? null),
+      /** Why nothing matched, when we know. Null unless status is nothing-found. */
+      reason: cached?.reason ?? null,
+    };
+  });
 }

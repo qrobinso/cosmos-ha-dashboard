@@ -28,7 +28,14 @@ export interface ResolvedVideo {
  */
 export type VideoSearchResult =
   | { status: 'ok'; video: ResolvedVideo }
-  | { status: 'none' }
+  /**
+   * `reason` is a short, user-facing explanation of why nothing matched —
+   * "none of the 5 results were on the artist's channel", not a stack trace.
+   * It is stored with the negative cache entry and surfaced in the admin
+   * overrides page, because "Nothing found" on its own gives a user no idea
+   * whether to pin something or just wait.
+   */
+  | { status: 'none'; reason?: string }
   | { status: 'unavailable' };
 
 /**
@@ -56,4 +63,14 @@ export interface VideoLookup {
   search(query: string, hint?: SearchHint): Promise<VideoSearchResult>;
   /** Re-derive a fresh stream URL for a known videoId. */
   streamUrlFor(videoId: string): Promise<string | null>;
+  /**
+   * Resolve a KNOWN videoId to its full metadata + stream, without searching.
+   *
+   * Used by the manual-override admin flow to validate a pasted link before
+   * saving it, and to populate the stream cache so the pin is immediately
+   * playable. Returns the same three-state union as `search` because the
+   * caller must distinguish "this video will not play" (`none`) from "we could
+   * not check" (`unavailable`) — the user's next action differs.
+   */
+  probe(videoId: string): Promise<VideoSearchResult>;
 }
