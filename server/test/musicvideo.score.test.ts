@@ -394,3 +394,88 @@ describe('pickBest', () => {
     expect(pickBest(tied, {})?.videoId).toBe('first');
   });
 });
+
+describe('non-English official-video wording', () => {
+  /*
+   * Real regression, found from a user's own library: Bad Bunny's official
+   * video was rejected because its title says "Video Oficial", and the check
+   * required the English "official". Every Spanish-language official video
+   * was being systematically discarded — a large blind spot, not an edge case.
+   */
+  it('accepts the Spanish wording that caused the bug', () => {
+    expect(
+      hasOfficialVideoWords('BAD BUNNY - KETU TeCRÉ (Video Oficial) | DeBÍ TiRAR MáS FOToS'),
+    ).toBe(true);
+  });
+
+  it.each([
+    ['Spanish, accented', 'ROSALÍA - MALAMENTE (Vídeo Oficial)'],
+    ['Spanish, videoclip', 'Quevedo - COLUMBIA (Videoclip Oficial)'],
+    ['Portuguese', 'Anitta - Envolver (Clipe Oficial)'],
+    ['French', 'Stromae - Alors On Danse (Clip Officiel)'],
+    ['French, feminine', 'Angèle - Balance Ton Quoi (Vidéo Officielle)'],
+    ['Italian', 'Måneskin - ZITTI E BUONI (Video Ufficiale)'],
+    ['German', 'Rammstein - Deutschland (Offizielles Musikvideo)'],
+  ])('accepts %s', (_label, title) => {
+    expect(hasOfficialVideoWords(title)).toBe(true);
+  });
+
+  it('still accepts the English wording it always did', () => {
+    expect(hasOfficialVideoWords('David Bowie - Heroes (Official Video)')).toBe(true);
+    expect(hasOfficialVideoWords('Solange - Weary (Official Music Video)')).toBe(true);
+  });
+
+  it('still requires BOTH words, in any language', () => {
+    // "Oficial" alone is not a video — this is how Art Tracks and audio
+    // uploads stay out.
+    expect(hasOfficialVideoWords('Bad Bunny - KETU TeCRÉ (Audio Oficial)')).toBe(false);
+    // A video that never claims to be official stays out too.
+    expect(hasOfficialVideoWords('Bad Bunny - KETU TeCRÉ (Video Lyrics)')).toBe(false);
+    expect(hasOfficialVideoWords('Bad Bunny - KETU TeCRÉ (Visualizer)')).toBe(false);
+  });
+
+  it('does not treat an unrelated word as a match', () => {
+    expect(hasOfficialVideoWords('Some Artist - Officer Down (Live)')).toBe(false);
+    expect(hasOfficialVideoWords('Some Artist - Song')).toBe(false);
+  });
+});
+
+describe('non-English disqualifiers', () => {
+  /*
+   * Opening the official/video gate to other languages without also teaching
+   * the penalties those languages would let a Spanish lyric video through on
+   * the artist's own channel — trading one wrong answer for another.
+   */
+  const ctx = { artist: 'Bad Bunny', title: 'KETU TeCRÉ' };
+
+  function scoreTitle(title: string): number {
+    return scoreCandidate(
+      { videoId: 'x', title, channel: 'Bad Bunny', verified: true, durationSec: 200, viewCount: 1000 },
+      { ...ctx, durationSec: 200 },
+    );
+  }
+
+  it('penalises a Spanish lyric video below a plain official video', () => {
+    const plain = scoreTitle('Bad Bunny - KETU TeCRÉ (Video Oficial)');
+    const letra = scoreTitle('Bad Bunny - KETU TeCRÉ (Video Oficial con Letra)');
+    expect(letra).toBeLessThan(plain);
+  });
+
+  it.each([
+    ['Spanish lyrics', 'Bad Bunny - KETU TeCRÉ (Video Oficial con Letra)'],
+    ['Spanish live', 'Bad Bunny - KETU TeCRÉ (Video Oficial - En Vivo)'],
+    ['Spanish live, directo', 'Bad Bunny - KETU TeCRÉ (Video Oficial en Directo)'],
+    ['Portuguese live', 'Anitta - Envolver (Clipe Oficial - Ao Vivo)'],
+    ['French lyrics', 'Stromae - Alors On Danse (Clip Officiel avec Paroles)'],
+  ])('penalises %s', (_label, title) => {
+    expect(scoreTitle(title)).toBeLessThan(scoreTitle('Bad Bunny - KETU TeCRÉ (Video Oficial)'));
+  });
+
+  it('leaves a clean official video unpenalised', () => {
+    // Guards against a penalty pattern that is too eager and fires on the
+    // ordinary case.
+    const clean = scoreTitle('Bad Bunny - KETU TeCRÉ (Video Oficial)');
+    const english = scoreTitle('Bad Bunny - KETU TeCRÉ (Official Video)');
+    expect(clean).toBe(english);
+  });
+});
