@@ -32,6 +32,15 @@ You can also pin from history: the **Recent** section lists the last 50 songs Co
 resolve automatically, including misses. Click **Pin** on any row to prefill the form with that
 song, then paste a link and save.
 
+### Finding an older song
+
+Fifty songs go by quickly, and the one you want to fix is often further back. Use the search box
+in **Recent** — it looks across *every* song Cosmos remembers, not just the fifty on screen, and
+matches on artist or title. Songs resolved before this feature shipped have no stored artist and
+title, so they show as `artist|title`; searching still finds them.
+
+Clear the box to return to the recent list.
+
 ## Blocking a song
 
 Some songs you'd rather the widget just stay hidden for, even if a video does exist — a video

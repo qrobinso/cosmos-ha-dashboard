@@ -375,6 +375,35 @@ describe('override routes', () => {
     expect(res.json()[0]).toMatchObject({ trackKey: 'radiohead|karma police', videoId: null, artist: 'Radiohead' });
   });
 
+  it('GET history?q= returns matches from beyond the capped recent list', async () => {
+    const h = harness();
+    h.cache.putVideoId('solange|weary', 'aaa11111111', { artist: 'Solange', title: 'Weary' });
+    for (let i = 0; i < 80; i++) {
+      h.cache.putVideoId(`filler${i}|song`, 'ccc33333333', { artist: `Filler ${i}`, title: 'Song' });
+    }
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+
+    // The unfiltered list is capped, so most of these 81 songs are unreachable
+    // through it. (That the capped-out rows are still searchable is pinned
+    // down deterministically in musicvideo.cache.test.ts, which controls the
+    // clock; here the rows share a timestamp so ordering is not stable.)
+    const unfiltered = await app.inject({ method: 'GET', url: '/api/musicvideo/history' });
+    expect(unfiltered.json()).toHaveLength(50);
+
+    const found = await app.inject({ method: 'GET', url: '/api/musicvideo/history?q=weary' });
+    expect(found.statusCode).toBe(200);
+    expect(found.json().map((e: { trackKey: string }) => e.trackKey)).toEqual(['solange|weary']);
+  });
+
+  it('GET history with a blank q falls back to the recent list', async () => {
+    const h = harness();
+    h.cache.putVideoId('a|b', 'aaa11111111', { artist: 'A', title: 'B' });
+    const app = await buildHttpApp({ ...baseDeps(h), musicVideoOverrides: h.musicVideoOverrides });
+
+    const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history?q=%20%20' });
+    expect(res.json()).toHaveLength(1);
+  });
+
   it('GET now-playing reports the configured entity and its override state', async () => {
     const h = harness();
     h.musicVideoOverrides.put({ trackKey: 'solange|weary', videoId: PIN, artist: 'Solange', title: 'Weary' });

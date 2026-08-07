@@ -58,7 +58,50 @@ export type MusicVideoCache = {
   prune(): { negatives: number; streams: number; overflow: number };
   /** Most recent resolutions, newest first. Drives the admin History list. */
   listRecent(limit: number): CacheHistoryEntry[];
+  /**
+   * Substring search across EVERY remembered song, newest first.
+   *
+   * Deliberately unbounded by the Recent window: the songs a user most wants
+   * to fix are the ones that scrolled out of it. Matches artist, title, and
+   * the track key — the last so that rows written before migration v12 (which
+   * have no display names) are still findable.
+   *
+   * A blank query returns nothing rather than everything, so an empty search
+   * box can never be mistaken for "no songs".
+   */
+  search(query: string, limit: number): CacheHistoryEntry[];
 };
+
+/**
+ * Escape a user's search string for use inside a LIKE pattern.
+ *
+ * Without this, `%` matches every song and `_` matches any single character —
+ * so searching for a song called "100% Real" would return the whole library.
+ */
+function escapeLike(raw: string): string {
+  return raw.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/** Shared by `listRecent` and `search` — both select the same columns. */
+type HistoryRow = {
+  track_key: string;
+  video_id: string | null;
+  miss: number;
+  resolved_at: number;
+  artist: string | null;
+  title: string | null;
+};
+
+function toHistoryEntry(r: HistoryRow): CacheHistoryEntry {
+  return {
+    trackKey: r.track_key,
+    videoId: r.video_id,
+    miss: !!r.miss,
+    artist: r.artist,
+    title: r.title,
+    resolvedAt: r.resolved_at,
+  };
+}
 
 export function createMusicVideoCache(
   db: DB,
@@ -84,6 +127,18 @@ export function createMusicVideoCache(
     `SELECT track_key, video_id, miss, resolved_at, artist, title
        FROM music_video_cache ORDER BY resolved_at DESC LIMIT ?`,
   );
+  // COLLATE NOCASE gives case-insensitive matching. Note SQLite's built-in
+  // collations only fold ASCII, so a query for "JAY" will not match "jaÿ" —
+  // acceptable here, and fixing it would mean linking ICU.
+  const selSearch = db.prepare(
+    `SELECT track_key, video_id, miss, resolved_at, artist, title
+       FROM music_video_cache
+      WHERE track_key LIKE @pattern ESCAPE '\\' COLLATE NOCASE
+         OR artist    LIKE @pattern ESCAPE '\\' COLLATE NOCASE
+         OR title     LIKE @pattern ESCAPE '\\' COLLATE NOCASE
+      ORDER BY resolved_at DESC LIMIT @limit`,
+  );
+
   const selStream = db.prepare(
     'SELECT stream_url, duration, resolved_at FROM music_video_stream WHERE video_id = ?',
   );
@@ -175,23 +230,20 @@ export function createMusicVideoCache(
       return { negatives, streams, overflow };
     },
 
+    search(query, limit) {
+      const trimmed = (query ?? '').trim();
+      // An empty box means "no search", not "match everything" — returning the
+      // whole library here would read as a result set the user asked for.
+      if (!trimmed) return [];
+      const rows = selSearch.all({
+        pattern: `%${escapeLike(trimmed)}%`,
+        limit,
+      }) as HistoryRow[];
+      return rows.map(toHistoryEntry);
+    },
+
     listRecent(limit) {
-      const rows = selRecent.all(limit) as Array<{
-        track_key: string;
-        video_id: string | null;
-        miss: number;
-        resolved_at: number;
-        artist: string | null;
-        title: string | null;
-      }>;
-      return rows.map((r) => ({
-        trackKey: r.track_key,
-        videoId: r.video_id,
-        miss: !!r.miss,
-        artist: r.artist,
-        title: r.title,
-        resolvedAt: r.resolved_at,
-      }));
+      return (selRecent.all(limit) as HistoryRow[]).map(toHistoryEntry);
     },
   };
 }

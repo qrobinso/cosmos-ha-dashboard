@@ -46,6 +46,11 @@
   let history: HistoryRow[] = [];
   let loading = true;
 
+  /** Recent-list search. Empty means "show the recent list". */
+  let search = '';
+  let searching = false;
+  let searchTimer: ReturnType<typeof setTimeout>;
+
   /** Song section 2 is editing. Null means "follow whatever is currently playing". */
   let target: Target | null = null;
   let pasteUrl = '';
@@ -117,7 +122,28 @@
   }
 
   async function loadHistory() {
-    history = await api.musicvideo.listHistory();
+    const q = search;
+    const rows = await api.musicvideo.listHistory(q);
+    // A slow response for an abandoned query must not overwrite a newer one.
+    if (q === search) history = rows;
+  }
+
+  /**
+   * Debounced so typing a word costs one request, not one per keystroke.
+   * Cleared on destroy alongside the now-playing poll.
+   */
+  function onSearchInput() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      searching = true;
+      loadHistory().finally(() => (searching = false));
+    }, 250);
+  }
+
+  function clearSearch() {
+    search = '';
+    clearTimeout(searchTimer);
+    loadHistory();
   }
 
   async function refreshAll() {
@@ -253,6 +279,7 @@
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
+    clearTimeout(searchTimer);
   });
 </script>
 
@@ -351,10 +378,38 @@
 
   <section class="card reveal reveal-4">
     <h2>Recent</h2>
-    <p class="hint">Songs Cosmos has recently tried to resolve, including misses.</p>
-    {#if history.length === 0}
-      <p class="empty">No resolution history yet.</p>
+    <p class="hint">
+      Songs Cosmos has recently tried to resolve, including misses. Search to reach
+      every song it remembers, not just the recent ones.
+    </p>
+
+    <div class="search">
+      <input
+        type="search"
+        bind:value={search}
+        on:input={onSearchInput}
+        placeholder="Search every song by artist or title…"
+        aria-label="Search every song"
+      />
+      {#if search}
+        <button class="ghost" on:click={clearSearch}>Clear</button>
+      {/if}
+    </div>
+
+    {#if searching}
+      <p class="empty">Searching…</p>
+    {:else if history.length === 0}
+      <p class="empty">
+        {#if search}
+          No song matching “{search}”.
+        {:else}
+          No resolution history yet.
+        {/if}
+      </p>
     {:else}
+      {#if search}
+        <p class="hint">{history.length} match{history.length === 1 ? '' : 'es'}</p>
+      {/if}
       <div class="rows">
         {#each history as h (h.trackKey + h.resolvedAt)}
           <div class="row">
@@ -442,6 +497,17 @@
     color: var(--c-fg-3);
     font-size: 0.92rem;
     margin: 0;
+  }
+
+  /* Input styling itself comes from theme.css's global input rule. */
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+  }
+  .search button {
+    flex: none;
   }
 
   .rows {

@@ -18,6 +18,14 @@ export const ADMIN_ENTITY_SETTING = 'musicvideo.admin_entity';
 
 const HISTORY_LIMIT = 50;
 
+/**
+ * Search reaches every remembered song, so it needs its own ceiling — but a
+ * higher one than the Recent list, since a broad term like "love" legitimately
+ * matches more than 50 and silently truncating to the Recent limit would hide
+ * the very row the user is hunting for.
+ */
+const SEARCH_LIMIT = 200;
+
 export type MusicVideoRouteDeps = {
   cache: MusicVideoCache | null;
   lookup: VideoLookup | null;
@@ -164,7 +172,14 @@ export function registerMusicVideoRoutes(
 
   app.get('/api/musicvideo/overrides', async () => deps.musicVideoOverrides?.list() ?? []);
 
-  app.get('/api/musicvideo/history', async () => deps.cache?.listRecent(HISTORY_LIMIT) ?? []);
+  /** Recent resolutions, or — with `?q=` — a search across every remembered
+   *  song. Search is a superset of the list rather than a filter over it: the
+   *  rows worth fixing are usually the ones that scrolled out of Recent. */
+  app.get<{ Querystring: { q?: string } }>('/api/musicvideo/history', async (req) => {
+    if (!deps.cache) return [];
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    return q ? deps.cache.search(q, SEARCH_LIMIT) : deps.cache.listRecent(HISTORY_LIMIT);
+  });
 
   app.post<{ Body: { artist?: unknown; title?: unknown; url?: unknown; block?: unknown } }>(
     '/api/musicvideo/overrides',

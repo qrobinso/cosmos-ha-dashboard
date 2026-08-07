@@ -210,3 +210,104 @@ describe('display names and history', () => {
     expect(entry.videoId).toBe('ccc33333333');
   });
 });
+
+describe('history search', () => {
+  /** Build a cache with a known set of songs, each at a distinct timestamp. */
+  function seeded() {
+    const db = freshDb();
+    let t = 0;
+    const cache = createMusicVideoCache(db, { now: () => t });
+    const put = (
+      key: string,
+      videoId: string | null,
+      names?: { artist?: string; title?: string },
+    ) => {
+      t += 100;
+      cache.putVideoId(key, videoId, names);
+    };
+    return { cache, put };
+  }
+
+  it('finds a song by artist', () => {
+    const { cache, put } = seeded();
+    put('erykah badu|on & on', 'aaa11111111', { artist: 'Erykah Badu', title: 'On & On' });
+    put('sza|snooze', 'bbb22222222', { artist: 'SZA', title: 'Snooze' });
+
+    expect(cache.search('erykah', 50).map((e) => e.trackKey)).toEqual(['erykah badu|on & on']);
+  });
+
+  it('finds a song by title', () => {
+    const { cache, put } = seeded();
+    put('erykah badu|on & on', 'aaa11111111', { artist: 'Erykah Badu', title: 'On & On' });
+    put('sza|snooze', 'bbb22222222', { artist: 'SZA', title: 'Snooze' });
+
+    expect(cache.search('snooze', 50).map((e) => e.trackKey)).toEqual(['sza|snooze']);
+  });
+
+  it('is case-insensitive', () => {
+    const { cache, put } = seeded();
+    put('sza|snooze', 'bbb22222222', { artist: 'SZA', title: 'Snooze' });
+
+    expect(cache.search('SNOOZE', 50)).toHaveLength(1);
+    expect(cache.search('sZa', 50)).toHaveLength(1);
+  });
+
+  it('matches on the track key, so pre-v12 rows with no display names are searchable', () => {
+    const { cache, put } = seeded();
+    // Written before migration v12 added the artist/title columns.
+    put('erykah badu|next to you', 'aaa11111111');
+
+    const hits = cache.search('next to you', 50);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].artist).toBeNull();
+  });
+
+  it('searches EVERY row, not just the recent window', () => {
+    const { cache, put } = seeded();
+    // The target is the oldest row; 80 newer songs bury it well past the
+    // 50-row Recent list. This is the whole point of search.
+    put('solange|weary', 'aaa11111111', { artist: 'Solange', title: 'Weary' });
+    for (let i = 0; i < 80; i++) {
+      put(`filler${i}|song`, 'ccc33333333', { artist: `Filler ${i}`, title: 'Song' });
+    }
+
+    expect(cache.listRecent(50).map((e) => e.trackKey)).not.toContain('solange|weary');
+    expect(cache.search('weary', 50).map((e) => e.trackKey)).toEqual(['solange|weary']);
+  });
+
+  it('returns matches newest first and honours the limit', () => {
+    const { cache, put } = seeded();
+    put('a|love song', 'aaa11111111', { artist: 'A', title: 'Love Song' });
+    put('b|love letter', 'bbb22222222', { artist: 'B', title: 'Love Letter' });
+    put('c|love story', 'ccc33333333', { artist: 'C', title: 'Love Story' });
+
+    expect(cache.search('love', 2).map((e) => e.trackKey)).toEqual(['c|love story', 'b|love letter']);
+  });
+
+  it('includes misses, which are the rows most worth finding', () => {
+    const { cache, put } = seeded();
+    put('radiohead|karma police', null, { artist: 'Radiohead', title: 'Karma Police' });
+
+    const [hit] = cache.search('karma', 50);
+    expect(hit.miss).toBe(true);
+    expect(hit.videoId).toBeNull();
+  });
+
+  it('treats LIKE wildcards in the query as literal characters', () => {
+    const { cache, put } = seeded();
+    put('a|hello', 'aaa11111111', { artist: 'A', title: 'Hello' });
+    put('b|100% real', 'bbb22222222', { artist: 'B', title: '100% Real' });
+
+    // Unescaped, '%' would match everything and '_' would match any character.
+    expect(cache.search('%', 50).map((e) => e.trackKey)).toEqual(['b|100% real']);
+    expect(cache.search('_', 50)).toHaveLength(0);
+  });
+
+  it('returns nothing for a blank query rather than everything', () => {
+    const { cache, put } = seeded();
+    put('a|hello', 'aaa11111111', { artist: 'A', title: 'Hello' });
+
+    expect(cache.search('', 50)).toEqual([]);
+    expect(cache.search('   ', 50)).toEqual([]);
+  });
+});

@@ -294,10 +294,14 @@ export const api = {
     > {
       return jsonOr(await fetch('/api/musicvideo/overrides'), []);
     },
-    async listHistory(): Promise<
+    /** Recent resolutions, or — with a query — a search across every song the
+     *  server remembers, not merely a filter over the recent list. */
+    async listHistory(query = ''): Promise<
       Array<{ trackKey: string; videoId: string | null; miss: boolean; artist: string | null; title: string | null; resolvedAt: string }>
     > {
-      return jsonOr(await fetch('/api/musicvideo/history'), []);
+      const q = query.trim();
+      const url = q ? `/api/musicvideo/history?q=${encodeURIComponent(q)}` : '/api/musicvideo/history';
+      return jsonOr(await fetch(url), []);
     },
     /** Returns the parsed body even on a non-2xx — Task 6's error messages are meant to be shown verbatim. */
     async pin(payload: { artist: string; title: string; url: string }): Promise<

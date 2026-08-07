@@ -64,7 +64,7 @@ REST highlights:
 - `PUT /api/displays/:name/voice {enabled, pipelineId}` — toggle voice + pick a pipeline for a display; notifies a connected kiosk live via `display_config`.
 - `GET /api/musicvideo/stream/:videoId` — proxies the YouTube progressive MP4 to the kiosk, forwarding `Range` and re-deriving expired stream URLs server-side.
 - `GET|POST /api/musicvideo/overrides`, `DELETE /api/musicvideo/overrides/:trackKey` — manual pin/block per song.
-- `GET /api/musicvideo/history` — the last 50 automatic resolutions, including misses.
+- `GET /api/musicvideo/history[?q=]` — the last 50 automatic resolutions, including misses. With `q`, searches **every** remembered song (artist, title, and the track key, so pre-v12 rows with no display names are still findable) rather than filtering the 50 — the rows worth fixing are usually the ones that scrolled out. Capped at 200 matches.
 - `GET /api/musicvideo/now-playing` — what the watched media_player is playing and how it currently resolves.
 - `GET|PUT /api/musicvideo/settings` — which media_player the overrides page watches.
 
