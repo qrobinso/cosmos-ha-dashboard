@@ -238,7 +238,7 @@ export function registerMusicVideoRoutes(
   );
 
   app.get('/api/musicvideo/settings', async () => ({
-    entityId: deps.settings?.get(ADMIN_ENTITY_SETTING) ?? null,
+    entityId: deps.settings?.get(ADMIN_ENTITY_SETTING) || null,
   }));
 
   app.put<{ Body: { entityId?: unknown } }>('/api/musicvideo/settings', async (req, reply) => {

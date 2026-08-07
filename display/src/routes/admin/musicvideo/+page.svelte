@@ -44,6 +44,7 @@
   let saveError: string | null = null;
   let saveOk: { resolvedTitle: string; durationSec: number } | null = null;
   let removingKey = '';
+  let blockingKey = '';
 
   let formSection: HTMLElement | undefined;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -187,6 +188,26 @@
     }
   }
 
+  /** Block button on a Recent row: blocks that row's song directly, unlike
+   *  Pin which only prefills section 2 for review before saving. */
+  async function blockRow(row: { trackKey: string; artist: string | null; title: string | null }) {
+    if (blockingKey) return;
+    const [artist, title] = row.artist && row.title ? [row.artist, row.title] : splitTrackKey(row.trackKey);
+    blockingKey = row.trackKey;
+    try {
+      const res = await api.musicvideo.block({ artist, title });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      await refreshAll();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'block failed');
+    } finally {
+      blockingKey = '';
+    }
+  }
+
   async function removeOverride(trackKey: string) {
     removingKey = trackKey;
     try {
@@ -203,7 +224,11 @@
     await Promise.all([loadMediaPlayers(), loadSettings()]);
     await refreshAll();
     loading = false;
-    pollTimer = setInterval(loadNowPlaying, POLL_MS);
+    pollTimer = setInterval(() => {
+      // A transient 5xx here must degrade quietly — this is a long-lived
+      // admin tab polling every 5s, not a one-shot request.
+      loadNowPlaying().catch(() => {});
+    }, POLL_MS);
   });
 
   onDestroy(() => {
@@ -325,7 +350,14 @@
             </div>
             <div class="row-actions">
               <button type="button" class="ghost" on:click={() => prefill(h)}>Pin</button>
-              <button type="button" class="ghost danger" on:click={() => prefill(h)}>Block</button>
+              <button
+                type="button"
+                class="ghost danger"
+                on:click={() => blockRow(h)}
+                disabled={blockingKey === h.trackKey}
+              >
+                {blockingKey === h.trackKey ? 'Blocking…' : 'Block'}
+              </button>
             </div>
           </div>
         {/each}

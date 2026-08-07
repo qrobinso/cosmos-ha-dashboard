@@ -4,7 +4,7 @@ import { openDatabase, type DB } from '../src/store/db.js';
 import { runMigrations } from '../src/store/migrations.js';
 import { createMusicVideoCache, type MusicVideoCache } from '../src/musicvideo/cache.js';
 import { createMusicVideoOverrideRepo } from '../src/musicvideo/overrides.js';
-import { registerMusicVideoRoutes } from '../src/api/musicvideo.js';
+import { registerMusicVideoRoutes, ADMIN_ENTITY_SETTING } from '../src/api/musicvideo.js';
 import { buildHttpApp, type HttpDeps } from '../src/api/http.js';
 import { createDisplaysRepo } from '../src/store/displays.js';
 import { createSettingsRepo } from '../src/store/settings.js';
@@ -406,7 +406,7 @@ describe('musicvideo admin entity settings routes', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ entityId: 'media_player.kitchen' });
-    expect(h.settings.get('musicvideo.admin_entity')).toBe('media_player.kitchen');
+    expect(h.settings.get(ADMIN_ENTITY_SETTING)).toBe('media_player.kitchen');
   });
 
   it('PUT settings rejects a non-media_player entity', async () => {
@@ -419,17 +419,31 @@ describe('musicvideo admin entity settings routes', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toMatch(/media_player/i);
-    expect(h.settings.get('musicvideo.admin_entity')).toBeNull();
+    expect(h.settings.get(ADMIN_ENTITY_SETTING)).toBeNull();
   });
 
   it('PUT settings clears the entity when given an empty string', async () => {
     const h = harness();
-    h.settings.set('musicvideo.admin_entity', 'media_player.kitchen');
+    h.settings.set(ADMIN_ENTITY_SETTING, 'media_player.kitchen');
     const cache = createMusicVideoCache(h.db);
     const app = await buildHttpApp({ ...baseDeps({ db: h.db, cache, lookup: {} as VideoLookup }), settings: h.settings });
     const res = await app.inject({ method: 'PUT', url: '/api/musicvideo/settings', payload: { entityId: '' } });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ entityId: null });
-    expect(h.settings.get('musicvideo.admin_entity')).toBe('');
+    expect(h.settings.get(ADMIN_ENTITY_SETTING)).toBe('');
+  });
+
+  it('GET settings agrees with PUT after a clear — both report null, not empty string', async () => {
+    const h = harness();
+    h.settings.set(ADMIN_ENTITY_SETTING, 'media_player.kitchen');
+    const cache = createMusicVideoCache(h.db);
+    const app = await buildHttpApp({ ...baseDeps({ db: h.db, cache, lookup: {} as VideoLookup }), settings: h.settings });
+
+    const putRes = await app.inject({ method: 'PUT', url: '/api/musicvideo/settings', payload: { entityId: '' } });
+    expect(putRes.json()).toEqual({ entityId: null });
+
+    const getRes = await app.inject({ method: 'GET', url: '/api/musicvideo/settings' });
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.json()).toEqual({ entityId: null });
   });
 });
