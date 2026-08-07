@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0
+## 0.8.1
 
 - Fix: **non-English official videos are no longer discarded.** Matching required the English word "official", so a video titled "Video Oficial" — how Spanish-language artists label theirs — was rejected even on the artist's own channel. Whole catalogues were affected: Bad Bunny's own videos never played. Spanish, Portuguese, French, Italian and German wording is now recognised (accents included), along with the disqualifiers in those languages so a "Letra" or "En Vivo" version doesn't slip through in place of the real video.
 - Change: **the Music Video widget is now called Video Backdrop.** Same widget, same settings, same scenes — only the name changed, so nothing needs reconfiguring. The sidebar page moved from **Music Video** to **Video Backdrop**.
