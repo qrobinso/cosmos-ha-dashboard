@@ -85,6 +85,10 @@ export type HttpDeps = {
   musicVideoCache?: import('../musicvideo/cache.js').MusicVideoCache;
   musicVideoLookup?: import('../musicvideo/types.js').VideoLookup;
   musicVideoOverrides?: import('../musicvideo/overrides.js').MusicVideoOverrideRepo;
+  /** Downloaded video files. Null keeps the old stream-every-time behaviour. */
+  musicVideoFiles?: import('../musicvideo/fileStore.js').VideoFileStore | null;
+  /** Current on-disk cache ceiling in bytes, read fresh on each request. */
+  musicVideoMaxCacheBytes?: () => number;
   /** Lets the overrides page resolve a track no scene widget is watching.
    *  A getter because the resolver is constructed after the HTTP app. */
   musicVideoResolver?: () => import('../musicvideo/resolver.js').MusicVideoResolver | null;
@@ -288,6 +292,8 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     haClient: deps.haClient ?? null,
     onOverridesChanged: deps.onMusicVideoOverridesChanged,
     musicVideoResolver: deps.musicVideoResolver,
+    files: deps.musicVideoFiles ?? null,
+    maxCacheBytes: deps.musicVideoMaxCacheBytes,
   });
 
   registerSceneRoutes(app, {

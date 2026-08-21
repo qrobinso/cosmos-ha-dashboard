@@ -210,6 +210,22 @@ const migrations: Migration[] = [
       ALTER TABLE music_video_cache ADD COLUMN reason TEXT;
     `,
   },
+  {
+    version: 14,
+    up: `
+      -- Locally downloaded video files. Separate from music_video_stream,
+      -- which caches a short-lived googlevideo URL: this is the bytes on disk.
+      -- play_count and last_played_at drive eviction (least played first,
+      -- oldest of those first) when the user's size cap is exceeded.
+      CREATE TABLE music_video_file (
+        video_id       TEXT PRIMARY KEY,
+        bytes          INTEGER NOT NULL,
+        play_count     INTEGER NOT NULL DEFAULT 0,
+        last_played_at INTEGER,
+        downloaded_at  INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

@@ -1,5 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { Readable } from 'node:stream';
+import { createReadStream, statSync } from 'node:fs';
 import type { MusicVideoCache } from '../musicvideo/cache.js';
 import { mvLog, mvWarn } from '../musicvideo/log.js';
 import type { VideoLookup } from '../musicvideo/types.js';
@@ -9,6 +10,7 @@ import type { HaClient } from '../ha/types.js';
 import { parseYouTubeId } from '../musicvideo/youtubeUrl.js';
 import { normalizeTrackKey } from '../musicvideo/trackKey.js';
 import { MV_NON_MUSIC_TYPES } from '../scenes/assembler.js';
+import type { VideoFileStore } from '../musicvideo/fileStore.js';
 
 /** YouTube ids are 11 chars of [A-Za-z0-9_-]; be strict, this reaches fetch(). */
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{3,20}$/;
@@ -34,6 +36,27 @@ const SEARCH_LIMIT = 200;
  */
 const ADMIN_LOOKUP_WIDGET_ID = 'admin:musicvideo';
 
+/** Settings key for the on-disk video cache ceiling, in megabytes. */
+export const MAX_CACHE_MB_SETTING = 'musicvideo.max_cache_mb';
+
+/**
+ * Default ceiling. A 360p video runs a few MB, so this holds a few hundred
+ * songs — generous for a household, and small enough not to surprise anyone
+ * running Home Assistant from an SD card.
+ */
+export const DEFAULT_MAX_CACHE_MB = 1024;
+
+/** Hard ceiling on what the setting accepts, so a typo cannot fill the disk. */
+export const MAX_CACHE_MB_LIMIT = 51200; // 50 GB
+
+export function readMaxCacheMb(settings: SettingsRepo | null | undefined): number {
+  const raw = settings?.get(MAX_CACHE_MB_SETTING);
+  if (raw === null || raw === undefined || raw === '') return DEFAULT_MAX_CACHE_MB;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_MAX_CACHE_MB;
+  return Math.min(MAX_CACHE_MB_LIMIT, n);
+}
+
 /** Parse a query-string integer, falling back and clamping — a hand-edited
  *  `?limit=99999` must not turn into an unbounded query. */
 function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {
@@ -54,9 +77,113 @@ export type MusicVideoRouteDeps = {
   /** Lets `now-playing` resolve a track the scene widgets are not watching.
    *  A getter because the resolver is constructed after the HTTP app. */
   musicVideoResolver?: () => import('../musicvideo/resolver.js').MusicVideoResolver | null;
+  /** Local downloaded-video store. Null disables downloading entirely. */
+  files?: VideoFileStore | null;
+  /** Current size cap in bytes, read fresh so a settings change takes effect
+   *  without a restart. 0 means "do not download". */
+  maxCacheBytes?: () => number;
   /** Injected by tests. */
   fetchImpl?: typeof fetch;
 };
+
+/**
+ * Downloads in flight, so a burst of range requests for the same uncached
+ * video spawns one yt-dlp rather than one per connection — the same stampede
+ * guard `inFlightUrls` provides on the URL side.
+ */
+const inFlightDownloads = new Set<string>();
+
+/**
+ * Fetch the whole video to disk in the background.
+ *
+ * Never awaited by the request that triggers it: the first play still streams
+ * through the proxy so the user waits for nothing, and every later play is
+ * served locally. This is what stops the "upstream returned 403" churn — a
+ * googlevideo URL expires and is bound to the client that resolved it, but a
+ * file on disk is neither.
+ */
+function startDownload(
+  videoId: string,
+  lookup: VideoLookup,
+  files: VideoFileStore,
+  maxBytes: number,
+): void {
+  if (maxBytes <= 0 || inFlightDownloads.has(videoId) || files.has(videoId)) return;
+  const dest = files.pathFor(videoId);
+  if (!dest) return;
+
+  inFlightDownloads.add(videoId);
+  void (async () => {
+    try {
+      const ok = await lookup.download(videoId, dest);
+      if (!ok) {
+        mvLog(`download failed videoId=${videoId} — will keep proxying`);
+        return;
+      }
+      let bytes = 0;
+      try {
+        bytes = statSync(dest).size;
+      } catch {
+        mvLog(`download reported success but no file videoId=${videoId}`);
+        return;
+      }
+      files.record(videoId, bytes);
+      mvLog(`download ok videoId=${videoId} bytes=${bytes}`);
+
+      const removed = files.evict(maxBytes);
+      if (removed.length) {
+        mvLog(`evicted ${removed.length} video(s) to stay under the cap: ${removed.join(', ')}`);
+      }
+    } catch (err) {
+      mvLog(`download threw videoId=${videoId} ${String(err)}`);
+    } finally {
+      inFlightDownloads.delete(videoId);
+    }
+  })();
+}
+
+/**
+ * A play, as opposed to one of the many range requests a browser issues per
+ * play. Counting every request would rank a long video above a popular one
+ * purely because it needed more chunks.
+ */
+function isPlayStart(range: string | undefined): boolean {
+  if (!range) return true;
+  return /^bytes=0-/.test(range.trim());
+}
+
+/** Serve a local file, honouring Range so the widget can still seek. */
+function sendLocalFile(
+  reply: FastifyReply,
+  path: string,
+  range: string | undefined,
+): FastifyReply {
+  const size = statSync(path).size;
+  const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
+
+  reply.header('accept-ranges', 'bytes');
+  reply.header('content-type', 'video/mp4');
+  // Same reasoning as the proxy path: the bytes behind a videoId never change.
+  reply.header('cache-control', 'public, max-age=604800, immutable');
+
+  if (m) {
+    const start = m[1] ? Number.parseInt(m[1], 10) : 0;
+    const end = m[2] ? Number.parseInt(m[2], 10) : size - 1;
+    if (Number.isNaN(start) || start >= size || end < start) {
+      reply.header('content-range', `bytes */${size}`);
+      return reply.code(416).send();
+    }
+    const last = Math.min(end, size - 1);
+    reply.header('content-range', `bytes ${start}-${last}/${size}`);
+    reply.header('content-length', String(last - start + 1));
+    reply.code(206);
+    return reply.send(createReadStream(path, { start, end: last }));
+  }
+
+  reply.header('content-length', String(size));
+  reply.code(200);
+  return reply.send(createReadStream(path));
+}
 
 /**
  * Proxies the YouTube progressive stream to the kiosk.
@@ -123,7 +250,25 @@ export function registerMusicVideoRoutes(
         return reply.code(400).send({ error: 'invalid videoId' });
       }
 
-      mvLog(`stream req videoId=${videoId} range=${req.headers.range ?? 'none'}`);
+      const range = typeof req.headers.range === 'string' ? req.headers.range : undefined;
+      mvLog(`stream req videoId=${videoId} range=${range ?? 'none'}`);
+
+      const files = deps.files ?? null;
+      const maxBytes = deps.maxCacheBytes?.() ?? 0;
+
+      if (files && isPlayStart(range)) files.recordPlay(videoId);
+
+      // A local copy beats the proxy on every axis: no yt-dlp spawn, no
+      // googlevideo round trip, and no 403 when a URL expires mid-song.
+      if (files) {
+        const local = files.has(videoId) ? files.pathFor(videoId) : null;
+        if (local) {
+          mvLog(`stream local videoId=${videoId}`);
+          return sendLocalFile(reply, local, range);
+        }
+        // Not stored yet — proxy this play, and fetch it for the next one.
+        startDownload(videoId, lookup, files, maxBytes);
+      }
 
       // Cached URL, or re-derive when absent/stale.
       let streamUrl = cache.getStream(videoId)?.streamUrl ?? null;
@@ -139,8 +284,7 @@ export function registerMusicVideoRoutes(
 
       try {
         const headers: Record<string, string> = {};
-        const range = req.headers.range;
-        if (typeof range === 'string') headers.Range = range;
+        if (range) headers.Range = range;
 
         const upstream = await doFetch(streamUrl, { headers });
         if (!upstream.ok && upstream.status !== 206) {
@@ -288,6 +432,36 @@ export function registerMusicVideoRoutes(
       return { ok: true };
     },
   );
+
+  app.get('/api/musicvideo/storage', async () => {
+    const stats = deps.files?.stats() ?? { fileCount: 0, totalBytes: 0 };
+    return {
+      maxMb: readMaxCacheMb(deps.settings),
+      limitMb: MAX_CACHE_MB_LIMIT,
+      enabled: !!deps.files,
+      ...stats,
+    };
+  });
+
+  app.put<{ Body: { maxMb?: unknown } }>('/api/musicvideo/storage', async (req, reply) => {
+    const n = typeof req.body?.maxMb === 'number' ? Math.floor(req.body.maxMb) : NaN;
+    if (!Number.isFinite(n) || n < 0) {
+      return reply.code(400).send({ error: 'maxMb must be a whole number of megabytes, 0 or more.' });
+    }
+    if (n > MAX_CACHE_MB_LIMIT) {
+      return reply.code(400).send({ error: `maxMb cannot exceed ${MAX_CACHE_MB_LIMIT} MB.` });
+    }
+    deps.settings?.set(MAX_CACHE_MB_SETTING, String(n));
+
+    // Apply immediately rather than at the next download: lowering the cap is
+    // usually someone reclaiming disk NOW, and 0 means "stop storing videos",
+    // which would be a strange thing to leave half-done.
+    const removed = deps.files?.evict(n * 1024 * 1024) ?? [];
+    if (removed.length) mvLog(`storage cap lowered — evicted ${removed.length} video(s)`);
+
+    const stats = deps.files?.stats() ?? { fileCount: 0, totalBytes: 0 };
+    return { maxMb: n, removed: removed.length, ...stats };
+  });
 
   app.get('/api/musicvideo/settings', async () => ({
     entityId: deps.settings?.get(ADMIN_ENTITY_SETTING) || null,

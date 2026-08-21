@@ -23,6 +23,10 @@ ports_description:
   8099/tcp: Cosmos web (kiosk + admin). Tablet displays connect here.
 map:
   - addon_config:rw
+  # Downloaded video-backdrop files live in /share, NOT /data. Home Assistant
+  # includes an add-on's /data in its backups, so caching video there would
+  # silently inflate every snapshot the user takes.
+  - share:rw
 options:
   log_level: info
   # Verbose tracing for the video backdrop widget: which candidate videos were

@@ -24,6 +24,8 @@ import { mvLog } from './musicvideo/log.js';
 import { createYtDlpLookup, probeYtDlpAvailable } from './musicvideo/ytdlp.js';
 import { createMusicVideoResolver } from './musicvideo/resolver.js';
 import { createMusicVideoOverrideRepo } from './musicvideo/overrides.js';
+import { createVideoFileStore } from './musicvideo/fileStore.js';
+import { readMaxCacheMb } from './api/musicvideo.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
 import { createCalendarCache } from './ha/calendarCache.js';
@@ -52,6 +54,21 @@ async function main() {
   runMigrations(db);
   const musicVideoCache = createMusicVideoCache(db);
   const musicVideoOverrides = createMusicVideoOverrideRepo(db);
+
+  // Downloaded videos. Failing to create the directory must not take the
+  // server down — the feature degrades to streaming, which is what it did
+  // before downloads existed.
+  let videoFiles: ReturnType<typeof createVideoFileStore> | null = null;
+  try {
+    videoFiles = createVideoFileStore(db, { dir: config.videoCacheDir });
+    console.log(`[musicvideo] video cache at ${config.videoCacheDir}`);
+  } catch (err) {
+    console.error(
+      `[musicvideo] could not open the video cache at ${config.videoCacheDir}; ` +
+        `videos will stream from YouTube each time. ${String(err)}`,
+    );
+  }
+  const maxCacheBytes = () => readMaxCacheMb(settings) * 1024 * 1024;
   // The music-video tables are written on every newly played track and were
   // never pruned. Sweep at boot and hourly: expired negatives and stale stream
   // URLs are already ignored by reads, so they are pure dead weight, and the
@@ -277,6 +294,8 @@ async function main() {
     musicVideoCache,
     musicVideoLookup,
     musicVideoOverrides,
+    musicVideoFiles: videoFiles,
+    musicVideoMaxCacheBytes: maxCacheBytes,
     // Getter: the resolver is built further down, after this app.
     musicVideoResolver: () => musicVideoResolver,
     onMusicVideoOverridesChanged: () => {

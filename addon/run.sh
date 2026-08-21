@@ -12,6 +12,9 @@ bashio::log.info "starting Cosmos (log level: ${LOG_LEVEL})"
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export DB_PATH="${DB_PATH:-/data/cosmos.db}"
 export STATIC_DIR="${STATIC_DIR:-/app/display/build}"
+# Video-backdrop downloads. /share rather than /data on purpose: HA backs up an
+# add-on's /data, and video would bloat every snapshot.
+export VIDEO_CACHE_DIR="${VIDEO_CACHE_DIR:-/share/cosmos/video-cache}"
 export PORT="${PORT:-8099}"
 export HOST="${HOST:-0.0.0.0}"
 

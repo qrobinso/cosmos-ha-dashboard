@@ -14,12 +14,45 @@ import { mvLog, mvWarn } from './log.js';
 export const YTDLP_TIMEOUT_MS = 15_000;
 
 /**
+ * Downloads move real bytes, so they get their own, far longer budget than a
+ * metadata lookup. A 360p video is a few MB; 3 minutes covers a slow line
+ * without letting a wedged process linger forever.
+ */
+export const YTDLP_DOWNLOAD_TIMEOUT_MS = 180_000;
+
+/**
  * Progressive 360p MP4 with muxed audio. Deliberately NOT `best` — the
  * higher-resolution YouTube formats are DASH-only fragmented streams that
  * will not play in a bare <video> tag, and format 18 supports the byte-range
  * seeking the position-sync feature depends on.
  */
 const FORMAT = '18';
+
+/**
+ * Format selector for DOWNLOADS, which is a different problem to streaming.
+ *
+ * YouTube has been retiring progressive (muxed) formats: for many videos
+ * format 18 is no longer offered at all, and where an older yt-dlp still
+ * reports it, the URL returns 403. Only adaptive video-only and audio-only
+ * streams remain.
+ *
+ * That is fine here, because the widget is ALWAYS muted — audio comes from
+ * the Home Assistant speaker, never the kiosk. A video-only H.264 MP4 is
+ * exactly what we want: no audio track to fetch, no muxing, so no ffmpeg in
+ * the image, and a smaller file. yt-dlp writes a standard MP4 with a moov
+ * atom, which browsers play directly (verified end to end in a real browser).
+ *
+ * Capped at 480p: this is wall ambience behind other widgets, often at
+ * reduced opacity, so 1080p would spend disk and decode budget on detail
+ * nobody sees. Falls back through progressive 18 (still right where a video
+ * offers it) and then any MP4, so an unusual video degrades rather than fails.
+ */
+const DOWNLOAD_FORMAT = [
+  'bestvideo[ext=mp4][vcodec^=avc1][height<=480]',
+  'bestvideo[ext=mp4][height<=480]',
+  '18',
+  'bestvideo[ext=mp4]',
+].join('/');
 
 /**
  * `spawnFailed` distinguishes "the binary could not be started at all"
@@ -33,6 +66,8 @@ export type SpawnFn = (args: string[], timeoutMs: number) => Promise<SpawnResult
 export type YtDlpOptions = {
   binary?: string;
   timeoutMs?: number;
+  /** Separate budget for downloads, which move bytes rather than JSON. */
+  downloadTimeoutMs?: number;
   /** Injected by tests so yt-dlp never actually runs. */
   spawnFn?: SpawnFn;
 };
@@ -334,6 +369,27 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
     },
     // Same single call as streamUrlFor, but keeping the metadata it discards.
     probe: (videoId) => invoke(`https://www.youtube.com/watch?v=${videoId}`),
+
+    download: async (videoId, destPath) => {
+      try {
+        const { ok, spawnFailed } = await run(
+          [
+            '-f', DOWNLOAD_FORMAT,
+            // Write straight to the final name. Without this yt-dlp leaves a
+            // .part file behind on failure, which the store would later see
+            // as a missing file anyway — but this keeps the cache dir clean.
+            '--no-part',
+            '--no-playlist', '--no-warnings',
+            '-o', destPath,
+            `https://www.youtube.com/watch?v=${videoId}`,
+          ],
+          opts.downloadTimeoutMs ?? YTDLP_DOWNLOAD_TIMEOUT_MS,
+        );
+        return ok && !spawnFailed;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 

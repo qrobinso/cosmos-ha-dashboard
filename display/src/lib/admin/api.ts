@@ -264,6 +264,24 @@ export const api = {
     },
   },
   musicvideo: {
+    async getStorage(): Promise<{ maxMb: number; limitMb: number; enabled: boolean; fileCount: number; totalBytes: number }> {
+      return jsonOr(await fetch('/api/musicvideo/storage'), {
+        maxMb: 0, limitMb: 0, enabled: false, fileCount: 0, totalBytes: 0,
+      });
+    },
+    /** Returns the parsed body even on a non-2xx so the page can show the reason. */
+    async setStorage(maxMb: number): Promise<
+      { ok: true; maxMb: number; removed: number; fileCount: number; totalBytes: number } | { ok: false; error: string }
+    > {
+      const res = await fetch('/api/musicvideo/storage', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ maxMb }),
+      });
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) return { ok: false, error: (body.error as string) ?? 'Save failed.' };
+      return { ok: true, ...(body as unknown as { maxMb: number; removed: number; fileCount: number; totalBytes: number }) };
+    },
     async getSettings(): Promise<{ entityId: string | null }> {
       const res = await fetch('/api/musicvideo/settings');
       return (await res.json()) as { entityId: string | null };

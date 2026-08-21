@@ -73,4 +73,12 @@ export interface VideoLookup {
    * not check" (`unavailable`) — the user's next action differs.
    */
   probe(videoId: string): Promise<VideoSearchResult>;
+  /**
+   * Download a video to `destPath`. Resolves true on success.
+   *
+   * Deliberately re-resolves rather than reusing a cached stream URL: those
+   * expire and are bound to the client that fetched them, which is the whole
+   * reason downloading exists.
+   */
+  download(videoId: string, destPath: string): Promise<boolean>;
 }

@@ -16,4 +16,13 @@ export const config = {
   haToken: process.env.HA_TOKEN ?? null,
   mqttUrl: process.env.MQTT_URL ?? null,
   supervisorToken: process.env.SUPERVISOR_TOKEN ?? null,
+  /**
+   * Where downloaded video-backdrop files live.
+   *
+   * Deliberately NOT under /data in the add-on: Home Assistant includes an
+   * add-on's /data in its backups, so caching hundreds of megabytes of video
+   * there would silently inflate every snapshot the user takes. run.sh points
+   * this at /share instead; dev falls back to the repo's data dir.
+   */
+  videoCacheDir: process.env.VIDEO_CACHE_DIR ?? resolve(repoRoot, 'data', 'video-cache'),
 };

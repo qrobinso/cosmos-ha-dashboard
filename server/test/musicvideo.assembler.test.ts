@@ -248,6 +248,7 @@ describe('assembler — a saved pin reaches the display', () => {
       search: async () => { searches++; return { status: 'none' } as const; },
       streamUrlFor: async () => null,
       probe: async () => ({ status: 'none' } as const),
+      download: async () => false,
     };
     const resolver = createMusicVideoResolver(lookup, cache, () => {}, { overrides });
     return { cache, overrides, resolver, searchCount: () => searches };

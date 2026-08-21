@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createVideoFileStore } from '../src/musicvideo/fileStore.js';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { openDatabase, type DB } from '../src/store/db.js';
 import { runMigrations } from '../src/store/migrations.js';
@@ -64,6 +68,7 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
       search: async () => ({ status: 'none' }),
       streamUrlFor: vi.fn(async () => 'https://fresh/url'),
       probe: async () => ({ status: 'none' }) as const,
+      download: async () => false,
     };
     fetchImpl = vi.fn(async () => okResponse());
     app = Fastify({ logger: false });
@@ -133,6 +138,7 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
       search: async () => ({ status: 'none' }),
       streamUrlFor: vi.fn(async () => 'https://fresh/url'),
       probe: async () => ({ status: 'none' }) as const,
+      download: async () => false,
     };
     const app2 = Fastify({ logger: false });
     registerMusicVideoRoutes(app2, { cache: c, lookup: lookup2, fetchImpl: fetchImpl as unknown as typeof fetch });
@@ -148,6 +154,7 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
       search: async () => ({ status: 'none' }),
       streamUrlFor: async () => null,
       probe: async () => ({ status: 'none' }) as const,
+      download: async () => false,
     };
     const app2 = Fastify({ logger: false });
     registerMusicVideoRoutes(app2, { cache, lookup, fetchImpl: fetchImpl as unknown as typeof fetch });
@@ -211,6 +218,7 @@ describe('GET /api/musicvideo/stream/:videoId', () => {
         });
       },
       probe: async () => ({ status: 'none' }) as const,
+      download: async () => false,
     };
     const app2 = Fastify({ logger: false });
     registerMusicVideoRoutes(app2, {
@@ -668,6 +676,7 @@ describe('history pagination', () => {
       search: async () => ({ status: 'none' }) as const,
       streamUrlFor: async () => null,
       probe: async () => ({ status: 'none' }) as const,
+      download: async () => false,
     };
     for (let i = 0; i < n; i++) {
       cache.putVideoId(`artist${i}|song${i}`, 'aaa11111111', {
@@ -724,5 +733,253 @@ describe('history pagination', () => {
     const res = await app.inject({ method: 'GET', url: '/api/musicvideo/history?q=Artist&limit=8&offset=8' });
     expect(res.json().rows).toHaveLength(8);
     expect(res.json().total).toBe(30);
+  });
+});
+
+describe('local video files', () => {
+  let vdir: string;
+  afterEach(() => { if (vdir) rmSync(vdir, { recursive: true, force: true }); });
+
+  function harnessWithFiles(opts: { maxBytes?: number; downloadOk?: boolean } = {}) {
+    vdir = mkdtempSync(join(tmpdir(), 'cosmos-api-vid-'));
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const files = createVideoFileStore(db, { dir: vdir });
+    const downloads: string[] = [];
+    const lookup: VideoLookup = {
+      search: async () => ({ status: 'none' }),
+      streamUrlFor: async () => 'https://fresh/url',
+      probe: async () => ({ status: 'none' }) as const,
+      download: async (videoId, dest) => {
+        downloads.push(videoId);
+        if (opts.downloadOk === false) return false;
+        writeFileSync(dest, Buffer.alloc(2048));
+        return true;
+      },
+    };
+    const app = Fastify({ logger: false });
+    registerMusicVideoRoutes(app, {
+      cache,
+      lookup,
+      files,
+      maxCacheBytes: () => opts.maxBytes ?? 10_000_000,
+      fetchImpl: (async () => okResponse()) as unknown as typeof fetch,
+    });
+    return { app, cache, files, downloads, lookup };
+  }
+
+  it('serves the local file instead of reaching YouTube once downloaded', async () => {
+    const h = harnessWithFiles();
+    await h.app.ready();
+    writeFileSync(h.files.pathFor('abc12345678')!, Buffer.from('LOCALBYTES'));
+    h.files.record('abc12345678', 10);
+
+    const res = await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc12345678' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('LOCALBYTES');
+    expect(res.headers['accept-ranges']).toBe('bytes');
+    // Nothing was fetched upstream — that is the entire point.
+    expect(h.downloads).toEqual([]);
+  });
+
+  it('honours Range against a local file so the widget can still seek', async () => {
+    const h = harnessWithFiles();
+    await h.app.ready();
+    writeFileSync(h.files.pathFor('abc12345678')!, Buffer.from('0123456789'));
+    h.files.record('abc12345678', 10);
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/musicvideo/stream/abc12345678',
+      headers: { range: 'bytes=2-5' },
+    });
+    expect(res.statusCode).toBe(206);
+    expect(res.body).toBe('2345');
+    expect(res.headers['content-range']).toBe('bytes 2-5/10');
+  });
+
+  it('416s on a range past the end rather than serving nonsense', async () => {
+    const h = harnessWithFiles();
+    await h.app.ready();
+    writeFileSync(h.files.pathFor('abc12345678')!, Buffer.from('0123456789'));
+    h.files.record('abc12345678', 10);
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/musicvideo/stream/abc12345678',
+      headers: { range: 'bytes=99-200' },
+    });
+    expect(res.statusCode).toBe(416);
+  });
+
+  it('proxies the first play and downloads for the next one', async () => {
+    const h = harnessWithFiles();
+    await h.app.ready();
+    h.cache.putStream('abc12345678', 'https://rr1.googlevideo.com/x', 200);
+
+    const res = await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc12345678' });
+    expect(res.statusCode).toBe(200);
+
+    await vi.waitFor(() => expect(h.files.has('abc12345678')).toBe(true));
+    expect(h.downloads).toEqual(['abc12345678']);
+    expect(h.files.stats().totalBytes).toBe(2048);
+  });
+
+  it('does not download when the cap is zero', async () => {
+    const h = harnessWithFiles({ maxBytes: 0 });
+    await h.app.ready();
+    h.cache.putStream('abc12345678', 'https://rr1.googlevideo.com/x', 200);
+
+    await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc12345678' });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(h.downloads).toEqual([]);
+    expect(h.files.has('abc12345678')).toBe(false);
+  });
+
+  it('keeps proxying when a download fails', async () => {
+    const h = harnessWithFiles({ downloadOk: false });
+    await h.app.ready();
+    h.cache.putStream('abc12345678', 'https://rr1.googlevideo.com/x', 200);
+
+    const res = await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc12345678' });
+    expect(res.statusCode).toBe(200);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(h.files.has('abc12345678')).toBe(false);
+  });
+
+  it('counts a play once per playback, not once per range request', async () => {
+    const h = harnessWithFiles();
+    await h.app.ready();
+    writeFileSync(h.files.pathFor('abc12345678')!, Buffer.alloc(4096));
+    h.files.record('abc12345678', 4096);
+
+    // One play: an opening request plus the chunk requests that follow it.
+    await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc12345678', headers: { range: 'bytes=0-1023' } });
+    await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc12345678', headers: { range: 'bytes=1024-2047' } });
+    await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/abc12345678', headers: { range: 'bytes=2048-4095' } });
+
+    expect(h.files.playCount('abc12345678')).toBe(1);
+  });
+
+  it('evicts the least-played video when a new download breaches the cap', async () => {
+    const h = harnessWithFiles({ maxBytes: 4096 });
+    await h.app.ready();
+    // Two files already at the cap; one is loved, one is not.
+    for (const id of ['loved111111', 'unloved1111']) {
+      writeFileSync(h.files.pathFor(id)!, Buffer.alloc(2048));
+      h.files.record(id, 2048);
+    }
+    for (let i = 0; i < 5; i++) h.files.recordPlay('loved111111');
+
+    h.cache.putStream('newvid00001', 'https://rr1.googlevideo.com/x', 200);
+    await h.app.inject({ method: 'GET', url: '/api/musicvideo/stream/newvid00001' });
+
+    await vi.waitFor(() => expect(h.files.has('newvid00001')).toBe(true));
+    await vi.waitFor(() => expect(h.files.has('unloved1111')).toBe(false));
+    expect(h.files.has('loved111111')).toBe(true);
+    expect(h.files.stats().totalBytes).toBeLessThanOrEqual(4096);
+  });
+});
+
+describe('storage settings', () => {
+  let sdir: string;
+  afterEach(() => { if (sdir) rmSync(sdir, { recursive: true, force: true }); });
+
+  function storageHarness() {
+    sdir = mkdtempSync(join(tmpdir(), 'cosmos-store-'));
+    const db = freshDb();
+    const cache = createMusicVideoCache(db);
+    const settings = createSettingsRepo(db);
+    const files = createVideoFileStore(db, { dir: sdir });
+    const lookup: VideoLookup = {
+      search: async () => ({ status: 'none' }),
+      streamUrlFor: async () => null,
+      probe: async () => ({ status: 'none' }) as const,
+      download: async () => false,
+    };
+    const app = Fastify({ logger: false });
+    registerMusicVideoRoutes(app, { cache, lookup, settings, files, maxCacheBytes: () => 0 });
+    return { app, files, settings };
+  }
+
+  function put(files: ReturnType<typeof createVideoFileStore>, id: string, bytes: number) {
+    writeFileSync(files.pathFor(id)!, Buffer.alloc(bytes));
+    files.record(id, bytes);
+  }
+
+  it('reports the default limit and current usage', async () => {
+    const h = storageHarness();
+    await h.app.ready();
+    put(h.files, 'aaa11111111', 1024 * 1024);
+
+    const res = await h.app.inject({ method: 'GET', url: '/api/musicvideo/storage' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      maxMb: 1024, enabled: true, fileCount: 1, totalBytes: 1024 * 1024,
+    });
+  });
+
+  it('saves a new limit', async () => {
+    const h = storageHarness();
+    await h.app.ready();
+    const res = await h.app.inject({ method: 'PUT', url: '/api/musicvideo/storage', payload: { maxMb: 256 } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().maxMb).toBe(256);
+    expect((await h.app.inject({ method: 'GET', url: '/api/musicvideo/storage' })).json().maxMb).toBe(256);
+  });
+
+  it('applies a lowered limit immediately instead of waiting for the next download', async () => {
+    const h = storageHarness();
+    await h.app.ready();
+    put(h.files, 'loved111111', 2 * 1024 * 1024);
+    put(h.files, 'unloved1111', 2 * 1024 * 1024);
+    for (let i = 0; i < 3; i++) h.files.recordPlay('loved111111');
+
+    const res = await h.app.inject({ method: 'PUT', url: '/api/musicvideo/storage', payload: { maxMb: 2 } });
+    expect(res.json().removed).toBe(1);
+    // The least played one is the one that went.
+    expect(h.files.has('loved111111')).toBe(true);
+    expect(h.files.has('unloved1111')).toBe(false);
+  });
+
+  it('a limit of zero clears everything — turning downloads off', async () => {
+    const h = storageHarness();
+    await h.app.ready();
+    put(h.files, 'aaa11111111', 1024);
+    put(h.files, 'bbb22222222', 1024);
+
+    const res = await h.app.inject({ method: 'PUT', url: '/api/musicvideo/storage', payload: { maxMb: 0 } });
+    expect(res.json()).toMatchObject({ maxMb: 0, removed: 2, fileCount: 0, totalBytes: 0 });
+  });
+
+  it.each([
+    ['a negative limit', -1],
+    ['a non-number', 'lots'],
+  ])('rejects %s', async (_label, maxMb) => {
+    const h = storageHarness();
+    await h.app.ready();
+    const res = await h.app.inject({ method: 'PUT', url: '/api/musicvideo/storage', payload: { maxMb } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses a limit beyond the hard ceiling rather than letting it fill the disk', async () => {
+    const h = storageHarness();
+    await h.app.ready();
+    const res = await h.app.inject({ method: 'PUT', url: '/api/musicvideo/storage', payload: { maxMb: 999_999 } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/cannot exceed/i);
+  });
+
+  it('reports disabled when no file store is wired', async () => {
+    const db = freshDb();
+    const bare = Fastify({ logger: false });
+    registerMusicVideoRoutes(bare, {
+      cache: createMusicVideoCache(db),
+      lookup: null,
+      settings: createSettingsRepo(db),
+    });
+    await bare.ready();
+    const res = await bare.inject({ method: 'GET', url: '/api/musicvideo/storage' });
+    expect(res.json()).toMatchObject({ enabled: false, fileCount: 0, totalBytes: 0 });
   });
 });

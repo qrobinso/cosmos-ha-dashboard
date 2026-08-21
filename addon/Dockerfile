@@ -54,7 +54,7 @@ RUN apk add --no-cache nodejs npm ca-certificates
 #
 # No ffmpeg anywhere: the widget pins `-f 18`, a progressive MP4 with muxed
 # audio, so nothing ever needs remuxing.
-ARG YTDLP_VERSION=2026.7.4
+ARG YTDLP_VERSION=2026.8.19
 RUN set -eu; \
     apk add --no-cache python3 py3-pip; \
     # PEP 668 marks Alpine's Python "externally managed" on newer releases.

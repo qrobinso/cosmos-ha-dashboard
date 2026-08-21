@@ -70,6 +70,46 @@
   let removingKey = '';
   let blockingKey = '';
 
+  /** On-disk video cache. */
+  let storage: { maxMb: number; limitMb: number; enabled: boolean; fileCount: number; totalBytes: number } | null = null;
+  let maxMbInput = 0;
+  let savingStorage = false;
+  let storageError: string | null = null;
+  let storageNote: string | null = null;
+
+  function fmtBytes(b: number): string {
+    if (b < 1024) return `${b} B`;
+    const mb = b / (1024 * 1024);
+    if (mb < 1024) return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+    return `${(mb / 1024).toFixed(1)} GB`;
+  }
+
+  async function loadStorage() {
+    storage = await api.musicvideo.getStorage();
+    maxMbInput = storage.maxMb;
+  }
+
+  async function saveStorage() {
+    if (savingStorage) return;
+    savingStorage = true;
+    storageError = null;
+    storageNote = null;
+    try {
+      const res = await api.musicvideo.setStorage(Number(maxMbInput));
+      if (!res.ok) {
+        storageError = res.error;
+        return;
+      }
+      storageNote =
+        res.removed > 0
+          ? `Saved. Removed ${res.removed} video${res.removed === 1 ? '' : 's'} to fit.`
+          : 'Saved.';
+      await loadStorage();
+    } finally {
+      savingStorage = false;
+    }
+  }
+
   let formSection: HTMLElement | undefined;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -171,7 +211,7 @@
   }
 
   async function refreshAll() {
-    await Promise.all([loadNowPlaying(), loadOverrides(), loadHistory()]);
+    await Promise.all([loadNowPlaying(), loadOverrides(), loadHistory(), loadStorage()]);
   }
 
   async function saveEntity() {
@@ -377,6 +417,36 @@
     {/if}
   </section>
 
+  {#if storage?.enabled}
+    <section class="card reveal reveal-3">
+      <h2>Stored videos</h2>
+      <p class="hint">
+        Videos are downloaded the first time they play, so later plays never touch YouTube —
+        no expiry, no re-fetching. When the limit is reached, the least-played videos go first,
+        oldest of those first.
+      </p>
+
+      <div class="storage-row">
+        <Field label="Storage limit (MB)">
+          <input type="number" min="0" max={storage.limitMb} step="128" bind:value={maxMbInput} />
+        </Field>
+        <button type="button" on:click={saveStorage} disabled={savingStorage}>
+          {savingStorage ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      <p class="usage">
+        <span class="tag muted">{storage.fileCount} stored</span>
+        <span class="usage-bytes">{fmtBytes(storage.totalBytes)} of {storage.maxMb} MB used</span>
+      </p>
+      {#if maxMbInput === 0}
+        <p class="hint">Set to 0 — nothing is stored, and every play streams from YouTube.</p>
+      {/if}
+      {#if storageError}<p class="error">{storageError}</p>{/if}
+      {#if storageNote}<p class="ok">{storageNote}</p>{/if}
+    </section>
+  {/if}
+
   <section class="card reveal reveal-3">
     <h2>Overrides</h2>
     {#if overrides.length === 0}
@@ -556,6 +626,28 @@
     color: var(--c-fg-3);
     font-size: 0.92rem;
     margin: 0;
+  }
+
+  .storage-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+  .storage-row :global(.field) { flex: 1 1 12rem; }
+
+  .usage {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin: 0;
+  }
+  .usage-bytes {
+    color: var(--c-fg-3);
+    font-size: 0.85rem;
+    font-family: var(--font-mono, monospace);
   }
 
   /* Why a lookup found nothing. Muted and small — it explains an empty slot,
