@@ -114,6 +114,8 @@ Settings, in the scene editor's widget inspector:
 
 For an ambient now-playing wall: size it to the full grid, set Layer to *Behind*, drop opacity to ~40%, add ~140px of edge fade, and put a media player card and a clock on top with their **Transparent background** enabled.
 
+**Keeping YouTube support working.** Each app update installs the newest `yt-dlp`, which is what keeps playback working as YouTube changes — so updating Cosmos is also how you keep video backdrops alive. If videos stop playing between updates, run `pip3 install -U --break-system-packages yt-dlp` inside the app container to refresh it in place without waiting for a release.
+
 If a widget stays blank and you want to know why, switch on `log_musicvideo` in Configuration — the app log will name the reason, from "no official video" through to the score every candidate received.
 
 **Fixing a specific song.** The **Video Backdrop** page in the sidebar (`/admin/musicvideo`) lets you pin an exact YouTube link to a song, or block a song from ever playing a video — useful for the songs the automatic matcher deliberately skips, or ones you'd just rather not see a video for. A pin or block is permanent until you remove it. See [`docs/video-backdrop-overrides.md`](https://github.com/qrobinso/cosmos-ha-dashboard/blob/main/docs/video-backdrop-overrides.md).

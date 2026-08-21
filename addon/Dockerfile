@@ -52,18 +52,40 @@ RUN apk add --no-cache nodejs npm ca-certificates
 # pip gives a current release linked against the right libc. Note the PyPI
 # version format strips leading zeros (2026.7.4, NOT 2026.07.04).
 #
-# No ffmpeg anywhere: the widget pins `-f 18`, a progressive MP4 with muxed
-# audio, so nothing ever needs remuxing.
-ARG YTDLP_VERSION=2026.8.19
+# No ffmpeg anywhere: the widget uses a video-only H.264 MP4 (the kiosk is
+# muted, audio comes from the HA speaker), so nothing ever needs remuxing.
+#
+# UNPINNED BY DEFAULT, deliberately. A pinned yt-dlp goes stale, and a stale
+# yt-dlp is how this feature breaks: YouTube changes, extractors stop working,
+# and users see an empty widget or "403" in the log. That is not theoretical —
+# it is exactly what happened between 0.7.x and 0.8.2.
+#
+# The ADD below is what makes "latest" actually mean latest. Docker hashes the
+# response body, so a new yt-dlp release changes the hash and this layer
+# rebuilds; with no new release the layer stays cached and the build is fast.
+# Without it, `pip install --upgrade` would sit behind a cached layer and ship
+# whatever was current the day the layer was first built — the same staleness,
+# just harder to see.
+#
+# GitHub's release endpoint rather than PyPI's JSON: same information for this
+# purpose, 60 KB instead of 1.2 MB, and the same host the builder stage already
+# depends on. Only its CONTENT HASH matters here — the tag it carries
+# (2026.08.19) is not the PyPI version string (2026.8.19), and nothing reads it.
+ADD https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest /tmp/.ytdlp-release
+
+# Set to a version (e.g. 2026.8.19) to pin instead — the escape hatch for a
+# broken upstream release. Empty means "install the newest".
+ARG YTDLP_VERSION=
 RUN set -eu; \
     apk add --no-cache python3 py3-pip; \
+    if [ -n "${YTDLP_VERSION}" ]; then SPEC="yt-dlp==${YTDLP_VERSION}"; else SPEC="yt-dlp"; fi; \
     # PEP 668 marks Alpine's Python "externally managed" on newer releases.
     # The flag is what we want there; older pip rejects the flag outright, so
     # fall back to a plain install.
-    pip3 install --no-cache-dir --break-system-packages "yt-dlp==${YTDLP_VERSION}" \
-      || pip3 install --no-cache-dir "yt-dlp==${YTDLP_VERSION}"; \
-    # Fail the build loudly rather than shipping an image whose music video
-    # widget is silently dead. This is what caught the musl failure above.
+    pip3 install --no-cache-dir --upgrade --break-system-packages "${SPEC}" \
+      || pip3 install --no-cache-dir --upgrade "${SPEC}"; \
+    # Fail the build loudly rather than shipping an image whose video backdrop
+    # is silently dead. This is what caught the musl failure in 0.7.0.
     yt-dlp --version
 
 WORKDIR /app

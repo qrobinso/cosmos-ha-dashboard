@@ -3,7 +3,7 @@
 ## 0.8.2
 
 - Feat: **Video backdrops are downloaded and reused.** The first play streams as before while a copy is fetched in the background; every play after that comes off your own disk. Set the limit in megabytes on the Video Backdrop page — when it fills, the least-played videos go first, oldest of those first. Set it to 0 to store nothing. Files are kept in `/share/cosmos/video-cache`, deliberately outside add-on backups so your snapshots stay small.
-- Fix: **"upstream returned 403" while a video was playing.** YouTube has been retiring the progressive format this feature was pinned to — for many videos it is no longer offered at all, and where it is, the URL is rejected. Cosmos now uses adaptive video-only streams, which costs nothing because the widget is muted anyway (sound comes from your Home Assistant speaker). Bundled `yt-dlp` updated to 2026.8.19; a stale copy is the usual cause of this kind of breakage.
+- Fix: **"upstream returned 403" while a video was playing.** YouTube has been retiring the progressive format this feature was pinned to — for many videos it is no longer offered at all, and where it is, the URL is rejected. Cosmos now uses adaptive video-only streams, which costs nothing because the widget is muted anyway (sound comes from your Home Assistant speaker). Bundled `yt-dlp` is also no longer pinned to a fixed version — each app update now installs the newest release, so YouTube changes are absorbed by updating Cosmos rather than waiting for someone to bump a number. A stale `yt-dlp` is the usual cause of this kind of breakage.
 
 ## 0.8.1
 
