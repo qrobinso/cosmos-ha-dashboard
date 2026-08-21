@@ -21,38 +21,36 @@ export const YTDLP_TIMEOUT_MS = 15_000;
 export const YTDLP_DOWNLOAD_TIMEOUT_MS = 180_000;
 
 /**
- * Progressive 360p MP4 with muxed audio. Deliberately NOT `best` — the
- * higher-resolution YouTube formats are DASH-only fragmented streams that
- * will not play in a bare <video> tag, and format 18 supports the byte-range
- * seeking the position-sync feature depends on.
- */
-const FORMAT = '18';
-
-/**
- * Format selector for DOWNLOADS, which is a different problem to streaming.
+ * The media format used everywhere: resolving a stream URL to proxy, and
+ * downloading a local copy. One constant, because both paths must serve
+ * byte-identical content — the download is simply the cached form of the
+ * stream.
  *
- * YouTube has been retiring progressive (muxed) formats: for many videos
- * format 18 is no longer offered at all, and where an older yt-dlp still
- * reports it, the URL returns 403. Only adaptive video-only and audio-only
+ * **Video-only, on purpose.** YouTube has been retiring progressive (muxed)
+ * formats: for many videos format 18 is no longer offered at all, and where an
+ * older yt-dlp still reports it, the URL returns 403. That was the cause of the
+ * "upstream returned 403" churn. Only adaptive video-only and audio-only
  * streams remain.
  *
- * That is fine here, because the widget is ALWAYS muted — audio comes from
- * the Home Assistant speaker, never the kiosk. A video-only H.264 MP4 is
- * exactly what we want: no audio track to fetch, no muxing, so no ffmpeg in
- * the image, and a smaller file. yt-dlp writes a standard MP4 with a moov
- * atom, which browsers play directly (verified end to end in a real browser).
+ * Dropping audio costs nothing here, because the widget is ALWAYS muted —
+ * sound comes from the Home Assistant speaker, never the kiosk. So we take the
+ * video track alone: no muxing, therefore still no ffmpeg in the image, and a
+ * smaller file. yt-dlp writes a standard MP4 with a moov atom, and its URL
+ * serves ranged requests, so both `<video src>` and the proxy work unchanged
+ * (verified end to end in a real browser).
  *
- * Capped at 480p: this is wall ambience behind other widgets, often at
- * reduced opacity, so 1080p would spend disk and decode budget on detail
- * nobody sees. Falls back through progressive 18 (still right where a video
- * offers it) and then any MP4, so an unusual video degrades rather than fails.
+ * Capped at 480p: this is wall ambience, often behind other widgets at reduced
+ * opacity, so 1080p would spend disk and decode budget on detail nobody sees.
+ * `18` stays in the chain for videos that still offer it, and a bare MP4 is the
+ * last resort, so an unusual video degrades rather than fails outright.
  */
-const DOWNLOAD_FORMAT = [
+const FORMAT = [
   'bestvideo[ext=mp4][vcodec^=avc1][height<=480]',
   'bestvideo[ext=mp4][height<=480]',
   '18',
   'bestvideo[ext=mp4]',
 ].join('/');
+
 
 /**
  * `spawnFailed` distinguishes "the binary could not be started at all"
@@ -374,7 +372,7 @@ export function createYtDlpLookup(opts: YtDlpOptions = {}): VideoLookup {
       try {
         const { ok, spawnFailed } = await run(
           [
-            '-f', DOWNLOAD_FORMAT,
+            '-f', FORMAT,
             // Write straight to the final name. Without this yt-dlp leaves a
             // .part file behind on failure, which the store would later see
             // as a missing file anyway — but this keeps the cache dir clean.

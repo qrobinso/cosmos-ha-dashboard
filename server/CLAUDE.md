@@ -22,7 +22,7 @@ Node + TypeScript server. Fastify HTTP, `ws` WebSocket hub, `better-sqlite3` per
 - `src/ha/templates.ts` — TemplatesClient. Wraps HA's `render_template` WS subscription with ref-counted sharing across callers and error pass-through.
 - `src/scenes/canvas.ts` — `createCanvasResolver` bridges the assembler to TemplatesClient, tracking per-widget cleanups so re-resolves drop the previous subscription.
 - `src/api/canvases.ts` — `POST /api/canvases/:widgetId/subscribe` records iframe-side entity-id requests in a per-(display, widget) extras store. Cleared on display disconnect.
-- `src/musicvideo/overrides.ts` — durable `music_video_override` repo (pin/block per track key, never pruned). `src/musicvideo/youtubeUrl.ts` — parses a pasted YouTube URL (or bare id) into a video id.
+- `src/musicvideo/overrides.ts` — durable `music_video_override` repo (pin/block per track key, never pruned). `src/musicvideo/youtubeUrl.ts` — parses a pasted YouTube URL (or bare id) into a video id. `src/musicvideo/fileStore.ts` — downloaded video files on disk plus their play counts, with least-played-then-oldest eviction under the user's MB cap.
 
 ## Conventions
 

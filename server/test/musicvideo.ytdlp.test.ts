@@ -95,7 +95,9 @@ describe('createYtDlpLookup — two-phase search', () => {
     expect(result.status === 'ok' && result.video.videoId).toBe('weary-id');
     const phase2 = calls[1];
     expect(phase2).toContain('-f');
-    expect(phase2).toContain('18');
+    // The format is a preference chain, not a single id — video-only first,
+    // since YouTube has retired the progressive formats this used to pin.
+    expect(phase2.join(' ')).toMatch(/bestvideo\[ext=mp4\]/);
     expect(phase2.some((a) => a === 'https://www.youtube.com/watch?v=weary-id')).toBe(true);
     expect(phase2.some((a) => a === 'https://www.youtube.com/watch?v=medley-id')).toBe(false);
   });

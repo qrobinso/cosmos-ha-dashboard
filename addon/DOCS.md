@@ -94,6 +94,9 @@ Recommended: one canvas per scene. Multiple sandboxed iframes on a tablet runnin
 
 ## Video backdrop widget
 
+**Videos are stored locally.** The first time a song plays, Cosmos streams it and downloads a copy in the background; every later play comes off your own disk, so YouTube is only ever contacted once per video. Set the size limit on the **Video Backdrop** page — when it fills, the least-played videos are removed first, oldest of those first. Set it to 0 to store nothing and stream every time. Files live in `/share/cosmos/video-cache`, kept out of add-on backups so your snapshots stay small.
+
+
 Point it at a `media_player` and it plays the official YouTube video for whatever is playing — muted, synced to the track's position, in whatever grid slot you give it. Audio keeps coming from your Home Assistant speaker; the video is just the visual. `yt-dlp` is bundled in this app, so there is nothing to install.
 
 **It shows nothing more often than you might expect, and that is deliberate.** A video plays only when one exists on the artist's own YouTube channel with "official" and "video" in the title. Songs whose real video is titled plainly — Radiohead's "Karma Police", Taylor Swift's "Blank Space" — show nothing rather than risk playing a fan re-upload or a lyric video. TV shows, podcasts, and anything that is not music are skipped entirely.

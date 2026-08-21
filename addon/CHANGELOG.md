@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.2
+
+- Feat: **Video backdrops are downloaded and reused.** The first play streams as before while a copy is fetched in the background; every play after that comes off your own disk. Set the limit in megabytes on the Video Backdrop page — when it fills, the least-played videos go first, oldest of those first. Set it to 0 to store nothing. Files are kept in `/share/cosmos/video-cache`, deliberately outside add-on backups so your snapshots stay small.
+- Fix: **"upstream returned 403" while a video was playing.** YouTube has been retiring the progressive format this feature was pinned to — for many videos it is no longer offered at all, and where it is, the URL is rejected. Cosmos now uses adaptive video-only streams, which costs nothing because the widget is muted anyway (sound comes from your Home Assistant speaker). Bundled `yt-dlp` updated to 2026.8.19; a stale copy is the usual cause of this kind of breakage.
+
 ## 0.8.1
 
 - Fix: **non-English official videos are no longer discarded.** Matching required the English word "official", so a video titled "Video Oficial" — how Spanish-language artists label theirs — was rejected even on the artist's own channel. Whole catalogues were affected: Bad Bunny's own videos never played. Spanish, Portuguese, French, Italian and German wording is now recognised (accents included), along with the disqualifiers in those languages so a "Letra" or "En Vivo" version doesn't slip through in place of the real video.
