@@ -38,6 +38,7 @@ export type WsDeps = {
   resolveWeatherForecasts?: import('../scenes/assembler.js').DataResolvers['resolveWeatherForecasts'];
   resolveCameraCapabilities?: import('../scenes/assembler.js').DataResolvers['resolveCameraCapabilities'];
   readEntitySync?: import('../scenes/assembler.js').DataResolvers['readEntitySync'];
+  aerialAssets?: import('../scenes/assembler.js').DataResolvers['aerialAssets'];
   /** HA base URL — used to absolutize relative media-player art paths. */
   mediaUrlBase?: string;
   onDisplayOnline?: (displayId: string, name: string) => void;
@@ -190,6 +191,7 @@ export function attachWsHub(server: Server, deps: WsDeps): CosmosWss {
       resolveWeatherForecasts: deps.resolveWeatherForecasts,
       resolveCameraCapabilities: deps.resolveCameraCapabilities,
       readEntitySync: deps.readEntitySync,
+      aerialAssets: deps.aerialAssets,
       mediaUrlBase: deps.mediaUrlBase,
       canvasResolver: deps.canvasResolver,
       canvasExtras: deps.canvasExtras,

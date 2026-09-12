@@ -25,6 +25,10 @@ import { createYtDlpLookup, probeYtDlpAvailable } from './musicvideo/ytdlp.js';
 import { createMusicVideoResolver } from './musicvideo/resolver.js';
 import { createMusicVideoOverrideRepo } from './musicvideo/overrides.js';
 import { createVideoFileStore } from './musicvideo/fileStore.js';
+import { createAerialCatalogStore } from './aerials/store.js';
+import { createCatalogRefresher } from './aerials/refresh.js';
+import { createAerialDownloader } from './aerials/download.js';
+import { readAerialMaxCacheMb } from './api/aerials.js';
 import { readMaxCacheMb } from './api/musicvideo.js';
 import { createAlertManager } from './scenes/alerts.js';
 import { createCanvasExtrasStore } from './api/canvases.js';
@@ -107,6 +111,26 @@ async function main() {
   // Resolve the builtins folder relative to this file so the seed works from
   // both dev (tsx running TS source under src/) and prod (compiled JS in dist/).
   designs.seedBuiltinsFromDir(join(__cosmos_src_dir, 'designs', 'builtins'));
+
+  // Apple aerials: catalog persisted in settings, clips cached on disk next
+  // to the music videos (same /share reasoning). Boot never waits on Apple;
+  // a stale or missing catalog refreshes in the background, and again on the
+  // hourly sweep so a long-running install picks up new bundles.
+  const aerialCatalog = createAerialCatalogStore(settings);
+  const aerialRefresher = createCatalogRefresher({ store: aerialCatalog });
+  const aerialMaxCacheBytes = () => readAerialMaxCacheMb(settings) * 1024 * 1024;
+  let aerialFiles: ReturnType<typeof createVideoFileStore> | null = null;
+  try {
+    aerialFiles = createVideoFileStore(db, { dir: join(config.videoCacheDir, 'aerials'), table: 'aerial_file' });
+  } catch (err) {
+    console.error(`[aerials] could not open the aerial cache; clips will stream from Apple each time. ${String(err)}`);
+  }
+  const aerialDownloader = aerialFiles
+    ? createAerialDownloader({ files: aerialFiles, maxCacheBytes: aerialMaxCacheBytes })
+    : null;
+  void aerialRefresher.refreshIfStale();
+  const aerialRefreshTimer = setInterval(() => void aerialRefresher.refreshIfStale(), 60 * 60 * 1000);
+  aerialRefreshTimer.unref();
 
   // Resolve effective HA + MQTT settings, falling back to Supervisor when running as an add-on.
   const { fetchMqttFromSupervisor, SUPERVISOR_HA_URL, SUPERVISOR_BASE } = await import('./ha/supervisor.js');
@@ -296,6 +320,13 @@ async function main() {
     musicVideoOverrides,
     musicVideoFiles: videoFiles,
     musicVideoMaxCacheBytes: maxCacheBytes,
+    aerials: {
+      catalog: aerialCatalog,
+      refresher: aerialRefresher,
+      files: aerialFiles,
+      downloader: aerialDownloader,
+      maxCacheBytes: aerialMaxCacheBytes,
+    },
     // Getter: the resolver is built further down, after this app.
     musicVideoResolver: () => musicVideoResolver,
     onMusicVideoOverridesChanged: () => {
@@ -349,6 +380,7 @@ async function main() {
         resolveWeatherForecasts,
         resolveCameraCapabilities,
         readEntitySync,
+        aerialAssets: () => aerialCatalog.assets(),
         mediaUrlBase: effectiveHa.source === 'environment' || effectiveHa.source === 'manual'
           ? effectiveHaUrl ?? undefined
           : undefined,
@@ -504,6 +536,7 @@ async function main() {
     resolveWeatherForecasts,
     resolveCameraCapabilities,
     readEntitySync,
+    aerialAssets: () => aerialCatalog.assets(),
     mediaUrlBase: browserMediaBase ?? undefined,
     onDisplayOnline: publishOnline,
     onDisplayOffline: publishOffline,
@@ -771,6 +804,7 @@ async function main() {
       canvasResolver.dispose();
       musicVideoResolver.dispose();
       clearInterval(musicVideoPruneTimer);
+      clearInterval(aerialRefreshTimer);
       templatesClient?.close();
       await haClient?.close();
       voiceClient?.close();

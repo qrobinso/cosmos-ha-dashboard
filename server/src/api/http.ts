@@ -19,6 +19,7 @@ import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerCameraRoutes } from './cameras.js';
 import { registerMoodRoutes } from './moods.js';
 import { registerMusicVideoRoutes } from './musicvideo.js';
+import { registerAerialRoutes, type AerialRouteDeps } from './aerials.js';
 import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
 import { registerDocsRoutes } from './docs.js';
 import { registerAgentRoutes } from './agent.js';
@@ -89,6 +90,9 @@ export type HttpDeps = {
   musicVideoFiles?: import('../musicvideo/fileStore.js').VideoFileStore | null;
   /** Current on-disk cache ceiling in bytes, read fresh on each request. */
   musicVideoMaxCacheBytes?: () => number;
+  /** Apple aerial catalog + cache. Absent in tests that don't care; the
+   *  routes are then not registered. */
+  aerials?: Omit<AerialRouteDeps, 'settings'>;
   /** Lets the overrides page resolve a track no scene widget is watching.
    *  A getter because the resolver is constructed after the HTTP app. */
   musicVideoResolver?: () => import('../musicvideo/resolver.js').MusicVideoResolver | null;
@@ -295,6 +299,8 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     files: deps.musicVideoFiles ?? null,
     maxCacheBytes: deps.musicVideoMaxCacheBytes,
   });
+
+  if (deps.aerials) registerAerialRoutes(app, { ...deps.aerials, settings: deps.settings });
 
   registerSceneRoutes(app, {
     scenes: deps.scenes,
