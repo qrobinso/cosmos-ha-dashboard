@@ -394,6 +394,7 @@ Every widget in `widgets[]` must have `kind` (string), `position` (object), and 
 
 - `{type:"solid", color:"<css-color>"}` — `color` is required and must be a non-empty string.
 - `{type:"gradient", colors:[<css-colors>], speed:"slow|medium|fast", style:"mesh|linear|radial", sun_adaptive?: boolean, adaptive_colors?: boolean}` — `colors` must be an array of strings. `adaptive_colors` opts into pulling live colors from widgets (album art, canvas `cosmos.reportColors`); `colors` then becomes the fallback / padding palette.
+- `{type:"aerials", ids:[<apple-asset-id>], categories?:["earth"|"landscape"|"city"|"sea"], shuffle?: boolean, interval_min?: 0|5|15|30|60|120|240}` — Apple TV aerial videos as a looping backdrop. `GET /api/aerials` lists every clip (`id`, `name`, `category`, `subcategory`, `previewUrl`, `cached`). A category in `categories` includes every clip of that type, now and as Apple adds more; `ids` adds individual clips. At least one of the two must be non-empty. `interval_min` is how often the kiosk changes clip (`0` = when the clip ends); a clip that ends before the timer restarts. Clips stream from Apple on first play and are cached on the server afterwards (cap under Settings → Aerials), so the first play of a large selection uses real bandwidth.
 
 A string-typed background (e.g. `"{\"type\":\"solid\",\"color\":\"#fff\"}"`) returns a `400 background must be an object` rather than persisting silently.
 
