@@ -6,9 +6,9 @@ import type { AerialCatalogStore } from '../aerials/store.js';
 import type { CatalogRefresher } from '../aerials/refresh.js';
 import type { AerialDownloader } from '../aerials/download.js';
 import { isPlayStart, sendLocalFile } from './localFile.js';
+import { appleFetch } from '../aerials/fetch.js';
 
-/** Apple asset ids are uppercase UUIDs; be strict, this reaches the filesystem. */
-const ASSET_ID_RE = /^[A-Za-z0-9-]{1,40}$/;
+import { AERIAL_ID_RE as ASSET_ID_RE } from '../aerials/validate.js';
 
 /** Settings key for the on-disk aerial cache ceiling, in megabytes. */
 export const AERIAL_MAX_CACHE_MB_SETTING = 'aerials.max_cache_mb';
@@ -37,7 +37,7 @@ export type AerialRouteDeps = {
 };
 
 export function registerAerialRoutes(app: FastifyInstance, deps: AerialRouteDeps): void {
-  const doFetch = deps.fetchImpl ?? fetch;
+  const doFetch = deps.fetchImpl ?? appleFetch;
 
   app.get('/api/aerials', async () => {
     const cat = deps.catalog.get();

@@ -1,4 +1,5 @@
 import { untarEntry } from './untar.js';
+import { appleFetch } from './fetch.js';
 import type { AerialAsset, AerialCatalog, AerialCategory } from './types.js';
 
 /**
@@ -129,7 +130,7 @@ export type FetchCatalogOpts = {
 
 /** Try each feed in order; the first that yields a parseable manifest wins. */
 export async function fetchCatalog(opts: FetchCatalogOpts = {}): Promise<AerialCatalog> {
-  const doFetch = opts.fetchImpl ?? fetch;
+  const doFetch = opts.fetchImpl ?? appleFetch;
   const now = opts.now ?? (() => Date.now());
   const feeds = opts.feeds ?? FEEDS;
   const errors: string[] = [];

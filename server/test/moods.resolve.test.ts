@@ -24,7 +24,7 @@ describe('resolveMood', () => {
     it('resolves a known mood id to a /moods/<file> url with screen blend', () => {
       const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'clouds' };
       const resolved = resolveMood(cfg, ctx(new Date()));
-      expect(resolved).toEqual({ url: '/moods/clouds.mp4', blend: 'screen', opacity: 1 });
+      expect(resolved).toEqual({ kind: 'video', url: '/moods/clouds.mp4', blend: 'screen', opacity: 1 });
     });
 
     it('returns null when moodId is missing', () => {
@@ -34,12 +34,12 @@ describe('resolveMood', () => {
 
     it('builds a /moods/<id>.mp4 url for any moodId (file existence is checked client-side)', () => {
       const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'my-custom' };
-      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ url: '/moods/my-custom.mp4', blend: 'screen', opacity: 1 });
+      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ kind: 'video', url: '/moods/my-custom.mp4', blend: 'screen', opacity: 1 });
     });
 
     it('threads a custom opacity through to the resolved mood', () => {
       const cfg: MoodConfig = { enabled: true, strategy: 'manual', moodId: 'clouds', opacity: 0.4 };
-      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ url: '/moods/clouds.mp4', blend: 'screen', opacity: 0.4 });
+      expect(resolveMood(cfg, ctx(new Date()))).toEqual({ kind: 'video', url: '/moods/clouds.mp4', blend: 'screen', opacity: 0.4 });
     });
 
     it('clamps opacity outside 0..1', () => {
@@ -166,5 +166,47 @@ describe('timeOfDay (clock fallback)', () => {
   ])('hour %i → %s', (hour, expected) => {
     const d = new Date(2030, 0, 1, hour, 0, 0);
     expect(timeOfDay(d, null)).toBe(expected);
+  });
+
+  describe('aerials source', () => {
+    const assets = [
+      { id: 'E1', name: 'Earth One', category: 'earth' as const, previewUrl: '', sourceUrl: 'https://cdn/e1.mov' },
+      { id: 'L1', name: 'Land One', category: 'landscape' as const, previewUrl: '', sourceUrl: 'https://cdn/l1.mov' },
+    ];
+    const withCatalog = { ...ctx(new Date()), aerialAssets: () => assets };
+
+    it('resolves the selection into a rotating playlist of stream urls', () => {
+      const cfg: MoodConfig = {
+        enabled: true, source: 'aerials', strategy: 'manual', opacity: 0.8,
+        aerials: { ids: ['E1', 'GONE'], categories: ['landscape'], shuffle: true, interval_min: 15 },
+      };
+      expect(resolveMood(cfg, withCatalog)).toEqual({
+        kind: 'aerials',
+        clips: [
+          { id: 'L1', name: 'Land One', url: '/api/aerials/stream/L1' },
+          { id: 'E1', name: 'Earth One', url: '/api/aerials/stream/E1' },
+        ],
+        shuffle: true,
+        interval_min: 15,
+        opacity: 0.8,
+      });
+    });
+
+    it('defaults to ordered playback every 30 minutes', () => {
+      const cfg: MoodConfig = { enabled: true, source: 'aerials', strategy: 'manual', aerials: { ids: ['E1'] } };
+      expect(resolveMood(cfg, withCatalog)).toMatchObject({ kind: 'aerials', shuffle: false, interval_min: 30, opacity: 1 });
+    });
+
+    it('resolves to nothing before the catalog exists or when nothing matches', () => {
+      const cfg: MoodConfig = { enabled: true, source: 'aerials', strategy: 'manual', aerials: { ids: ['E1'] } };
+      expect(resolveMood(cfg, ctx(new Date()))).toBeNull();
+      expect(resolveMood({ ...cfg, aerials: { ids: ['NOPE'] } }, withCatalog)).toBeNull();
+      expect(resolveMood({ ...cfg, aerials: undefined }, withCatalog)).toBeNull();
+    });
+
+    it('ignores the strategy when the source is aerials', () => {
+      const cfg: MoodConfig = { enabled: true, source: 'aerials', strategy: 'weather', aerials: { ids: ['E1'] } };
+      expect(resolveMood(cfg, withCatalog)?.kind).toBe('aerials');
+    });
   });
 });

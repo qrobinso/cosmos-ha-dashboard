@@ -199,13 +199,13 @@ export function createMcpTools(deps: McpToolDeps): McpToolDef[] {
         // solid|gradient union — declaring it as a discriminated union here
         // would lock out forward-compatible additions.
         background: z.object({ type: z.string() }).passthrough().optional()
-          .describe('Background union — {type:"solid",color}, {type:"gradient",colors,speed,style,sun_adaptive?}, or {type:"aerials",ids:[appleAssetId...],categories?:["earth"|"landscape"|"city"|"sea"],shuffle?,interval_min?:0|5|15|30|60|120|240} (Apple TV aerial videos; list ids via GET /api/aerials).'),
+          .describe('Background union — {type:"solid",color} or {type:"gradient",colors,speed,style,sun_adaptive?}.'),
         typography: z.object({ font_family: z.string().optional(), font_scale: z.number().optional(), color: z.string().optional() }).partial().optional(),
         defaultTransitionId: z.string().nullable().optional(),
         floatWidgets: z.boolean().optional(),
         // Same reason as background — give MCP clients an object hint.
         mood: z.object({ enabled: z.boolean() }).passthrough().optional()
-          .describe('Mood config — {enabled, strategy: manual|time|weather, moodId?, weatherEntity?, opacity?}.'),
+          .describe('Mood config — {enabled, source?: builtin|aerials, strategy: manual|time|weather, moodId?, weatherEntity?, aerials?: {ids:[appleAssetId...], categories?:["earth"|"landscape"|"city"|"sea"], shuffle?, interval_min?: 0|5|15|30|60|120|240}, opacity?}. source "aerials" plays Apple TV aerial videos (list ids via GET /api/aerials) and ignores strategy.'),
       }),
       execute: async (raw) => {
         const args = raw as { id: string } & Record<string, unknown>;

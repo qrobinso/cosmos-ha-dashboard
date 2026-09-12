@@ -75,7 +75,7 @@ describe('buildSceneState', () => {
       mood: { enabled: true, strategy: 'manual', moodId: 'clouds' },
     };
     const state = await buildSceneState(sceneWithMood, DEFAULT_SAFE_AREA);
-    expect(state.resolvedMood).toEqual({ url: '/moods/clouds.mp4', blend: 'screen', opacity: 1 });
+    expect(state.resolvedMood).toEqual({ kind: 'video', url: '/moods/clouds.mp4', blend: 'screen', opacity: 1 });
   });
 
   it('passes the readEntitySync hook through to the mood resolver', async () => {
@@ -91,7 +91,7 @@ describe('buildSceneState', () => {
     });
     // `rainy` (gentle rain) routes to the water-droplets clip per the
     // weather→mood table; `pouring` would route to rain.mp4 instead.
-    expect(state.resolvedMood?.url).toBe('/moods/water-droplets.mp4');
+    expect(state.resolvedMood?.kind === 'video' && state.resolvedMood.url).toBe('/moods/water-droplets.mp4');
   });
 
   it('returns CanvasData with literal template marks when no canvasResolver is wired', async () => {
@@ -241,33 +241,29 @@ describe('assemblePush', () => {
   });
 });
 
-describe('aerials background', () => {
+describe('aerials mood', () => {
   const assets = [
     { id: 'E1', name: 'Earth One', category: 'earth' as const, previewUrl: '', sourceUrl: 'https://cdn/e1.mov' },
-    { id: 'L1', name: 'Land One', category: 'landscape' as const, previewUrl: '', sourceUrl: 'https://cdn/l1.mov' },
   ];
   const scene: Scene = {
     ...baseScene,
     widgets: [],
-    background: { type: 'aerials', ids: ['E1', 'GONE'], categories: ['landscape'], shuffle: true, interval_min: 15 },
+    mood: { enabled: true, source: 'aerials', strategy: 'manual', aerials: { ids: ['E1'] } },
   };
 
-  it('resolves the selection into stream urls the kiosk can play', async () => {
+  it('threads the aerial catalog into the mood resolver', async () => {
     const state = await buildSceneState(scene, DEFAULT_SAFE_AREA, { aerialAssets: () => assets });
-    expect(state.background).toEqual(scene.background);
-    expect(state.aerialClips).toEqual([
-      { id: 'L1', name: 'Land One', url: '/api/aerials/stream/L1' },
-      { id: 'E1', name: 'Earth One', url: '/api/aerials/stream/E1' },
-    ]);
+    expect(state.resolvedMood).toEqual({
+      kind: 'aerials',
+      clips: [{ id: 'E1', name: 'Earth One', url: '/api/aerials/stream/E1' }],
+      shuffle: false,
+      interval_min: 30,
+      opacity: 1,
+    });
   });
 
-  it('ships an empty clip list when no catalog is available', async () => {
+  it('ships no mood when no catalog is available', async () => {
     const state = await buildSceneState(scene, DEFAULT_SAFE_AREA);
-    expect(state.aerialClips).toEqual([]);
-  });
-
-  it('omits aerialClips for non-aerial backgrounds', async () => {
-    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA, { aerialAssets: () => assets });
-    expect(state.aerialClips).toBeUndefined();
+    expect(state.resolvedMood).toBeUndefined();
   });
 });

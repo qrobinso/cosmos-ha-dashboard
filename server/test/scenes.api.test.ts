@@ -518,31 +518,35 @@ describe('scenes REST API', () => {
     expect(res.json().error).toMatch(/colors must be an array/i);
   });
 
-  it('POST /api/scenes accepts an aerials background', async () => {
-    const background = {
-      type: 'aerials',
-      ids: ['009BA758-7060-4479-8EE8-FB9B40C8FB97'],
-      categories: ['sea'],
-      shuffle: true,
-      interval_min: 30,
+  it('POST /api/scenes accepts an aerials mood', async () => {
+    const mood = {
+      enabled: true,
+      source: 'aerials',
+      strategy: 'manual',
+      aerials: { ids: ['009BA758-7060-4479-8EE8-FB9B40C8FB97'], categories: ['sea'], shuffle: true, interval_min: 30 },
+      opacity: 0.9,
     };
-    const res = await app.inject({ method: 'POST', url: '/api/scenes', payload: { ...sample, background } });
+    const res = await app.inject({ method: 'POST', url: '/api/scenes', payload: { ...sample, mood } });
     expect(res.statusCode).toBe(200);
-    expect(res.json().background).toEqual(background);
+    expect(res.json().mood).toEqual(mood);
   });
 
-  it('POST /api/scenes rejects malformed aerials backgrounds', async () => {
+  it('POST /api/scenes rejects malformed aerials moods', async () => {
+    const base = { enabled: true, source: 'aerials', strategy: 'manual' };
     const cases: Array<[Record<string, unknown>, RegExp]> = [
-      [{ type: 'aerials', ids: [] }, /at least one clip or category/i],
-      [{ type: 'aerials', ids: 'x' }, /ids must be an array/i],
-      [{ type: 'aerials', ids: ['../etc'] }, /ids entries/i],
-      [{ type: 'aerials', ids: [], categories: ['space'] }, /categories entries/i],
-      [{ type: 'aerials', ids: ['A'], interval_min: 7 }, /interval_min/i],
-      [{ type: 'aerials', ids: ['A'], shuffle: 'yes' }, /shuffle/i],
+      [{ ...base }, /mood\.aerials must be an object/i],
+      [{ ...base, aerials: { ids: [] } }, /at least one clip or category/i],
+      [{ ...base, aerials: { ids: 'x' } }, /ids must be an array/i],
+      [{ ...base, aerials: { ids: ['../etc'] } }, /ids entries/i],
+      [{ ...base, aerials: { ids: [], categories: ['space'] } }, /categories entries/i],
+      [{ ...base, aerials: { ids: ['A'], interval_min: 7 } }, /interval_min/i],
+      [{ ...base, aerials: { ids: ['A'], shuffle: 'yes' } }, /shuffle/i],
+      [{ ...base, aerials: { ids: ['A'] }, opacity: 2 }, /opacity/i],
+      [{ enabled: true, source: 'youtube', strategy: 'manual' }, /source must be/i],
     ];
-    for (const [background, re] of cases) {
-      const res = await app.inject({ method: 'POST', url: '/api/scenes', payload: { ...sample, background } });
-      expect(res.statusCode, JSON.stringify(background)).toBe(400);
+    for (const [mood, re] of cases) {
+      const res = await app.inject({ method: 'POST', url: '/api/scenes', payload: { ...sample, mood } });
+      expect(res.statusCode, JSON.stringify(mood)).toBe(400);
       expect(res.json().error).toMatch(re);
     }
   });

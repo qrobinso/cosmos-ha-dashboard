@@ -209,4 +209,15 @@ describe('createInterestSet', () => {
     ctx.interest.recompute();
     expect(ctx.interest.has('light.new')).toBe(true);
   });
+
+  it('an aerials mood reads no ambient entities even with a dormant time strategy', () => {
+    const { displays, scenes, interest } = setup();
+    const scene = scenes.create(baseSceneInput({
+      mood: { enabled: true, source: 'aerials', strategy: 'time', aerials: { ids: ['A'] } },
+    }));
+    const d = displays.registerByName('wall');
+    displays.setDefaultScene(d.id, scene.id);
+    interest.recompute();
+    expect(interest.has('sun.sun')).toBe(false);
+  });
 });

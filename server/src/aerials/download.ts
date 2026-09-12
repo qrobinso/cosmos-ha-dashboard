@@ -3,6 +3,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import type { VideoFileStore } from '../musicvideo/fileStore.js';
 import type { AerialAsset } from './types.js';
+import { appleFetch } from './fetch.js';
 
 export type AerialDownloader = {
   /** Fetch the whole clip to disk unless it is already there, in flight, or
@@ -26,7 +27,7 @@ export function createAerialDownloader(deps: {
   maxCacheBytes: () => number;
   log?: (msg: string) => void;
 }): AerialDownloader {
-  const doFetch = deps.fetchImpl ?? fetch;
+  const doFetch = deps.fetchImpl ?? appleFetch;
   const log = deps.log ?? ((m) => console.log(`[aerials] ${m}`));
   const inFlight = new Map<string, Promise<boolean>>();
 

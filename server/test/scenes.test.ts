@@ -135,6 +135,17 @@ describe('scenes repo', () => {
     expect(ctx.scenes.getByName('NotExists')).toBeNull();
   });
 
+  it('round-trips an aerials mood source and its selection', () => {
+    const ctx = setup();
+    const created = ctx.scenes.create({
+      ...sample,
+      mood: { enabled: true, source: 'aerials', strategy: 'manual', aerials: { ids: ['A'], categories: ['sea'], shuffle: true, interval_min: 15 } },
+    });
+    const fetched = ctx.scenes.get(created.id);
+    expect(fetched?.mood.source).toBe('aerials');
+    expect(fetched?.mood.aerials).toEqual({ ids: ['A'], categories: ['sea'], shuffle: true, interval_min: 15 });
+  });
+
   it('mood defaults to disabled manual when not provided', () => {
     const ctx = setup();
     const created = ctx.scenes.create(sample);

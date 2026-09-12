@@ -23,6 +23,24 @@ export type AerialAsset = {
   sourceUrl: string;
 };
 
+/** Rotation intervals, in minutes. 0 = advance when the clip ends. */
+export const AERIAL_INTERVALS_MIN = [0, 5, 15, 30, 60, 120, 240] as const;
+
+/** One resolved clip as shipped to the kiosk. */
+export type AerialClip = { id: string; name: string; url: string };
+
+/** The aerials half of a MoodConfig: which clips, and how they rotate. */
+export type AerialMoodConfig = {
+  /** Individually picked Apple aerial ids, in the user's order. */
+  ids: string[];
+  /** Whole types ("all Landscape"); clips Apple adds later join automatically. */
+  categories?: AerialCategory[];
+  /** Default false = play in `ids` order. */
+  shuffle?: boolean;
+  /** One of AERIAL_INTERVALS_MIN. Default 30. */
+  interval_min?: number;
+};
+
 export type AerialCatalog = {
   fetchedAt: number;
   /** Which feed URL produced this catalog. */

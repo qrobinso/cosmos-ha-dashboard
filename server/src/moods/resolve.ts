@@ -1,14 +1,18 @@
 import type { EntityState } from '../scenes/types.js';
 import type { MoodConfig, ResolvedMood } from './types.js';
 import { TIME_TO_MOOD, WEATHER_TO_MOOD, type TimeOfDay } from './catalog.js';
+import { expandSelection } from '../aerials/select.js';
+import type { AerialAsset } from '../aerials/types.js';
 
 export type ResolveContext = {
   now: Date;
   /** Returns the current state for an entity, or null if not present. */
   readEntity: (entityId: string) => EntityState | null;
+  /** Current Apple aerial catalog; absent or empty before the first fetch. */
+  aerialAssets?: () => AerialAsset[];
 };
 
-const DEFAULT_BLEND: ResolvedMood['blend'] = 'screen';
+const DEFAULT_BLEND: Extract<ResolvedMood, { kind: 'video' }>['blend'] = 'screen';
 
 function clampOpacity(v: unknown): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
@@ -17,7 +21,7 @@ function clampOpacity(v: unknown): number {
 
 function buildResolved(moodId: string, opacity: number): ResolvedMood | null {
   if (!moodId || /[\\/]/.test(moodId)) return null;
-  return { url: `/moods/${moodId}.mp4`, blend: DEFAULT_BLEND, opacity };
+  return { kind: 'video', url: `/moods/${moodId}.mp4`, blend: DEFAULT_BLEND, opacity };
 }
 
 /**
@@ -62,6 +66,23 @@ export function timeOfDay(now: Date, sun: EntityState | null): TimeOfDay {
 export function resolveMood(config: MoodConfig | null | undefined, ctx: ResolveContext): ResolvedMood | null {
   if (!config || !config.enabled) return null;
   const opacity = clampOpacity(config.opacity);
+
+  if (config.source === 'aerials') {
+    if (!config.aerials) return null;
+    const clips = expandSelection(config.aerials, ctx.aerialAssets?.() ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      url: `/api/aerials/stream/${encodeURIComponent(a.id)}`,
+    }));
+    if (clips.length === 0) return null;
+    return {
+      kind: 'aerials',
+      clips,
+      shuffle: config.aerials.shuffle === true,
+      interval_min: config.aerials.interval_min ?? 30,
+      opacity,
+    };
+  }
 
   if (config.strategy === 'manual') {
     if (!config.moodId) return null;

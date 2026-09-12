@@ -1,5 +1,4 @@
 import type { Scene, Widget } from '../store/scenes.js';
-import { expandSelection } from '../aerials/select.js';
 import type { AerialAsset } from '../aerials/types.js';
 import type {
   SceneState,
@@ -53,8 +52,8 @@ export type DataResolvers = {
   /** Synchronous read of a cached entity, used by the mood resolver
    *  (sun.sun, weather entity). Returns null when not present. */
   readEntitySync?: (entityId: string) => EntityState | null;
-  /** Current aerial catalog for resolving `aerials` backgrounds. Defaults to
-   *  an empty catalog, which yields an empty playlist. */
+  /** Current aerial catalog for the mood engine's `aerials` source. Defaults
+   *  to an empty catalog, which resolves to no mood. */
   aerialAssets?: () => AerialAsset[];
   /** Base URL of the HA instance (e.g. `http://homeassistant.local:8123`).
    *  Used to absolutize relative `entity_picture` paths returned by HA so
@@ -608,7 +607,11 @@ export async function buildSceneState(
 
   const now = new Date();
   const readEntitySync = deps.readEntitySync ?? (() => null);
-  const resolvedMood = resolveMood(scene.mood, { now, readEntity: readEntitySync });
+  const resolvedMood = resolveMood(scene.mood, {
+    now,
+    readEntity: readEntitySync,
+    aerialAssets: deps.aerialAssets,
+  });
 
   // Sun-adaptive gradient: server picks the active palette from sun.sun
   // (with a clock fallback) so the display just receives normal gradient
@@ -634,15 +637,6 @@ export async function buildSceneState(
     }
   }
 
-  const aerialClips =
-    background.type === 'aerials'
-      ? expandSelection(background, deps.aerialAssets?.() ?? []).map((a) => ({
-          id: a.id,
-          name: a.name,
-          url: `/api/aerials/stream/${encodeURIComponent(a.id)}`,
-        }))
-      : undefined;
-
   return {
     id: scene.id,
     name: scene.name,
@@ -655,7 +649,6 @@ export async function buildSceneState(
     widgets,
     safeArea,
     ...(resolvedMood ? { resolvedMood } : {}),
-    ...(aerialClips ? { aerialClips } : {}),
     ...(liveEntities ? { liveEntities } : {}),
     ...(canvasFetchPolicy ? { canvasFetchPolicy } : {}),
   };

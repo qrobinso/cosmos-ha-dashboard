@@ -207,18 +207,12 @@ export type WidgetData =
 
 export type WidgetState = Widget & { data: WidgetData };
 
-export type AerialClip = { id: string; name: string; url: string };
-
 export type SceneState = Omit<Scene, 'widgets'> & {
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
   /** Resolved mood for the active period; absent when the scene's mood is off
    *  or its strategy can't resolve (e.g. weather entity not yet known). */
   resolvedMood?: ResolvedMood;
-  /** For `aerials` backgrounds: the resolved playlist, each url already
-   *  routed through the server's stream proxy. Present (possibly empty)
-   *  whenever the background type is aerials; absent otherwise. */
-  aerialClips?: AerialClip[];
   /** Snapshot of every entity referenced by a canvas widget on this scene
    *  (template-derived + iframe-side `cosmos.subscribe(...)` requests).
    *  Display-side `SceneCanvas` merges these into the entitiesById map it

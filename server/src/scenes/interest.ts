@@ -11,7 +11,7 @@ import type { CanvasExtrasStore } from '../api/canvases.js';
  */
 export function sceneAmbientEntityIds(scene: Scene): Set<string> {
   const ids = new Set<string>();
-  if (scene.mood?.enabled) {
+  if (scene.mood?.enabled && scene.mood.source !== 'aerials') {
     if (scene.mood.strategy === 'time') ids.add('sun.sun');
     if (scene.mood.strategy === 'weather' && scene.mood.weatherEntity) ids.add(scene.mood.weatherEntity);
   }
