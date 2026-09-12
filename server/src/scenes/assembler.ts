@@ -1,4 +1,6 @@
 import type { Scene, Widget } from '../store/scenes.js';
+import { expandSelection } from '../aerials/select.js';
+import type { AerialAsset } from '../aerials/types.js';
 import type {
   SceneState,
   WidgetState,
@@ -51,6 +53,9 @@ export type DataResolvers = {
   /** Synchronous read of a cached entity, used by the mood resolver
    *  (sun.sun, weather entity). Returns null when not present. */
   readEntitySync?: (entityId: string) => EntityState | null;
+  /** Current aerial catalog for resolving `aerials` backgrounds. Defaults to
+   *  an empty catalog, which yields an empty playlist. */
+  aerialAssets?: () => AerialAsset[];
   /** Base URL of the HA instance (e.g. `http://homeassistant.local:8123`).
    *  Used to absolutize relative `entity_picture` paths returned by HA so
    *  the browser fetches album art / camera snapshots from HA directly
@@ -629,6 +634,15 @@ export async function buildSceneState(
     }
   }
 
+  const aerialClips =
+    background.type === 'aerials'
+      ? expandSelection(background, deps.aerialAssets?.() ?? []).map((a) => ({
+          id: a.id,
+          name: a.name,
+          url: `/api/aerials/stream/${encodeURIComponent(a.id)}`,
+        }))
+      : undefined;
+
   return {
     id: scene.id,
     name: scene.name,
@@ -641,6 +655,7 @@ export async function buildSceneState(
     widgets,
     safeArea,
     ...(resolvedMood ? { resolvedMood } : {}),
+    ...(aerialClips ? { aerialClips } : {}),
     ...(liveEntities ? { liveEntities } : {}),
     ...(canvasFetchPolicy ? { canvasFetchPolicy } : {}),
   };
@@ -661,6 +676,7 @@ export type AssemblePushArgs = {
   resolveCameraCapabilities?: DataResolvers['resolveCameraCapabilities'];
   /** Synchronous entity reader for the mood engine (sun.sun, weather.*). */
   readEntitySync?: DataResolvers['readEntitySync'];
+  aerialAssets?: DataResolvers['aerialAssets'];
   /** Base URL of the HA instance for absolutizing media art paths. */
   mediaUrlBase?: string;
   canvasResolver?: DataResolvers['canvasResolver'];
@@ -710,6 +726,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
       resolveWeatherForecasts: args.resolveWeatherForecasts,
       resolveCameraCapabilities: args.resolveCameraCapabilities,
       readEntitySync: args.readEntitySync,
+      aerialAssets: args.aerialAssets,
       mediaUrlBase: args.mediaUrlBase,
       canvasResolver: args.canvasResolver,
       canvasExtras: args.canvasExtras,

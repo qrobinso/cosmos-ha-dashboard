@@ -240,3 +240,34 @@ describe('assemblePush', () => {
     expect(payload.transition?.name).toBe('slide-up');
   });
 });
+
+describe('aerials background', () => {
+  const assets = [
+    { id: 'E1', name: 'Earth One', category: 'earth' as const, previewUrl: '', sourceUrl: 'https://cdn/e1.mov' },
+    { id: 'L1', name: 'Land One', category: 'landscape' as const, previewUrl: '', sourceUrl: 'https://cdn/l1.mov' },
+  ];
+  const scene: Scene = {
+    ...baseScene,
+    widgets: [],
+    background: { type: 'aerials', ids: ['E1', 'GONE'], categories: ['landscape'], shuffle: true, interval_min: 15 },
+  };
+
+  it('resolves the selection into stream urls the kiosk can play', async () => {
+    const state = await buildSceneState(scene, DEFAULT_SAFE_AREA, { aerialAssets: () => assets });
+    expect(state.background).toEqual(scene.background);
+    expect(state.aerialClips).toEqual([
+      { id: 'L1', name: 'Land One', url: '/api/aerials/stream/L1' },
+      { id: 'E1', name: 'Earth One', url: '/api/aerials/stream/E1' },
+    ]);
+  });
+
+  it('ships an empty clip list when no catalog is available', async () => {
+    const state = await buildSceneState(scene, DEFAULT_SAFE_AREA);
+    expect(state.aerialClips).toEqual([]);
+  });
+
+  it('omits aerialClips for non-aerial backgrounds', async () => {
+    const state = await buildSceneState(baseScene, DEFAULT_SAFE_AREA, { aerialAssets: () => assets });
+    expect(state.aerialClips).toBeUndefined();
+  });
+});

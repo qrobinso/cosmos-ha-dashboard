@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { AERIAL_INTERVALS_MIN } from '../store/scenes.js';
+import { AERIAL_CATEGORIES } from '../aerials/types.js';
 import type { ScenesRepo, SceneInput, Scene } from '../store/scenes.js';
 import { WIDGET_KINDS } from '../store/scenes.js';
 import type { DisplaysRepo } from '../store/displays.js';
@@ -70,8 +72,33 @@ function validateBackground(bg: unknown): string | null {
     }
     return null;
   }
-  return 'background.type must be "solid" or "gradient"';
+  if (b.type === 'aerials') {
+    if (!Array.isArray(b.ids)) return 'background.ids must be an array of aerial ids';
+    if (b.ids.length > 200) return 'background.ids may hold at most 200 clips';
+    if (b.ids.some((id) => typeof id !== 'string' || !AERIAL_ID_RE.test(id))) {
+      return 'background.ids entries must be aerial ids (letters, digits, dashes)';
+    }
+    if (b.categories !== undefined) {
+      if (!Array.isArray(b.categories)) return 'background.categories must be an array';
+      if (b.categories.some((c) => !(AERIAL_CATEGORIES as readonly unknown[]).includes(c))) {
+        return `background.categories entries must be one of ${AERIAL_CATEGORIES.join(' | ')}`;
+      }
+    }
+    const cats = Array.isArray(b.categories) ? b.categories : [];
+    if (b.ids.length === 0 && cats.length === 0) {
+      return 'background needs at least one clip or category selected';
+    }
+    if (b.shuffle !== undefined && typeof b.shuffle !== 'boolean') return 'background.shuffle must be a boolean';
+    if (b.interval_min !== undefined && !(AERIAL_INTERVALS_MIN as readonly unknown[]).includes(b.interval_min)) {
+      return `background.interval_min must be one of ${AERIAL_INTERVALS_MIN.join(', ')}`;
+    }
+    return null;
+  }
+  return 'background.type must be "solid", "gradient" or "aerials"';
 }
+
+/** Apple asset ids are uppercase UUIDs; the same charset the stream route accepts. */
+const AERIAL_ID_RE = /^[A-Za-z0-9-]{1,40}$/;
 
 /** Kinds that require `config.entity_id` to be a syntactically valid HA
  *  entity reference. We check format only (`domain.id`); the HA cache may

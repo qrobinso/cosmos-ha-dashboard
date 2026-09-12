@@ -4,8 +4,26 @@ import type { MoodConfig } from '../moods/types.js';
 
 export type Position = { col: number; row: number; w: number; h: number };
 export type Layout = { cols: number; rows: number; items: { widget_id: string; col: number; row: number; w: number; h: number }[] };
+import type { AerialCategory } from '../aerials/types.js';
+
+/** Rotation intervals an aerials background may use, in minutes. 0 = advance
+ *  when the clip ends. Shared by the validator and the editor's picker. */
+export const AERIAL_INTERVALS_MIN = [0, 5, 15, 30, 60, 120, 240] as const;
+
 export type Background =
   | { type: 'solid'; color: string; auto_contrast?: boolean }
+  | {
+      type: 'aerials';
+      /** Individually picked Apple aerial ids, in the user's order. */
+      ids: string[];
+      /** Whole types ("all Landscape"); new clips Apple adds join automatically. */
+      categories?: AerialCategory[];
+      /** Default false = play in `ids` order. */
+      shuffle?: boolean;
+      /** One of AERIAL_INTERVALS_MIN. Default 30. */
+      interval_min?: number;
+      auto_contrast?: boolean;
+    }
   | {
       type: 'gradient';
       colors: string[];
