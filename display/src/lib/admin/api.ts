@@ -13,6 +13,16 @@ async function ensureOk(res: Response): Promise<void> {
   throw new Error(`HTTP ${res.status}: ${text}`);
 }
 
+/** One row of GET /api/aerials. */
+export type AerialCatalogEntry = {
+  id: string;
+  name: string;
+  category: import('$lib/types').AerialCategory;
+  subcategory?: string;
+  previewUrl: string;
+  cached: boolean;
+};
+
 export const api = {
   scenes: {
     async list(): Promise<SceneRecord[]> {
@@ -252,6 +262,35 @@ export const api = {
   moods: {
     async list(): Promise<{ id: string; label: string; tags: string[] }[]> {
       return jsonOr(await fetch('/api/moods'), []);
+    },
+  },
+  aerials: {
+    async list(): Promise<{ fetchedAt: number | null; assets: AerialCatalogEntry[] }> {
+      return jsonOr(await fetch('/api/aerials'), { fetchedAt: null, assets: [] });
+    },
+    /** Returns the parsed body even on a non-2xx so the page can show the reason. */
+    async refresh(): Promise<{ ok: true; fetchedAt: number; count: number } | { ok: false; error: string }> {
+      const res = await fetch('/api/aerials/refresh', { method: 'POST' });
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) return { ok: false, error: (body.error as string) ?? 'Refresh failed.' };
+      return { ok: true, fetchedAt: body.fetchedAt as number, count: body.count as number };
+    },
+    async getStorage(): Promise<{ maxMb: number; limitMb: number; enabled: boolean; fileCount: number; totalBytes: number }> {
+      return jsonOr(await fetch('/api/aerials/storage'), {
+        maxMb: 0, limitMb: 0, enabled: false, fileCount: 0, totalBytes: 0,
+      });
+    },
+    async setStorage(maxMb: number): Promise<
+      { ok: true; maxMb: number; removed: number; fileCount: number; totalBytes: number } | { ok: false; error: string }
+    > {
+      const res = await fetch('/api/aerials/storage', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ maxMb }),
+      });
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) return { ok: false, error: (body.error as string) ?? 'Save failed.' };
+      return { ok: true, ...(body as unknown as { maxMb: number; removed: number; fileCount: number; totalBytes: number }) };
     },
   },
   canvases: {

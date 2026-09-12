@@ -6,6 +6,7 @@
   import Field from '$lib/admin/Field.svelte';
   import WidgetEditor from '$lib/admin/WidgetEditor.svelte';
   import EntityPicker from '$lib/admin/EntityPicker.svelte';
+  import AerialsPicker from '$lib/admin/backgrounds/AerialsPicker.svelte';
   import type { Background, Typography, WidgetState, Layout, MoodConfig, EntityState } from '$lib/types';
 
   type Widget = WidgetState;
@@ -130,9 +131,11 @@
     loaded = true;
   });
 
-  function setBackgroundType(t: 'solid' | 'gradient') {
+  function setBackgroundType(t: 'solid' | 'gradient' | 'aerials') {
     if (t === 'solid') {
       background = { type: 'solid', color: '#101010' };
+    } else if (t === 'aerials') {
+      background = { type: 'aerials', ids: [], categories: [], shuffle: true, interval_min: 30 };
     } else {
       background = { type: 'gradient', colors: ['#1a1a2e', '#16213e', '#0f3460'], speed: 'slow', style: 'mesh' };
     }
@@ -236,6 +239,7 @@
       <div class="radio-row">
         <label><input type="radio" name="bg" checked={background.type === 'solid'} on:change={() => setBackgroundType('solid')} /> Solid</label>
         <label><input type="radio" name="bg" checked={background.type === 'gradient'} on:change={() => setBackgroundType('gradient')} /> Animated gradient</label>
+        <label><input type="radio" name="bg" checked={background.type === 'aerials'} on:change={() => setBackgroundType('aerials')} /> Aerials</label>
       </div>
     </Field>
     <Field label="Auto-contrast text">
@@ -252,6 +256,12 @@
       <Field label="Color">
         <input type="color" bind:value={background.color} />
       </Field>
+    {:else if background.type === 'aerials'}
+      <p class="panel-hint">
+        Apple TV's aerial videos, streamed from Apple the first time and cached on this server after that.
+        Tick a whole type to include everything in it, or pick individual clips.
+      </p>
+      <AerialsPicker bind:background />
     {:else}
       <Field label="Adapt to time of day">
         <label class="inline-check">

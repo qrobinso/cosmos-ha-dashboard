@@ -47,6 +47,14 @@
   let savingCanvasFetch = false;
   let savedCanvasFetch = false;
 
+  let aerialStorage: { maxMb: number; limitMb: number; enabled: boolean; fileCount: number; totalBytes: number } | null = null;
+  let aerialMaxMbInput = 0;
+  let aerialCatalog: { fetchedAt: number | null; count: number } = { fetchedAt: null, count: 0 };
+  let savingAerials = false;
+  let aerialNote: string | null = null;
+  let aerialError: string | null = null;
+  let refreshingAerials = false;
+
   let mcpEnabled = false;
   let mcpHasToken = false;
   let mcpToken: string | null = null;
@@ -64,6 +72,7 @@
   const SETTINGS_SECTIONS = [
     { id: 'status', label: 'Status' },
     { id: 'display', label: 'Display' },
+    { id: 'aerials', label: 'Aerials' },
     { id: 'home-assistant', label: 'Home Assistant' },
     { id: 'ai-agent', label: 'AI agent' },
     { id: 'canvas-access', label: 'Canvas access' },
@@ -71,6 +80,7 @@
   ];
 
   onMount(async () => {
+    void loadAerials();
     const [sa, ts, ha, ag, cf, mcp] = await Promise.all([
       api.settings.getSafeArea(),
       api.settings.getTransitionSpeed(),
@@ -105,6 +115,43 @@
     mcpEndpointHosts = mcp.endpointHosts ?? [];
     loaded = true;
   });
+
+  function fmtBytes(b: number): string {
+    const mb = b / (1024 * 1024);
+    if (mb < 1024) return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+    return `${(mb / 1024).toFixed(1)} GB`;
+  }
+
+  async function loadAerials() {
+    const [st, cat] = await Promise.all([api.aerials.getStorage(), api.aerials.list()]);
+    aerialStorage = st;
+    aerialMaxMbInput = st.maxMb;
+    aerialCatalog = { fetchedAt: cat.fetchedAt, count: cat.assets.length };
+  }
+
+  async function saveAerialStorage() {
+    savingAerials = true;
+    aerialNote = null;
+    aerialError = null;
+    try {
+      const res = await api.aerials.setStorage(Number(aerialMaxMbInput));
+      if (!res.ok) { aerialError = res.error; return; }
+      aerialNote = res.removed > 0 ? `Saved. Removed ${res.removed} clip${res.removed === 1 ? '' : 's'} to fit.` : 'Saved.';
+      await loadAerials();
+    } finally {
+      savingAerials = false;
+    }
+  }
+
+  async function refreshAerials() {
+    refreshingAerials = true;
+    aerialError = null;
+    aerialNote = null;
+    const res = await api.aerials.refresh();
+    if (!res.ok) aerialError = res.error;
+    else { aerialNote = `Catalog refreshed: ${res.count} clips.`; await loadAerials(); }
+    refreshingAerials = false;
+  }
 
   async function save() {
     saving = true;
@@ -452,6 +499,48 @@
               {savingSpeed ? 'Saving...' : 'Save speed'}
             </button>
             {#if savedSpeed}<span class="status"><span class="check">✓</span> Saved</span>{/if}
+          </div>
+        </div>
+      </section>
+
+      <section id="aerials" class="settings-panel reveal reveal-3">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Aerials</span>
+            <h2>Apple TV backgrounds</h2>
+          </div>
+          <span class="panel-badge">{aerialCatalog.count} clips</span>
+        </div>
+
+        <div class="panel-section">
+          <h3>Catalog</h3>
+          <p class="hint">
+            Cosmos reads Apple's public aerial list and refreshes it weekly.
+            {#if aerialCatalog.fetchedAt}Last fetched {new Date(aerialCatalog.fetchedAt).toLocaleString()}.{:else}Not fetched yet.{/if}
+          </p>
+          <div class="panel-actions">
+            <button type="button" on:click={refreshAerials} disabled={refreshingAerials}>{refreshingAerials ? 'Refreshing…' : 'Refresh catalog'}</button>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <h3>Stored clips</h3>
+          <p class="hint">
+            Each clip is 150–250 MB and is downloaded the first time it plays, so later plays never leave the house.
+            When the limit is reached, the least-played clips go first. A scene that selects more than fits will keep re-downloading.
+          </p>
+          <div class="grid">
+            <Field label="Storage limit (MB)">
+              <input type="number" min="0" max={aerialStorage?.limitMb ?? 51200} step="512" bind:value={aerialMaxMbInput} />
+            </Field>
+          </div>
+          {#if aerialStorage}
+            <p class="hint compact">{aerialStorage.fileCount} stored, {fmtBytes(aerialStorage.totalBytes)} of {aerialStorage.maxMb} MB used.</p>
+          {/if}
+          <div class="panel-actions">
+            <button class="primary" type="button" on:click={saveAerialStorage} disabled={savingAerials}>{savingAerials ? 'Saving...' : 'Save limit'}</button>
+            {#if aerialNote}<span class="status"><span class="check">✓</span> {aerialNote}</span>{/if}
+            {#if aerialError}<span class="status error">{aerialError}</span>{/if}
           </div>
         </div>
       </section>

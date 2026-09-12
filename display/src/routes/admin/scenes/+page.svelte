@@ -87,6 +87,7 @@
 
   function bgPreviewStyle(s: (typeof scenes)[number]): string {
     if (s.background.type === 'solid') return `background: ${s.background.color};`;
+    if (s.background.type === 'aerials') return 'background: linear-gradient(135deg, #0b1d2a, #1f3a4d, #0a0a0a);';
     const colors = s.background.colors.length > 0 ? s.background.colors : ['#1a1a2e', '#16213e'];
     return `background: linear-gradient(135deg, ${colors.join(', ')});`;
   }
