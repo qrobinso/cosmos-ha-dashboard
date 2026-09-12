@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- Feat: **Apple TV aerials as a mood.** The Mood card on every scene now has a **Source** choice: Cosmos's built-in atmospheres, or Apple's aerial footage — the same drone and space clips the Apple TV screensaver plays. Pick clips one at a time from four groups (Earth, Landscape, Cityscape, Underwater), or tick a whole group to include everything in it, now and as Apple adds more. Choose whether the clips shuffle and how often the wall changes clip (every 5 minutes up to every 4 hours, or when each clip ends); a clip that finishes early simply starts over. Clip changes crossfade, and the mood Opacity slider applies, so the footage can sit over your gradient at any strength.
+  - Clips stream from Apple the first time they play and are kept on your own disk after that, so later plays never leave the house. Each is 150–250 MB; set the limit under **Settings → Aerials** (4 GB by default, least-played clips go first when it fills). Files live in `/share/cosmos/video-cache/aerials`, outside add-on backups.
+  - The catalog comes straight from Apple's public list and refreshes weekly; **Settings → Aerials** shows when it was last fetched and has a Refresh button.
+- Fix: **the mood Opacity slider was hidden for aerials.** It now shows for both sources.
+
 ## 0.8.2
 
 - Feat: **Video backdrops are downloaded and reused.** The first play streams as before while a copy is fetched in the background; every play after that comes off your own disk. Set the limit in megabytes on the Video Backdrop page — when it fills, the least-played videos go first, oldest of those first. Set it to 0 to store nothing. Files are kept in `/share/cosmos/video-cache`, deliberately outside add-on backups so your snapshots stay small.
