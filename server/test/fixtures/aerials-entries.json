@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "initialAssetCount": 4,
+  "localizationVersion": "22L-1",
+  "categories": [
+    {
+      "id": "A33A55D9-EDEA-4596-A850-6C10B54FBBB5",
+      "localizedNameKey": "AerialCategoryLandscapes",
+      "preferredOrder": 0,
+      "subcategories": [
+        {
+          "id": "90120D06-5500-4131-868F-B9C3E8824257",
+          "localizedNameKey": "AerialSubcategoryLiwa",
+          "representativeAssetID": "001C94AE-2BA4-4E77-A202-F7DE60E8B1C8"
+        },
+        {
+          "id": "E302DB2E-5365-401C-959E-3D6A68D1F80A",
+          "localizedNameKey": "AerialSubcategoryScotland",
+          "representativeAssetID": "0C747C29-4BF8-43F6-A5CC-2E012E555341"
+        }
+      ]
+    },
+    {
+      "id": "5EF41171-4862-4F93-800C-AD86CE5E6891",
+      "localizedNameKey": "AerialCategoryCities",
+      "preferredOrder": 1,
+      "subcategories": [
+        {
+          "id": "74834396-888E-4D30-BE33-88BCF6BC30FE",
+          "localizedNameKey": "AerialSubcategoryCitiesDubai",
+          "representativeAssetID": "9680B8EB-CE2A-4395-AF41-402801F4D6A6"
+        }
+      ]
+    },
+    {
+      "id": "8BE8B524-6EAE-43F5-A3E8-01DCFA1BCD4B",
+      "localizedNameKey": "AerialCategoryUnderwater",
+      "preferredOrder": 2,
+      "subcategories": [
+        {
+          "id": "C46DA2B2-B569-48B3-94DC-EA5FE1687831",
+          "localizedNameKey": "AerialSubcategoryTahitiWaves",
+          "representativeAssetID": "149E7795-DBDA-4F5D-B39A-14712F841118"
+        }
+      ]
+    },
+    {
+      "id": "55B7C95D-CEAF-4FD8-ADEF-F5BC657D8F6D",
+      "localizedNameKey": "AerialCategorySpace",
+      "preferredOrder": 3,
+      "subcategories": [
+        {
+          "id": "61171241-39F3-4ADE-84AA-9CD4EE4A78DA",
+          "localizedNameKey": "AerialSubcategoryKoreaandJapanNight",
+          "representativeAssetID": "009BA758-7060-4479-8EE8-FB9B40C8FB97"
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "categories": [
+        "55B7C95D-CEAF-4FD8-ADEF-F5BC657D8F6D"
+      ],
+      "previewImage-900x580": "",
+      "localizedNameKey": "GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_NAME",
+      "showInTopLevel": true,
+      "shotID": "GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT",
+      "includeInShuffle": true,
+      "id": "009BA758-7060-4479-8EE8-FB9B40C8FB97",
+      "url-4K-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_HDR_PS_20180907_HDR_4K_HEVC.mov",
+      "url-1080-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_SDR_PS_20180907_SDR_2K_HEVC.mov",
+      "url-4K-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_SDR_PS_20180907_SDR_4K_HEVC.mov",
+      "subcategories": [
+        "61171241-39F3-4ADE-84AA-9CD4EE4A78DA"
+      ],
+      "url-1080-H264": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/97/e9/06/97e90616-1227-c670-6118-bd5ae991b43b/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_SDR_PS_20180907_SDR_2K_AVC.mov",
+      "preferredOrder": 9,
+      "accessibilityLabel": "Korea and Japan Night",
+      "previewImage": "https://sylvan.apple.com/itunes-assets/Aerials221/v4/86/53/43/8653438c-a104-77a0-ce9a-8a370d39795f/GMT026_363A_900x580.png",
+      "url-1080-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_HDR_PS_20180907_HDR_2K_HEVC.mov"
+    },
+    {
+      "url-4K-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_LW_L001_C006_PSNK_DENOISE_v02_HDR_FINAL_20180709_HDR_4K_HEVC.mov",
+      "id": "001C94AE-2BA4-4E77-A202-F7DE60E8B1C8",
+      "url-4K-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_LW_L001_C006_PSNK_DENOISE_v02_SDR_PS_FINAL_20180709_SDR_4K_HEVC.mov",
+      "previewImage": "https://sylvan.apple.com/itunes-assets/Aerials221/v4/86/53/43/8653438c-a104-77a0-ce9a-8a370d39795f/LW_L001_C006_900x580.png",
+      "url-1080-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_LW_L001_C006_PSNK_DENOISE_v02_SDR_PS_FINAL_20180709_SDR_2K_HEVC.mov",
+      "previewImage-900x580": "",
+      "includeInShuffle": false,
+      "shotID": "LW_L001_C006",
+      "accessibilityLabel": "Liwa",
+      "preferredOrder": 74,
+      "categories": [
+        "A33A55D9-EDEA-4596-A850-6C10B54FBBB5"
+      ],
+      "localizedNameKey": "LW_L001_C006_NAME",
+      "subcategories": [
+        "90120D06-5500-4131-868F-B9C3E8824257"
+      ],
+      "url-1080-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_LW_L001_C006_PSNK_DENOISE_v02_HDR_FINAL_20180709_HDR_2K_HEVC.mov",
+      "url-1080-H264": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/97/e9/06/97e90616-1227-c670-6118-bd5ae991b43b/comp_LW_L001_C006_PSNK_DENOISE_v02_SDR_PS_FINAL_20180709_SDR_2K_AVC.mov",
+      "showInTopLevel": false
+    },
+    {
+      "url-4K-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_HDR_PS_20180914_HDR_4K_HEVC.mov",
+      "id": "00BA71CD-2C54-415A-A68A-8358E677D750",
+      "url-4K-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_SDR_PS_20180914_SDR_4K_HEVC.mov",
+      "previewImage": "https://sylvan.apple.com/itunes-assets/Aerials221/v4/86/53/43/8653438c-a104-77a0-ce9a-8a370d39795f/DB_D002_C003_900x580.png",
+      "url-1080-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_SDR_PS_20180914_SDR_2K_HEVC.mov",
+      "previewImage-900x580": "",
+      "includeInShuffle": true,
+      "shotID": "DB_D002_C003",
+      "accessibilityLabel": "Dubai",
+      "preferredOrder": 1,
+      "categories": [
+        "5EF41171-4862-4F93-800C-AD86CE5E6891"
+      ],
+      "localizedNameKey": "DB_D002_C003_NAME",
+      "subcategories": [
+        "74834396-888E-4D30-BE33-88BCF6BC30FE"
+      ],
+      "url-1080-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_HDR_PS_20180914_HDR_2K_HEVC.mov",
+      "url-1080-H264": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/97/e9/06/97e90616-1227-c670-6118-bd5ae991b43b/comp_DB_D002_C003_PSNK_v04_SDR_PS_20180914_SDR_2K_AVC.mov",
+      "showInTopLevel": true
+    },
+    {
+      "url-4K-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/g201_TH_803_A001_8_HDR_20191031_HDR_4K_HEVC.mov",
+      "url-1080-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/g201_TH_803_A001_8_HDR_20191031_HDR_2K_HEVC.mov",
+      "localizedNameKey": "TH_803_A001_8_NAME",
+      "includeInShuffle": true,
+      "categories": [
+        "8BE8B524-6EAE-43F5-A3E8-01DCFA1BCD4B"
+      ],
+      "id": "149E7795-DBDA-4F5D-B39A-14712F841118",
+      "shotID": "TH_803_A001_8",
+      "accessibilityLabel": "Tahiti Waves",
+      "showInTopLevel": true,
+      "url-1080-H264": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/97/e9/06/97e90616-1227-c670-6118-bd5ae991b43b/g201_TH_803_A001_8_SDR_20191031_SDR_2K_AVC.mov",
+      "previewImage-900x580": "",
+      "previewImage": "https://sylvan.apple.com/itunes-assets/Aerials221/v4/86/53/43/8653438c-a104-77a0-ce9a-8a370d39795f/TH_803_A001_900x580.png",
+      "subcategories": [
+        "C46DA2B2-B569-48B3-94DC-EA5FE1687831"
+      ],
+      "preferredOrder": 9,
+      "url-1080-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/g201_TH_803_A001_8_SDR_20191031_SDR_2K_HEVC.mov",
+      "url-4K-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/g201_TH_803_A001_8_SDR_20191031_SDR_4K_HEVC.mov"
+    },
+    {
+      "url-4K-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/S003_C020_HDR_4K_HEVC.mov",
+      "id": "0C747C29-4BF8-43F6-A5CC-2E012E555341",
+      "url-4K-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/S003_C020_SDR_4K_HEVC.mov",
+      "previewImage": "https://sylvan.apple.com/itunes-assets/Aerials221/v4/86/53/43/8653438c-a104-77a0-ce9a-8a370d39795f/S003_C020_900x580.png",
+      "url-1080-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/S003_C020_SDR_2K_HEVC.mov",
+      "previewImage-900x580": "",
+      "includeInShuffle": true,
+      "shotID": "S003_C020",
+      "accessibilityLabel": "Scotland",
+      "preferredOrder": 65,
+      "categories": [
+        "A33A55D9-EDEA-4596-A850-6C10B54FBBB5"
+      ],
+      "localizedNameKey": "S003_C020_NAME",
+      "subcategories": [
+        "E302DB2E-5365-401C-959E-3D6A68D1F80A"
+      ],
+      "url-1080-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/S003_C020_HDR_2K_HEVC.mov",
+      "url-1080-H264": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/97/e9/06/97e90616-1227-c670-6118-bd5ae991b43b/S003_C020_SDR_2K_AVC.mov",
+      "showInTopLevel": true,
+      "group": "19K-1"
+    },
+    {
+      "categories": [
+        "55B7C95D-CEAF-4FD8-ADEF-F5BC657D8F6D"
+      ],
+      "previewImage-900x580": "",
+      "localizedNameKey": "GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_NAME",
+      "showInTopLevel": true,
+      "shotID": "FAKE_HEVC_ONLY",
+      "includeInShuffle": true,
+      "id": "FFFFFFFF-0000-0000-0000-000000000001",
+      "url-4K-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_HDR_PS_20180907_HDR_4K_HEVC.mov",
+      "url-1080-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_SDR_PS_20180907_SDR_2K_HEVC.mov",
+      "url-4K-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_SDR_PS_20180907_SDR_4K_HEVC.mov",
+      "subcategories": [
+        "61171241-39F3-4ADE-84AA-9CD4EE4A78DA"
+      ],
+      "preferredOrder": 9,
+      "accessibilityLabel": "HEVC Only",
+      "previewImage": "https://sylvan.apple.com/itunes-assets/Aerials221/v4/86/53/43/8653438c-a104-77a0-ce9a-8a370d39795f/GMT026_363A_900x580.png",
+      "url-1080-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_HDR_PS_20180907_HDR_2K_HEVC.mov"
+    },
+    {
+      "url-4K-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_HDR_PS_20180914_HDR_4K_HEVC.mov",
+      "id": "FFFFFFFF-0000-0000-0000-000000000002",
+      "url-4K-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_SDR_PS_20180914_SDR_4K_HEVC.mov",
+      "previewImage": "https://sylvan.apple.com/itunes-assets/Aerials221/v4/86/53/43/8653438c-a104-77a0-ce9a-8a370d39795f/DB_D002_C003_900x580.png",
+      "url-1080-SDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_SDR_PS_20180914_SDR_2K_HEVC.mov",
+      "previewImage-900x580": "",
+      "includeInShuffle": true,
+      "shotID": "DB_D002_C999",
+      "accessibilityLabel": "Dubai",
+      "preferredOrder": 1,
+      "categories": [
+        "5EF41171-4862-4F93-800C-AD86CE5E6891"
+      ],
+      "localizedNameKey": "DB_D002_C003_NAME",
+      "subcategories": [
+        "74834396-888E-4D30-BE33-88BCF6BC30FE"
+      ],
+      "url-1080-HDR": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/5f/8d/d7/5f8dd7a6-37aa-cf2f-8b06-931ea6a4054f/comp_DB_D002_C003_PSNK_v04_HDR_PS_20180914_HDR_2K_HEVC.mov",
+      "url-1080-H264": "https://sylvan.apple.com/itunes-assets/Aerials116/v4/97/e9/06/97e90616-1227-c670-6118-bd5ae991b43b/comp_DB_D002_C003_PSNK_v04_SDR_PS_20180914_SDR_2K_AVC.mov",
+      "showInTopLevel": true
+    }
+  ]
+}
