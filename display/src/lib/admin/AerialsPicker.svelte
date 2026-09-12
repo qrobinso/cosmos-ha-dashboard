@@ -1,18 +1,17 @@
 <script lang="ts">
   /**
-   * Picker for the `aerials` background: one collapsible group per Apple
-   * category, each with a whole-type checkbox, plus per-clip thumbnails.
-   * Whole-type picks are stored as `categories` (so clips Apple adds later
-   * join automatically); individual picks as `ids`.
+   * Picker for the mood engine's Apple TV aerials source: one collapsible
+   * group per Apple category, each with a whole-type checkbox, plus per-clip
+   * thumbnails. Whole-type picks are stored as `categories` (so clips Apple
+   * adds later join automatically); individual picks as `ids`.
    */
   import { onMount } from 'svelte';
   import { api, type AerialCatalogEntry } from '$lib/admin/api';
   import Field from '$lib/admin/Field.svelte';
-  import type { AerialCategory, Background } from '$lib/types';
+  import type { AerialCategory, AerialMoodConfig } from '$lib/types';
   import { AERIAL_INTERVALS_MIN } from '$lib/types';
 
-  type AerialsBackground = Extract<Background, { type: 'aerials' }>;
-  export let background: AerialsBackground;
+  export let selection: AerialMoodConfig;
 
   const CATEGORIES: { slug: AerialCategory; label: string }[] = [
     { slug: 'earth', label: 'Earth' },
@@ -58,8 +57,8 @@
     refreshing = false;
   }
 
-  $: categories = new Set(background.categories ?? []);
-  $: ids = new Set(background.ids);
+  $: categories = new Set(selection.categories ?? []);
+  $: ids = new Set(selection.ids);
   $: groups = CATEGORIES.map((c) => {
     const clips = assets.filter((a) => a.category === c.slug);
     const whole = categories.has(c.slug);
@@ -70,22 +69,22 @@
   $: estimateGb = (selectedCount * EST_MB_PER_CLIP) / 1024;
 
   function setWhole(slug: AerialCategory, on: boolean) {
-    const cats = (background.categories ?? []).filter((c) => c !== slug);
+    const cats = (selection.categories ?? []).filter((c) => c !== slug);
     if (on) cats.push(slug);
     // A whole-type pick implies its clips, so drop them from ids; clearing
     // the type leaves nothing picked for it, which is what unchecking means.
     const inType = new Set(assets.filter((a) => a.category === slug).map((a) => a.id));
-    background = { ...background, categories: cats, ids: background.ids.filter((id) => !inType.has(id)) };
+    selection = { ...selection, categories: cats, ids: selection.ids.filter((id) => !inType.has(id)) };
   }
 
   function toggleClip(a: AerialCatalogEntry) {
     if (categories.has(a.category)) return;
-    const next = ids.has(a.id) ? background.ids.filter((id) => id !== a.id) : [...background.ids, a.id];
-    background = { ...background, ids: next };
+    const next = ids.has(a.id) ? selection.ids.filter((id) => id !== a.id) : [...selection.ids, a.id];
+    selection = { ...selection, ids: next };
   }
 
   function setInterval_(e: Event) {
-    background = { ...background, interval_min: Number((e.currentTarget as HTMLSelectElement).value) };
+    selection = { ...selection, interval_min: Number((e.currentTarget as HTMLSelectElement).value) };
   }
 </script>
 
@@ -146,12 +145,12 @@
     <div class="options">
       <Field label="Order">
         <label class="inline-check">
-          <input type="checkbox" checked={background.shuffle === true} on:change={(e) => (background = { ...background, shuffle: e.currentTarget.checked })} />
+          <input type="checkbox" checked={selection.shuffle === true} on:change={(e) => (selection = { ...selection, shuffle: e.currentTarget.checked })} />
           <span>Shuffle</span>
         </label>
       </Field>
       <Field label="Change clip">
-        <select value={String(background.interval_min ?? 30)} on:change={setInterval_}>
+        <select value={String(selection.interval_min ?? 30)} on:change={setInterval_}>
           {#each AERIAL_INTERVALS_MIN as m (m)}<option value={String(m)}>{INTERVAL_LABELS[m]}</option>{/each}
         </select>
       </Field>

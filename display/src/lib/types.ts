@@ -4,19 +4,19 @@ export type AerialCategory = 'earth' | 'landscape' | 'city' | 'sea';
 /** Rotation intervals an aerials background may use, in minutes. 0 = when
  *  the clip ends. Mirrors AERIAL_INTERVALS_MIN on the server. */
 export const AERIAL_INTERVALS_MIN = [0, 5, 15, 30, 60, 120, 240] as const;
-/** One resolved clip in SceneState.aerialClips. */
+/** One resolved clip in an aerials ResolvedMood. */
 export type AerialClip = { id: string; name: string; url: string };
+/** The aerials half of a MoodConfig: which clips, and how they rotate. */
+export type AerialMoodConfig = {
+  ids: string[];
+  categories?: AerialCategory[];
+  shuffle?: boolean;
+  /** One of AERIAL_INTERVALS_MIN. Default 30. */
+  interval_min?: number;
+};
 
 export type Background =
   | { type: 'solid'; color: string; auto_contrast?: boolean }
-  | {
-      type: 'aerials';
-      ids: string[];
-      categories?: AerialCategory[];
-      shuffle?: boolean;
-      interval_min?: number;
-      auto_contrast?: boolean;
-    }
   | {
       type: 'gradient';
       colors: string[];
@@ -175,15 +175,22 @@ export type WidgetState = {
 };
 
 export type MoodStrategy = 'manual' | 'time' | 'weather';
+export type MoodSource = 'builtin' | 'aerials';
 export type MoodConfig = {
   enabled: boolean;
+  /** Default 'builtin'. */
+  source?: MoodSource;
   strategy: MoodStrategy;
   moodId?: string;
   weatherEntity?: string;
+  /** Aerials source only. */
+  aerials?: AerialMoodConfig;
   /** 0..1; defaults to 1 when missing. */
   opacity?: number;
 };
-export type ResolvedMood = { url: string; blend: 'screen' | 'lighten'; opacity: number };
+export type ResolvedMood =
+  | { kind: 'video'; url: string; blend: 'screen' | 'lighten'; opacity: number }
+  | { kind: 'aerials'; clips: AerialClip[]; shuffle: boolean; interval_min: number; opacity: number };
 
 export type CanvasFetchMode = 'off' | 'allowlist' | 'any';
 export type CanvasFetchPolicy = { mode: CanvasFetchMode; allowlist: string[] };
@@ -200,8 +207,6 @@ export type SceneState = {
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
   resolvedMood?: ResolvedMood;
-  /** Resolved playlist for an `aerials` background; absent otherwise. */
-  aerialClips?: AerialClip[];
   /** Entity-state snapshots for every entity any canvas widget on this scene
    *  references (templates + iframe `cosmos.subscribe(...)` requests). The
    *  display merges these into the map forwarded to canvas iframes so

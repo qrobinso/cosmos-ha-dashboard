@@ -78,14 +78,14 @@
          {textColor ? `color: ${textColor};` : ''}"
 >
   <div class="background-layer" data-bg-type={scene.background.type}>
-    <Background background={scene.background} fadeMs={scene.gradientFadeMs ?? 800} aerialClips={scene.aerialClips ?? []} />
+    <Background background={scene.background} fadeMs={scene.gradientFadeMs ?? 800} />
   </div>
   {#if scene.resolvedMood}
     <!-- Key on the resolved URL, not scene.id, so navigating between scenes
          that share a mood video doesn't retear the <video> element (which
          would force a fresh decode + buffer fetch). -->
-    {#key scene.resolvedMood.url}
-      <MoodLayer mood={scene.resolvedMood} />
+    {#key scene.resolvedMood.kind === 'video' ? scene.resolvedMood.url : 'aerials'}
+      <MoodLayer mood={scene.resolvedMood} fadeMs={scene.gradientFadeMs ?? 800} />
     {/key}
   {/if}
   <div

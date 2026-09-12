@@ -6,7 +6,7 @@
   import Field from '$lib/admin/Field.svelte';
   import WidgetEditor from '$lib/admin/WidgetEditor.svelte';
   import EntityPicker from '$lib/admin/EntityPicker.svelte';
-  import AerialsPicker from '$lib/admin/backgrounds/AerialsPicker.svelte';
+  import AerialsPicker from '$lib/admin/AerialsPicker.svelte';
   import type { Background, Typography, WidgetState, Layout, MoodConfig, EntityState } from '$lib/types';
 
   type Widget = WidgetState;
@@ -131,14 +131,21 @@
     loaded = true;
   });
 
-  function setBackgroundType(t: 'solid' | 'gradient' | 'aerials') {
+  function setBackgroundType(t: 'solid' | 'gradient') {
     if (t === 'solid') {
       background = { type: 'solid', color: '#101010' };
-    } else if (t === 'aerials') {
-      background = { type: 'aerials', ids: [], categories: [], shuffle: true, interval_min: 30 };
     } else {
       background = { type: 'gradient', colors: ['#1a1a2e', '#16213e', '#0f3460'], speed: 'slow', style: 'mesh' };
     }
+  }
+
+  function setMoodSource(e: Event) {
+    const source = (e.currentTarget as HTMLSelectElement).value === 'aerials' ? 'aerials' : 'builtin';
+    mood = {
+      ...mood,
+      source,
+      aerials: mood.aerials ?? { ids: [], categories: [], shuffle: true, interval_min: 30 },
+    };
   }
 
   function addColor() {
@@ -239,7 +246,6 @@
       <div class="radio-row">
         <label><input type="radio" name="bg" checked={background.type === 'solid'} on:change={() => setBackgroundType('solid')} /> Solid</label>
         <label><input type="radio" name="bg" checked={background.type === 'gradient'} on:change={() => setBackgroundType('gradient')} /> Animated gradient</label>
-        <label><input type="radio" name="bg" checked={background.type === 'aerials'} on:change={() => setBackgroundType('aerials')} /> Aerials</label>
       </div>
     </Field>
     <Field label="Auto-contrast text">
@@ -256,12 +262,6 @@
       <Field label="Color">
         <input type="color" bind:value={background.color} />
       </Field>
-    {:else if background.type === 'aerials'}
-      <p class="panel-hint">
-        Apple TV's aerial videos, streamed from Apple the first time and cached on this server after that.
-        Tick a whole type to include everything in it, or pick individual clips.
-      </p>
-      <AerialsPicker bind:background />
     {:else}
       <Field label="Adapt to time of day">
         <label class="inline-check">
@@ -323,7 +323,7 @@
 
   <section class="panel">
     <h2>Mood</h2>
-    <p class="panel-hint">Adds a looping video atmosphere over the background. Videos use a black background and screen-blend, so the brighter parts (clouds, rain, embers) glow over your scene.</p>
+    <p class="panel-hint">Adds a looping video layer over the background: Cosmos's built-in atmospheres (screen-blended, so clouds, rain and embers glow over your scene) or Apple TV's aerial footage.</p>
     <Field label="Enable mood layer">
       <label class="inline-check">
         <input type="checkbox" bind:checked={mood.enabled} />
@@ -331,6 +331,22 @@
       </label>
     </Field>
     {#if mood.enabled}
+      <Field label="Source">
+        <select value={mood.source ?? 'builtin'} on:change={setMoodSource}>
+          <option value="builtin">Built-in atmospheres</option>
+          <option value="aerials">Apple TV aerials</option>
+        </select>
+      </Field>
+    {/if}
+    {#if mood.enabled && mood.source === 'aerials'}
+      <p class="panel-hint">
+        Streamed from Apple the first time a clip plays and cached on this server after that.
+        Tick a whole type to include everything in it, or pick individual clips.
+      </p>
+      {#if mood.aerials}
+        <AerialsPicker bind:selection={mood.aerials} />
+      {/if}
+    {:else if mood.enabled}
       <Field label="Strategy">
         <select bind:value={mood.strategy}>
           <option value="manual">Pick one mood</option>

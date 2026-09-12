@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Apple TV aerial backdrop.
+   * Apple TV aerial mood layer.
    *
    * Two stacked <video> elements take turns: the incoming clip loads in the
    * hidden one and is only faded up on `canplay`, while the outgoing clip
@@ -199,7 +199,6 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
-    background: #000;
   }
   .aerial {
     position: absolute;

@@ -50,9 +50,7 @@
       : 1;
     const bg = scene.background.type === 'solid'
       ? scene.background.color
-      : scene.background.type === 'aerials'
-        ? '#000000'
-        : (scene.background.colors?.[0] ?? '');
+      : (scene.background.colors?.[0] ?? '');
     // Foreground (text) color — same priority as SceneCanvas:
     //   typography.color > auto-contrast pick > kiosk default (#f5f5f5).
     // Canvases that opt in via `color: var(--cosmos-fg)` (or use the bridge's

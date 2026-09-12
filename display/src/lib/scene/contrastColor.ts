@@ -36,12 +36,7 @@ function relativeLuminance(rgb: [number, number, number]): number {
  *  text wins. For gradients, averages the luminance of all stops so the choice
  *  is stable across the animation rather than flickering on each color stop. */
 export function pickContrastColor(background: Background): string {
-  // Aerials are live video with no palette to read; they skew dark, so
-  // treat them as black and let white text win.
-  const colors =
-    background.type === 'solid' ? [background.color]
-    : background.type === 'aerials' ? ['#000000']
-    : background.colors;
+  const colors = background.type === 'solid' ? [background.color] : background.colors;
   const lums = colors.map(parseHex).filter((c): c is [number, number, number] => c !== null).map(relativeLuminance);
   if (lums.length === 0) return '#f5f5f5'; // matches the kiosk default
   const avg = lums.reduce((a, b) => a + b, 0) / lums.length;
