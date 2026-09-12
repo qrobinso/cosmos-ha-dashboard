@@ -1,7 +1,22 @@
 export type Position = { col: number; row: number; w: number; h: number };
 export type Layout = { cols: number; rows: number; items: { widget_id: string; col: number; row: number; w: number; h: number }[] };
+export type AerialCategory = 'earth' | 'landscape' | 'city' | 'sea';
+/** Rotation intervals an aerials background may use, in minutes. 0 = when
+ *  the clip ends. Mirrors AERIAL_INTERVALS_MIN on the server. */
+export const AERIAL_INTERVALS_MIN = [0, 5, 15, 30, 60, 120, 240] as const;
+/** One resolved clip in SceneState.aerialClips. */
+export type AerialClip = { id: string; name: string; url: string };
+
 export type Background =
   | { type: 'solid'; color: string; auto_contrast?: boolean }
+  | {
+      type: 'aerials';
+      ids: string[];
+      categories?: AerialCategory[];
+      shuffle?: boolean;
+      interval_min?: number;
+      auto_contrast?: boolean;
+    }
   | {
       type: 'gradient';
       colors: string[];
@@ -185,6 +200,8 @@ export type SceneState = {
   widgets: WidgetState[];
   safeArea: { top: number; right: number; bottom: number; left: number };
   resolvedMood?: ResolvedMood;
+  /** Resolved playlist for an `aerials` background; absent otherwise. */
+  aerialClips?: AerialClip[];
   /** Entity-state snapshots for every entity any canvas widget on this scene
    *  references (templates + iframe `cosmos.subscribe(...)` requests). The
    *  display merges these into the map forwarded to canvas iframes so

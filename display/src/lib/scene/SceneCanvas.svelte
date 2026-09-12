@@ -78,7 +78,7 @@
          {textColor ? `color: ${textColor};` : ''}"
 >
   <div class="background-layer" data-bg-type={scene.background.type}>
-    <Background background={scene.background} fadeMs={scene.gradientFadeMs ?? 800} />
+    <Background background={scene.background} fadeMs={scene.gradientFadeMs ?? 800} aerialClips={scene.aerialClips ?? []} />
   </div>
   {#if scene.resolvedMood}
     <!-- Key on the resolved URL, not scene.id, so navigating between scenes
