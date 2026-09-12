@@ -507,7 +507,7 @@
         <div class="panel-head">
           <div>
             <span class="eyebrow">Aerials</span>
-            <h2>Apple TV backgrounds</h2>
+            <h2>Apple TV mood clips</h2>
           </div>
           <span class="panel-badge">{aerialCatalog.count} clips</span>
         </div>
