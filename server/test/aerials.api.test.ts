@@ -70,8 +70,8 @@ describe('GET /api/aerials', () => {
     expect(res.json()).toEqual({
       fetchedAt: 5000,
       assets: [
-        { id: ID, name: 'Korea', category: 'earth', subcategory: 'Korea', previewUrl: 'https://p/1.png', cached: true },
-        { id: ID2, name: 'Dubai', category: 'city', previewUrl: 'https://p/2.png', cached: false },
+        { id: ID, name: 'Korea', category: 'earth', subcategory: 'Korea', previewUrl: `/api/aerials/preview/${ID}`, cached: true },
+        { id: ID2, name: 'Dubai', category: 'city', previewUrl: `/api/aerials/preview/${ID2}`, cached: false },
       ],
     });
   });
@@ -160,6 +160,26 @@ describe('GET /api/aerials/stream/:id', () => {
     await h.downloader.settled();
     expect(h.files.has(ID)).toBe(false);
     expect(existsSync(join(dir, `${ID}.mp4.part`))).toBe(false);
+  });
+});
+
+describe('GET /api/aerials/preview/:id', () => {
+  it('proxies the thumbnail from Apple so browsers without Apple\'s root CA still see it', async () => {
+    const h = harness({
+      upstream: (url) => new Response('PNGBYTES', { status: 200, headers: { 'content-type': 'image/png', 'x-url': url } }),
+    });
+    const res = await h.app.inject({ method: 'GET', url: `/api/aerials/preview/${ID}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('PNGBYTES');
+    expect(res.headers['content-type']).toBe('image/png');
+    expect(res.headers['cache-control']).toContain('immutable');
+    expect(h.upstreamCalls.map((c) => c.url)).toEqual(['https://p/1.png']);
+  });
+
+  it('404s for unknown ids and 502s when Apple fails', async () => {
+    const h = harness({ upstream: () => new Response('x', { status: 500 }) });
+    expect((await h.app.inject({ method: 'GET', url: '/api/aerials/preview/FFFFFFFF-0000-0000-0000-000000000009' })).statusCode).toBe(404);
+    expect((await h.app.inject({ method: 'GET', url: `/api/aerials/preview/${ID}` })).statusCode).toBe(502);
   });
 });
 

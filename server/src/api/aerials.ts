@@ -48,7 +48,9 @@ export function registerAerialRoutes(app: FastifyInstance, deps: AerialRouteDeps
         name: a.name,
         category: a.category,
         ...(a.subcategory ? { subcategory: a.subcategory } : {}),
-        previewUrl: a.previewUrl,
+        // Proxied: Apple's CDN chains to a root many browsers lack, and the
+        // admin may be viewed from a kiosk or the HA sidebar.
+        previewUrl: a.previewUrl ? `/api/aerials/preview/${encodeURIComponent(a.id)}` : '',
         cached: deps.files?.has(a.id) ?? false,
       })),
     };
@@ -101,6 +103,29 @@ export function registerAerialRoutes(app: FastifyInstance, deps: AerialRouteDeps
       reply.header('cache-control', 'public, max-age=604800, immutable');
       reply.code(upstream.status);
       if (!upstream.body) return reply.send();
+      const nodeStream = Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]);
+      req.raw.on('close', () => nodeStream.destroy());
+      return reply.send(nodeStream);
+    } catch (err) {
+      return reply.code(502).send({ error: `upstream fetch failed: ${String(err)}` });
+    }
+  });
+
+  /** Thumbnail for the editor's picker, fetched through the Apple-trusting agent. */
+  app.get<{ Params: { id: string } }>('/api/aerials/preview/:id', async (req, reply) => {
+    const id = req.params.id;
+    if (!ASSET_ID_RE.test(id)) return reply.code(400).send({ error: 'invalid id' });
+    const asset = deps.catalog.assets().find((a) => a.id === id);
+    if (!asset || !asset.previewUrl) return reply.code(404).send({ error: 'unknown aerial' });
+    try {
+      const upstream = await doFetch(asset.previewUrl);
+      if (!upstream.ok || !upstream.body) {
+        return reply.code(502).send({ error: `upstream returned ${upstream.status}` });
+      }
+      reply.header('content-type', upstream.headers.get('content-type') ?? 'image/png');
+      const len = upstream.headers.get('content-length');
+      if (len) reply.header('content-length', len);
+      reply.header('cache-control', 'public, max-age=604800, immutable');
       const nodeStream = Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]);
       req.raw.on('close', () => nodeStream.destroy());
       return reply.send(nodeStream);
