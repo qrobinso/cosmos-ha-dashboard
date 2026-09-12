@@ -393,8 +393,9 @@
           <p class="panel-hint">No <code>weather.*</code> entities found in HA. Add one to use this strategy.</p>
         {/if}
       {/if}
-
-      <Field label="Opacity">
+    {/if}
+    {#if mood.enabled}
+      <Field label="Opacity" hint={mood.source === 'aerials' ? 'Below 100% the background shows through the footage.' : ''}>
         <div class="opacity-row">
           <input
             type="range"

@@ -161,4 +161,15 @@ describe('Aerials background', () => {
     await mount({ clips: [] });
     expect(withSrc()).toHaveLength(0);
   });
+
+  it('opens on a random clip each time it mounts when shuffled', async () => {
+    const firsts = new Set<string>();
+    for (let i = 0; i < 25; i++) {
+      await mount({ shuffle: true });
+      firsts.add(withSrc()[0].getAttribute('src')!);
+      component!.$destroy();
+      host?.remove();
+    }
+    expect(firsts.size).toBeGreaterThan(1);
+  });
 });
