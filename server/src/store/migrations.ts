@@ -226,6 +226,21 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 15,
+    up: `
+      -- Downloaded Apple aerial clips, same shape and eviction policy as
+      -- music_video_file but a separate table (and cap) so a big aerial
+      -- library can never evict someone's music videos or vice versa.
+      CREATE TABLE aerial_file (
+        video_id       TEXT PRIMARY KEY,
+        bytes          INTEGER NOT NULL,
+        play_count     INTEGER NOT NULL DEFAULT 0,
+        last_played_at INTEGER,
+        downloaded_at  INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

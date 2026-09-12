@@ -36,7 +36,7 @@ describe('runMigrations', () => {
     const versions = db
       .prepare('SELECT version FROM schema_version ORDER BY version')
       .all() as { version: number }[];
-    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   });
 
   it('migration v3 adds transitions, scene_transition_overrides, and scenes.default_transition_id', () => {
@@ -53,7 +53,7 @@ describe('runMigrations', () => {
     expect(sceneCols.map((c) => c.name)).toContain('default_transition_id');
 
     const versions = db.prepare('SELECT version FROM schema_version ORDER BY version').all() as { version: number }[];
-    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+    expect(versions.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   });
 
   it('migration v3 seeds the 6 built-in transitions', () => {
@@ -99,5 +99,12 @@ describe('runMigrations', () => {
     // Pre-v12 rows have no display names; the History list falls back to the key.
     expect(row.artist).toBeNull();
     expect(row.title).toBeNull();
+  });
+
+  it('migration v15 adds the aerial_file table with the music_video_file shape', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const cols = db.prepare("PRAGMA table_info('aerial_file')").all() as { name: string }[];
+    expect(cols.map((c) => c.name)).toEqual(['video_id', 'bytes', 'play_count', 'last_played_at', 'downloaded_at']);
   });
 });

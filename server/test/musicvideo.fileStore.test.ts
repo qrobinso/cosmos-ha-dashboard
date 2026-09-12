@@ -151,4 +151,18 @@ describe('eviction', () => {
     expect(existsSync(path)).toBe(false);
     expect(s.has('aaa11111111')).toBe(false);
   });
+
+  it('can be pointed at a different table so aerials and music videos never share rows', () => {
+    const aerials = createVideoFileStore(db, { dir, table: 'aerial_file' });
+    const music = store();
+    put(aerials, 'A1B2C3D4-0000-0000-0000-000000000000', 100);
+    expect(aerials.has('A1B2C3D4-0000-0000-0000-000000000000')).toBe(true);
+    expect(music.has('A1B2C3D4-0000-0000-0000-000000000000')).toBe(false);
+    expect(music.stats().fileCount).toBe(0);
+    expect(aerials.stats().fileCount).toBe(1);
+  });
+
+  it('refuses an unknown table name rather than interpolating it into SQL', () => {
+    expect(() => createVideoFileStore(db, { dir, table: 'settings; DROP' as never })).toThrow(/table/);
+  });
 });

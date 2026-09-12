@@ -39,36 +39,45 @@ export type VideoFileStore = {
  */
 const SAFE_ID = /^[A-Za-z0-9_-]{1,40}$/;
 
+/** Tables this store may back. Each has the music_video_file column set.
+ *  An allowlist, because the name is interpolated into SQL. */
+export const VIDEO_FILE_TABLES = ['music_video_file', 'aerial_file'] as const;
+export type VideoFileTable = (typeof VIDEO_FILE_TABLES)[number];
+
 export function createVideoFileStore(
   db: DB,
-  opts: { dir: string; now?: () => number },
+  opts: { dir: string; now?: () => number; table?: VideoFileTable },
 ): VideoFileStore {
   const now = opts.now ?? (() => Date.now());
   const dir = opts.dir;
+  const table = opts.table ?? 'music_video_file';
+  if (!VIDEO_FILE_TABLES.includes(table)) {
+    throw new Error(`createVideoFileStore: unknown table ${JSON.stringify(table)}`);
+  }
   mkdirSync(dir, { recursive: true });
 
-  const selOne = db.prepare('SELECT * FROM music_video_file WHERE video_id = ?');
+  const selOne = db.prepare(`SELECT * FROM ${table} WHERE video_id = ?`);
   const upsert = db.prepare(`
-    INSERT INTO music_video_file (video_id, bytes, play_count, last_played_at, downloaded_at)
+    INSERT INTO ${table} (video_id, bytes, play_count, last_played_at, downloaded_at)
     VALUES (@id, @bytes, 0, NULL, @at)
     ON CONFLICT(video_id) DO UPDATE SET
       bytes = excluded.bytes,
       downloaded_at = excluded.downloaded_at
   `);
   const bumpPlay = db.prepare(
-    'UPDATE music_video_file SET play_count = play_count + 1, last_played_at = ? WHERE video_id = ?',
+    `UPDATE ${table} SET play_count = play_count + 1, last_played_at = ? WHERE video_id = ?`,
   );
   const selTotal = db.prepare(
-    'SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS total FROM music_video_file',
+    `SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS total FROM ${table}`,
   );
   // Eviction order, straight from the requirement: least played first, and
   // among equally-played files the one untouched longest. COALESCE lets a
   // never-played file fall back to when it was downloaded.
   const selVictims = db.prepare(`
-    SELECT video_id, bytes FROM music_video_file
+    SELECT video_id, bytes FROM ${table}
     ORDER BY play_count ASC, COALESCE(last_played_at, downloaded_at) ASC
   `);
-  const del = db.prepare('DELETE FROM music_video_file WHERE video_id = ?');
+  const del = db.prepare(`DELETE FROM ${table} WHERE video_id = ?`);
 
   function pathFor(videoId: string): string | null {
     if (!SAFE_ID.test(videoId)) return null;
