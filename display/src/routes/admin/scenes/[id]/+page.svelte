@@ -159,10 +159,22 @@
     background = { ...background, colors: background.colors.filter((_, i) => i !== idx) };
   }
 
+  /** Strip fields that belong to the other source so a stale moodId or
+   *  weather entity never trips the server's validation. */
   function cleanMood(m: MoodConfig): MoodConfig {
     const out: MoodConfig = { enabled: m.enabled, strategy: m.strategy };
-    if (m.strategy === 'manual' && m.moodId) out.moodId = m.moodId;
-    if (m.strategy === 'weather' && m.weatherEntity) out.weatherEntity = m.weatherEntity;
+    if (m.source === 'aerials') {
+      out.source = 'aerials';
+      out.aerials = {
+        ids: m.aerials?.ids ?? [],
+        categories: m.aerials?.categories ?? [],
+        shuffle: m.aerials?.shuffle === true,
+        interval_min: m.aerials?.interval_min ?? 30,
+      };
+    } else {
+      if (m.strategy === 'manual' && m.moodId) out.moodId = m.moodId;
+      if (m.strategy === 'weather' && m.weatherEntity) out.weatherEntity = m.weatherEntity;
+    }
     const op = typeof m.opacity === 'number' ? m.opacity : 1;
     out.opacity = Math.max(0, Math.min(1, op));
     return out;
