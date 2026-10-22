@@ -207,7 +207,7 @@ Density, spacing scale, focal-element guidance.
   }
   @media (min-width: 600px) { .row { grid-template-columns: 1.2fr 1fr; gap: 1.25rem; } }
 
-  .hint .ok { color: var(--c-success); font-weight: 600; }
+  .hint .ok { color: var(--c-success); font-weight: 300; }
   .hint .muted-inline { color: var(--c-fg-3); }
   .hint-err { color: var(--c-danger); }
 

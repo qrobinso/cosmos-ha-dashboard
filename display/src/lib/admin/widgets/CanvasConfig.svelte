@@ -93,7 +93,7 @@
     align-items: center;
     gap: 0.3rem;
     padding: 0.3rem 0.55rem;
-    border-radius: 999px;
+    border-radius: 0;
     font-size: 0.8rem;
     color: var(--c-fg-2);
     cursor: help;
@@ -115,7 +115,7 @@
     color: var(--c-fg-2);
     border: 1px solid var(--c-line-strong);
     border-radius: var(--radius-md);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    box-shadow: none;
     font-size: 0.82rem;
     line-height: 1.55;
     cursor: default;

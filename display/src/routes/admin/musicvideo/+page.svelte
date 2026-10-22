@@ -721,7 +721,7 @@
     flex-shrink: 0;
   }
 
-  button.ghost.danger { color: var(--c-danger); border-color: rgba(240, 107, 117, 0.4); }
+  button.ghost.danger { color: var(--c-danger); border-color: var(--c-danger); }
   button.ghost.danger:hover { background: var(--c-danger-tint); }
 
   @media (max-width: 600px) {

@@ -308,7 +308,7 @@
     justify-content: center;
     width: 2.4rem;
     height: 2.4rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--c-accent-tint);
     color: var(--c-accent);
   }
@@ -341,7 +341,7 @@
     min-width: 0;
   }
   .np-track strong {
-    font-weight: 600;
+    font-weight: 300;
     font-size: 0.95rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -391,11 +391,11 @@
     gap: 0.55rem;
     margin-top: 0.4rem;
     padding: 0.65rem 1.1rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--c-accent-tint);
     border: 1px solid var(--c-accent);
     color: var(--c-fg);
-    font-weight: 500;
+    font-weight: 300;
     font-size: 0.95rem;
     text-decoration: none;
     transition: background 150ms var(--ease), transform 150ms var(--ease);
@@ -442,9 +442,7 @@
     gap: 0.85rem;
     /* Soft cool wash on the panel rim — picks up the favicon arc color so each
        panel feels lit by the same atmosphere as the page. */
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.02) inset,
-      0 12px 40px rgba(0, 0, 0, 0.35);
+    box-shadow: none;
     transition: opacity 200ms var(--ease);
   }
   /* Offline panels dim the surface — content stays readable + interactive,
@@ -465,7 +463,7 @@
     min-width: 0;
   }
   .name {
-    font-weight: 600;
+    font-weight: 300;
     font-size: 1rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -497,7 +495,7 @@
   .popout:hover {
     background: var(--c-surface-hover);
     color: var(--c-accent);
-    border-color: rgba(255, 209, 122, 0.4);
+    border-color: var(--c-accent);
   }
 
   /* Frame: holds the iframe at the display's natural aspect ratio. Landscape
@@ -546,7 +544,7 @@
     height: 2rem;
     min-height: 0;
     padding: 0;
-    border-radius: 999px;
+    border-radius: 0;
     background: rgba(0, 0, 0, 0.55);
     border: 1px solid rgba(255, 255, 255, 0.18);
     color: #fff;
@@ -573,10 +571,7 @@
     padding: 0;
     border: 0;
     border-radius: 0;
-    background:
-      radial-gradient(ellipse 60% 45% at 75% 65%, rgba(255, 209, 122, 0.12), transparent 60%),
-      radial-gradient(ellipse 80% 60% at 25% 30%, rgba(168, 166, 255, 0.10), transparent 60%),
-      linear-gradient(180deg, #11141d 0%, #06080f 100%);
+    background: var(--c-surface-2);
     color: var(--c-fg);
     cursor: pointer;
     display: flex;
@@ -592,21 +587,21 @@
     height: 3.25rem;
     display: grid;
     place-items: center;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 209, 122, 0.45);
+    border-radius: 0;
+    background: var(--c-accent-tint);
+    border: 1px solid var(--c-accent);
     color: var(--c-accent);
-    box-shadow: 0 0 24px rgba(255, 209, 122, 0.18);
+    box-shadow: none;
     margin-bottom: 0.25rem;
     transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
   }
   .frame .placeholder:hover .play {
     transform: scale(1.08);
-    box-shadow: 0 0 32px rgba(255, 209, 122, 0.32);
+    box-shadow: none;
   }
   .frame .placeholder-label {
     font-size: 0.95rem;
-    font-weight: 500;
+    font-weight: 300;
     color: var(--c-fg);
   }
   .frame .placeholder-hint {
@@ -628,13 +623,13 @@
     padding: 0.45rem 0.75rem;
     min-height: 0;
     height: auto;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--c-surface-2);
     border: 1px solid var(--c-line);
     color: var(--c-fg-2);
     font-family: var(--f-sans);
     font-size: 0.82rem;
-    font-weight: 500;
+    font-weight: 300;
     cursor: pointer;
     transition: background 150ms var(--ease), color 150ms var(--ease), border-color 150ms var(--ease), transform 150ms var(--ease);
   }
@@ -647,18 +642,18 @@
   .chip:disabled { cursor: default; }
   .chip.active {
     background: var(--c-accent-tint);
-    border-color: rgba(255, 209, 122, 0.45);
+    border-color: var(--c-accent);
     color: var(--c-accent);
   }
   .chip.active .chip-dot {
     background: var(--c-accent);
-    box-shadow: 0 0 0 2px rgba(255, 209, 122, 0.25);
+    box-shadow: 0 0 0 2px var(--c-accent-tint);
   }
   .chip.pending { animation: chip-pulse 800ms ease-in-out infinite; }
   .chip-dot {
     width: 0.4rem;
     height: 0.4rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--c-fg-3);
     flex-shrink: 0;
   }
@@ -689,14 +684,14 @@
   .dot {
     width: 0.5rem;
     height: 0.5rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--c-fg-3);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04);
+    box-shadow: 0 0 0 2px var(--c-accent-tint);
     flex-shrink: 0;
   }
   .dot.online {
     background: var(--c-success);
-    box-shadow: 0 0 0 2px rgba(109, 213, 140, 0.18);
+    box-shadow: 0 0 0 2px var(--c-success-tint);
   }
 
 </style>

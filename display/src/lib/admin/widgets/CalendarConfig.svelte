@@ -209,7 +209,7 @@
     background: transparent;
     border: 1px solid var(--c-line);
     color: var(--c-fg-2);
-    border-radius: 0.3rem;
+    border-radius: 0;
     cursor: pointer;
   }
   .add {
@@ -217,7 +217,7 @@
     border: 1px dashed var(--c-line);
     color: var(--c-fg-2);
     padding: 0.4rem 0.6rem;
-    border-radius: 0.3rem;
+    border-radius: 0;
     cursor: pointer;
     width: 100%;
     margin-top: 0.3rem;

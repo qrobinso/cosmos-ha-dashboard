@@ -86,9 +86,9 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--c-line, rgba(255, 255, 255, 0.08));
+    border: 1px solid var(--c-line, var(--c-line));
     border-radius: var(--radius-sm, 8px);
-    background: var(--c-surface, rgba(255, 255, 255, 0.02));
+    background: var(--c-surface, var(--c-accent-tint));
     flex-wrap: wrap;
   }
   .label-text {
@@ -99,7 +99,7 @@
     background: var(--c-surface-2, #1a1a1a);
     color: var(--c-fg, #f0f0f0);
     border: 1px solid var(--c-line, rgba(255, 255, 255, 0.12));
-    border-radius: 6px;
+    border-radius: 0;
     padding: 0.35rem 0.5rem;
     font: inherit;
     min-height: 2rem;
@@ -121,14 +121,14 @@
   .swatch {
     width: 16px;
     height: 16px;
-    border-radius: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0;
+    border: 1px solid var(--c-line);
   }
   .font {
     font-size: 0.85rem;
     color: var(--c-fg-3, #9b9b9b);
     padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--c-surface-2, rgba(255, 255, 255, 0.04));
+    border-radius: 0;
+    background: var(--c-surface-2, var(--c-accent-tint));
   }
 </style>

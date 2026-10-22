@@ -34,9 +34,9 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
   - `widgetKinds.ts` — the registry: `{ kind, label, category, icon, accent, blurb, defaultSize, defaultConfig(entities), instanceLabel(config) }` per kind, plus `paletteGroups()` / `centeredPositionFor()` / `positionAt()`. (Leaves room for a future `previewComponent` field for v2 live-preview tiles.) `widgetIcons.ts` — inline-SVG path data per kind, 24×24 stroke style matching the kiosk's SVGs.
   - **`config.name` convention:** every widget kind now carries an optional `config.name` (not just `canvas`) — the editor's tile + inspector key off it; renderers ignore unknown config keys and the server stores any JSON shape verbatim, so this is purely additive.
 - `src/lib/admin/canvasExamples.ts` + `canvas-help.md` — editor's Insert-example dropdown content + How-this-works panel source.
-- `src/lib/admin/theme.css` — the admin design system. Scoped to `.cosmos-admin` ancestor class so it never leaks into the kiosk display. Defines a calm, modern dark palette (deep neutral surfaces, single warm accent `--c-accent`), system-friendly typography (Inter for UI, JetBrains Mono for data tags/IDs), 44px touch targets, hairline borders, focus rings, motion via `cubic-bezier(0.2, 0.8, 0.2, 1)`, and a `.reveal` page-load fade-up. Mobile-first; everything stacks on narrow viewports and broadens at `@media (min-width: 600px)` and `720px` breakpoints.
+- `src/lib/admin/theme.css` — the admin design system. Scoped to `.cosmos-admin` ancestor class so it never leaks into the kiosk display. Styled after teenage engineering: Canvas Mist (`#f6f8f7`) page, white plates, black ink as the action color (`--c-accent`), Link Blue (`--c-cool`) for links/metadata, 0px radii everywhere (`--radius-*` are 0), no shadows or gradients, hairline Inter at weights 100/300 only (JetBrains Mono 300 for data tags/IDs), 44px touch targets, hairline borders, motion via `cubic-bezier(0.2, 0.8, 0.2, 1)`, and a `.reveal` page-load fade-up. Mobile-first; everything stacks on narrow viewports and broadens at `@media (min-width: 600px)` and `720px` breakpoints.
 - `src/routes/admin/` — admin editor pages, all wrapped in the `.cosmos-admin` shell:
-  - `+layout.svelte` — sticky translucent topbar with a brand mark, **desktop pill nav** ≥720px, and a **hamburger sheet menu** below 720px. Imports `theme.css`. Centered max-width 64rem main column.
+  - `+layout.svelte` — sticky flat topbar with a text-only `Cosmos` wordmark, **desktop text nav** (active = 1px underline) ≥720px, and a **hamburger sheet menu** below 720px. Imports `theme.css`. Centered max-width 64rem main column.
   - `+page.svelte` — Overview: hero intro, stats trio (Scenes / Displays / Settings) that wraps to one column on mobile, plus a two-column "Recent scenes" + "Displays" pair (single column on mobile) with online-status dots driven by `lastSeen`.
   - `scenes/+page.svelte` — search-filtered grid of scene rows with a thumbnail preview (live solid color or gradient swatch), name, widget count, default-transition tag, and inline edit/delete actions. Empty state has a centered call-to-action. **Live scene preview:** hovering the thumbnail (pointer devices) pops a floating `<ScenePreviewPopover>` — an `<iframe>` of the read-only kiosk render at `scenes/[id]/preview`; tapping the thumbnail on touch devices (`matchMedia('(hover: none)')`) opens it as a centered modal with backdrop + "Open editor" link instead of navigating.
   - `scenes/[id]/+page.svelte` — full scene editor: metadata, background (solid + gradient with curated presets), typography, mood, and the `<WidgetEditor>` widget surface (see "Widget editor" above). The non-widget panels still carry the page's legacy ad-hoc styling; the widget editor uses theme tokens throughout.
@@ -62,13 +62,13 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
   - Surfaces: `--c-bg`, `--c-surface`, `--c-surface-2`, `--c-surface-hover`
   - Lines: `--c-line` (subtle), `--c-line-strong`
   - Text: `--c-fg` (primary), `--c-fg-2` (secondary), `--c-fg-3` (muted)
-  - Accent: `--c-accent`, `--c-accent-tint` (use accent sparingly — it's the only chromatic color in the palette)
+  - Accent: `--c-accent`, `--c-accent-tint` (black ink — the action color). `--c-cool` is Link Blue for links/descriptive metadata. Colour is never decorative; keep font weights ≤300 and radii at 0. `--c-carbon` is the dark inverted band (code blocks).
   - Status: `--c-success`, `--c-danger`
 - Touch targets are 44px minimum (`--tap`). Buttons, selects, and inputs all inherit this from the global `.cosmos-admin button/input/select` rules.
 - Page header pattern: a `<span class="eyebrow">SECTION</span>` above an `<h1>`. Section dividers use `<hr class="hairline">` or `.card` containers.
 - Use `.tag` pills for inline metadata (scene type, widget counts, status). Variants: `.muted`, `.accent`, `.success`, `.danger`.
 - Use `.reveal .reveal-1` … `.reveal-4` for staggered page-load animations. `prefers-reduced-motion` disables them.
-- Mobile breakpoints: stack at <600px (most grids), expand to 2–3 columns at ≥600px, and the topbar swaps from hamburger to pill nav at ≥720px.
+- Mobile breakpoints: stack at <600px (most grids), expand to 2–3 columns at ≥600px, and the topbar swaps from hamburger to text nav at ≥720px.
 - Iframe-safety: avoid `window.open`, fixed-position elements outside the topbar, and non-relative fetch URLs. Cross-origin frames need same-origin to call `/api`.
 
 ## Adding a widget

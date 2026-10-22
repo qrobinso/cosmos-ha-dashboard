@@ -214,7 +214,7 @@
     height: 1.5rem;
     display: grid;
     place-items: center;
-    border-radius: 999px;
+    border-radius: 0;
     pointer-events: auto;
     cursor: pointer;
     font-size: 1.1rem;
@@ -235,8 +235,8 @@
     overflow-y: auto;
     background: var(--c-surface-2, #1a1a1a);
     border: 1px solid var(--c-line-strong, rgba(255, 255, 255, 0.12));
-    border-radius: 0.5rem;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+    border-radius: 0;
+    box-shadow: none;
     padding: 0.25rem;
     /* Native momentum scrolling on the touch tablet */
     -webkit-overflow-scrolling: touch;
@@ -256,14 +256,14 @@
     padding: 0.55rem 0.75rem;
     background: transparent;
     border: none;
-    border-radius: 0.35rem;
+    border-radius: 0;
     text-align: left;
     cursor: pointer;
     color: var(--c-fg);
     min-height: var(--tap, 44px);
   }
   .opt.active {
-    background: var(--c-surface-hover, rgba(255, 255, 255, 0.06));
+    background: var(--c-surface-hover, var(--c-accent-tint));
   }
   .opt.selected {
     color: var(--c-accent, #f0c14b);

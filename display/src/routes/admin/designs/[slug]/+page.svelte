@@ -530,7 +530,7 @@
     border-radius: var(--radius-sm);
     color: var(--c-fg);
     font-size: clamp(1.6rem, 4vw, 2.25rem);
-    font-weight: 600;
+    font-weight: 300;
     letter-spacing: -0.01em;
     padding: 0.1rem 0.4rem;
     min-height: auto;
@@ -645,8 +645,8 @@
     animation: pulse-confirm 1.2s var(--ease) infinite;
   }
   @keyframes pulse-confirm {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(240, 107, 117, 0.5); }
-    50% { box-shadow: 0 0 0 6px rgba(240, 107, 117, 0); }
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: 0 0 0 6px var(--c-danger-tint); }
   }
   .editor-actions .btn { text-decoration: none; }
 
@@ -658,7 +658,7 @@
 
   .parse-warn {
     background: var(--c-accent-tint);
-    border: 1px solid rgba(255, 209, 122, 0.4);
+    border: 1px solid var(--c-accent);
     border-radius: var(--radius-sm);
     padding: 0.6rem 0.8rem;
     font-size: 0.85rem;
@@ -684,7 +684,7 @@
     position: relative;
     overflow: hidden;
     border: 1px solid var(--c-line);
-    box-shadow: inset 0 -50% 80px -50px rgba(0, 0, 0, 0.3);
+    box-shadow: none;
   }
   .spec-head {
     display: flex;
@@ -695,9 +695,9 @@
   .spec-dot {
     width: 0.55rem;
     height: 0.55rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--pk-accent);
-    box-shadow: 0 0 14px var(--pk-accent);
+    box-shadow: none;
   }
   .spec-id {
     font-size: 0.7rem;
@@ -707,7 +707,7 @@
   .spec-display {
     font-family: var(--pk-display);
     font-size: clamp(2.2rem, 6vw, 3.4rem);
-    font-weight: 500;
+    font-weight: 300;
     letter-spacing: -0.02em;
     line-height: 1.05;
     color: var(--pk-text);
@@ -750,8 +750,8 @@
   .chip {
     width: 1rem;
     height: 1rem;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    border: 1px solid var(--c-line);
     flex-shrink: 0;
   }
   .ck { color: var(--c-fg-2); font-size: 0.85rem; }
@@ -804,7 +804,7 @@
   .sbar {
     height: 6px;
     background: var(--c-accent);
-    border-radius: 3px;
+    border-radius: 0;
     opacity: 0.85;
   }
   .sv { color: var(--c-fg-3); font-size: 0.72rem; }
@@ -820,7 +820,7 @@
   .prose :global(h4) {
     color: var(--c-fg);
     margin: 1rem 0 0.4rem;
-    font-weight: 600;
+    font-weight: 300;
     letter-spacing: -0.01em;
   }
   .prose :global(h1) { font-size: 1.15rem; }
@@ -835,7 +835,7 @@
     background: var(--c-surface-2);
     border: 1px solid var(--c-line);
     padding: 0.05rem 0.35rem;
-    border-radius: 0.25rem;
+    border-radius: 0;
     color: var(--c-fg);
   }
   .prose :global(strong) { color: var(--c-fg); }

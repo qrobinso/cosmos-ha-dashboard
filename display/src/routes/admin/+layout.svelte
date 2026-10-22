@@ -14,7 +14,7 @@
    * you want open WHILE looking at something, so it is a slide-over, not a
    * destination. Docs is reference material, so it is an icon.
    *
-   * Overview stays reachable by clicking the brand mark.
+   * Overview stays reachable by clicking the wordmark.
    */
   const links = [
     { href: '/admin/scenes', label: 'Scenes' },
@@ -56,39 +56,6 @@
 <div class="cosmos-admin">
   <header class="topbar">
     <a href="/admin" class="brand" on:click={closeMenu}>
-      <!-- Inline favicon: same SVG, same gradients. Rendering the literal mark
-           (rather than approximating with a CSS dot) keeps the topbar and the
-           browser tab in lock-step. -->
-      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
-        <defs>
-          <radialGradient id="brand-bg" cx="42%" cy="36%" r="78%">
-            <stop offset="0%" stop-color="#1a2340" />
-            <stop offset="55%" stop-color="#0c111e" />
-            <stop offset="100%" stop-color="#06080f" />
-          </radialGradient>
-          <linearGradient id="brand-arc" x1="10%" y1="10%" x2="80%" y2="92%">
-            <stop offset="0%" stop-color="#8fb6ef" />
-            <stop offset="45%" stop-color="#a8a6ff" />
-            <stop offset="100%" stop-color="#5fd3a3" />
-          </linearGradient>
-          <radialGradient id="brand-halo" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#ffd58a" stop-opacity="0.55" />
-            <stop offset="50%" stop-color="#f0c14b" stop-opacity="0.18" />
-            <stop offset="100%" stop-color="#f0c14b" stop-opacity="0" />
-          </radialGradient>
-        </defs>
-        <rect width="64" height="64" rx="14" ry="14" fill="url(#brand-bg)" />
-        <circle cx="44" cy="32" r="12" fill="url(#brand-halo)" />
-        <path
-          d="M 47.59 23 A 18 18 0 1 0 47.59 41"
-          fill="none"
-          stroke="url(#brand-arc)"
-          stroke-width="9"
-          stroke-linecap="round"
-        />
-        <circle cx="44" cy="32" r="4" fill="#ffd17a" />
-        <circle cx="44" cy="32" r="1.6" fill="#fff5db" />
-      </svg>
       <span class="brand-text">Cosmos</span>
     </a>
 
@@ -214,9 +181,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.85rem 1.25rem;
-    background: rgba(8, 9, 15, 0.78);
-    backdrop-filter: saturate(140%) blur(10px);
-    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    min-height: 66px;
+    box-sizing: border-box;
+    background: var(--c-bg);
     border-bottom: 1px solid var(--c-line);
   }
 
@@ -225,23 +192,12 @@
     align-items: center;
     gap: 0.6rem;
     color: var(--c-fg);
-    font-weight: 600;
-    font-size: 1rem;
-    letter-spacing: -0.01em;
+    font-weight: 300;
+    font-size: 1.5rem;
     text-decoration: none;
+    margin-right: 3rem;
   }
-  .brand:hover { color: var(--c-fg); }
-  .brand-mark {
-    width: 1.75rem;
-    height: 1.75rem;
-    display: block;
-    /* Soft halo outside the SVG so the mark feels lit on the topbar. */
-    filter: drop-shadow(0 0 10px rgba(255, 209, 122, 0.18));
-    transition: filter 240ms var(--ease);
-  }
-  .brand:hover .brand-mark {
-    filter: drop-shadow(0 0 14px rgba(255, 209, 122, 0.35));
-  }
+  .brand:hover { color: var(--c-fg); text-decoration: none; }
 
   /* Utility cluster: things that are not destinations. Icon-only so they read
      as tools rather than competing with the three primary nav items. */
@@ -258,7 +214,7 @@
     justify-content: center;
     width: var(--tap);
     height: var(--tap);
-    border-radius: 999px;
+    border-radius: 0;
     background: none;
     border: none;
     color: var(--c-fg-3);
@@ -272,9 +228,9 @@
     height: 1.15rem;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-width: 1.2;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
   }
 
   /* Section tabs sit under the topbar, scoped to the Scenes section. A second
@@ -297,10 +253,11 @@
     color: var(--c-fg-3);
     font-size: 0.9rem;
     white-space: nowrap;
-    border-bottom: 2px solid transparent;
+    border-bottom: 1px solid transparent;
     transition: color 150ms var(--ease), border-color 150ms var(--ease);
   }
   .section-tabs a:hover { color: var(--c-fg-2); }
+  .section-tabs a:hover { text-decoration: none; }
   .section-tabs a.active {
     color: var(--c-fg);
     border-bottom-color: var(--c-accent);
@@ -312,9 +269,7 @@
     position: fixed;
     inset: 0;
     z-index: 30;
-    background: rgba(4, 5, 10, 0.55);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(15, 14, 18, 0.35);
   }
   .agent-panel {
     position: fixed;
@@ -327,7 +282,7 @@
     flex-direction: column;
     background: var(--c-bg);
     border-left: 1px solid var(--c-line);
-    box-shadow: -18px 0 48px rgba(0, 0, 0, 0.45);
+    box-shadow: none;
     animation: agent-in 220ms var(--ease);
   }
   @keyframes agent-in {
@@ -351,7 +306,7 @@
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
-    border-radius: 999px;
+    border-radius: 0;
   }
   .agent-close:hover { background: var(--c-surface-2); color: var(--c-fg); }
   /* Chat sizes itself to the viewport for its full-page route; inside the
@@ -374,15 +329,15 @@
   }
   .desktop-nav a {
     padding: 0.55rem 0.9rem;
-    border-radius: 999px;
+    border-radius: 0;
     color: var(--c-fg-2);
     font-size: 0.92rem;
     transition: background 150ms var(--ease), color 150ms var(--ease);
   }
-  .desktop-nav a:hover { background: var(--c-surface-2); color: var(--c-fg); }
+  .desktop-nav a:hover { color: var(--c-fg); text-decoration: none; }
   .desktop-nav a.active {
     color: var(--c-fg);
-    background: var(--c-accent-tint);
+    box-shadow: inset 0 -1px 0 var(--c-fg);
   }
 
   .menu-toggle {
@@ -403,9 +358,9 @@
   .menu-toggle .bar {
     display: block;
     width: 18px;
-    height: 1.5px;
+    height: 1px;
     background: var(--c-fg);
-    border-radius: 1px;
+    border-radius: 0;
     transition: transform 200ms var(--ease), opacity 150ms var(--ease);
   }
   .menu-toggle .bar.open:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
@@ -431,7 +386,8 @@
     font-size: 1rem;
     text-decoration: none;
   }
-  .mobile-menu a.active { color: var(--c-accent); }
+  .mobile-menu a:hover { text-decoration: none; background: var(--c-surface-2); }
+  .mobile-menu a.active { color: var(--c-fg); box-shadow: inset 2px 0 0 var(--c-fg); }
   .mobile-menu a:last-child { border-bottom: 0; }
   .mobile-menu .chev { color: var(--c-fg-3); font-size: 1.25rem; }
 
@@ -456,7 +412,7 @@
     margin-top: 2rem;
   }
   .admin-footer .version {
-    font-family: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+    font-family: var(--f-mono);
     letter-spacing: 0.02em;
   }
   .admin-footer .dot { color: var(--c-fg-3); opacity: 0.5; }
@@ -465,7 +421,7 @@
     text-decoration: none;
     transition: color 150ms var(--ease);
   }
-  .admin-footer a:hover { color: var(--c-fg); }
+  .admin-footer a:hover { color: var(--c-fg); text-decoration: underline; }
 
   @media (min-width: 720px) {
     .desktop-nav { display: flex; }

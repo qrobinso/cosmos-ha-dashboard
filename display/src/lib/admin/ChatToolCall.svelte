@@ -327,12 +327,12 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.35rem 0.7rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--c-surface);
     border: 1px solid var(--c-line);
     color: var(--c-fg-2);
     font-size: 0.8rem;
-    font-weight: 500;
+    font-weight: 300;
     text-decoration: none;
     cursor: pointer;
     transition: background 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease);
@@ -352,7 +352,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    box-shadow: none;
     z-index: 5;
     min-width: 10rem;
   }
@@ -362,7 +362,7 @@
     border: 0;
     color: var(--c-fg);
     padding: 0.45rem 0.65rem;
-    border-radius: 0.3rem;
+    border-radius: 0;
     font-size: 0.85rem;
     cursor: pointer;
     min-height: 0;

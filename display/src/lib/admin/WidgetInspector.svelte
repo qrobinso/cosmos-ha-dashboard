@@ -235,7 +235,7 @@
     min-width: 0;
     min-height: 2.25rem;
     font-size: 0.95rem;
-    font-weight: 500;
+    font-weight: 300;
     padding: 0 0.6rem;
   }
   .head .tag { flex-shrink: 0; }

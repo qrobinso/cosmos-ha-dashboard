@@ -288,7 +288,7 @@
     color: rgba(255, 255, 255, 0.85);
     background: rgba(0, 0, 0, 0.45);
     padding: 0.1rem 0.35rem;
-    border-radius: 0.25rem;
+    border-radius: 0;
     backdrop-filter: blur(2px);
   }
 
@@ -299,7 +299,7 @@
     min-width: 0;
   }
   .name {
-    font-weight: 600;
+    font-weight: 300;
     color: var(--c-fg);
     text-decoration: none;
     overflow: hidden;

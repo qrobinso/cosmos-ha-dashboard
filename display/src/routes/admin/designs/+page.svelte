@@ -349,7 +349,7 @@
     display: grid;
     place-items: center;
     /* Subtle vignette so the specimen reads as lit, not flat. */
-    box-shadow: inset 0 -40% 80px -40px rgba(0, 0, 0, 0.35);
+    box-shadow: none;
   }
 
   .spec-mark {
@@ -359,16 +359,16 @@
     left: 0.85rem;
     width: 0.55rem;
     height: 0.55rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--pk-accent);
-    box-shadow: 0 0 16px var(--pk-accent);
+    box-shadow: none;
     opacity: 0.85;
   }
 
   .spec-display {
     font-family: var(--pk-font);
     font-size: clamp(5rem, 14vw, 7.5rem);
-    font-weight: 500;
+    font-weight: 300;
     letter-spacing: -0.04em;
     line-height: 0.85;
     color: var(--pk-fg);
@@ -408,7 +408,7 @@
   .meta-line.sub { color: var(--c-fg-3); font-size: 0.78rem; }
   .pack-name {
     font-size: 1rem;
-    font-weight: 600;
+    font-weight: 300;
     color: var(--c-fg);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -428,7 +428,7 @@
     color: var(--c-fg-2);
     padding: 0.1rem 0.5rem;
     background: var(--c-surface-2);
-    border-radius: 999px;
+    border-radius: 0;
     border: 1px solid var(--c-line);
     white-space: nowrap;
     flex-shrink: 0;
@@ -448,7 +448,7 @@
     line-height: 1;
     opacity: 0;
     transition: opacity 180ms var(--ease), background 150ms var(--ease);
-    background: rgba(8, 9, 15, 0.65);
+    background: var(--c-surface);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
   }

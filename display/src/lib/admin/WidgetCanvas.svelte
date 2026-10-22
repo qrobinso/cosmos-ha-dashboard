@@ -228,9 +228,7 @@
     position: relative;
     display: grid;
     width: 100%;
-    background:
-      radial-gradient(ellipse 80% 60% at 50% 0%, color-mix(in srgb, var(--c-cool) 4%, transparent), transparent 70%),
-      var(--c-bg);
+    background: var(--c-bg);
     border: 1px solid var(--c-line);
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -250,9 +248,7 @@
   .tile {
     position: relative;
     margin: 3px;
-    background:
-      linear-gradient(160deg, color-mix(in srgb, var(--tile-accent) 14%, transparent), color-mix(in srgb, var(--tile-accent) 6%, transparent)),
-      var(--c-surface);
+    background: color-mix(in srgb, var(--tile-accent) 8%, var(--c-surface));
     border: 1px solid color-mix(in srgb, var(--tile-accent) 38%, var(--c-line));
     border-radius: var(--radius-sm);
     color: var(--c-fg-2);
@@ -276,11 +272,9 @@
   .tile:active { cursor: grabbing; }
   .tile:hover { border-color: color-mix(in srgb, var(--tile-accent) 60%, var(--c-line)); }
   .tile.selected {
-    background:
-      linear-gradient(160deg, var(--c-accent-tint), color-mix(in srgb, var(--c-accent) 7%, transparent)),
-      var(--c-surface);
+    background: var(--c-surface);
     border-color: var(--c-accent);
-    box-shadow: 0 0 0 1px var(--c-accent), 0 4px 16px color-mix(in srgb, var(--c-accent) 14%, transparent);
+    box-shadow: 0 0 0 1px var(--c-accent);
     color: var(--c-fg);
   }
   .tile:focus-visible {
@@ -289,7 +283,7 @@
   }
   .tile-name {
     font-size: 0.8rem;
-    font-weight: 500;
+    font-weight: 300;
     line-height: 1.2;
     color: var(--c-fg);
     overflow: hidden;
@@ -337,7 +331,7 @@
     place-items: center;
     width: 1.15rem;
     height: 1.15rem;
-    border-radius: 999px;
+    border-radius: 0;
     border: 1px solid var(--c-line-strong);
     font-size: 0.7rem;
     color: var(--c-fg-3);
@@ -354,7 +348,7 @@
     background: var(--c-surface);
     border: 1px solid var(--c-line-strong);
     border-radius: var(--radius-sm);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: none;
     color: var(--c-fg-2);
     font-size: 0.78rem;
     line-height: 1.4;

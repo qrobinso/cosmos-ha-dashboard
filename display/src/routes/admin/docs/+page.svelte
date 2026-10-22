@@ -305,11 +305,11 @@
     height: auto;
     background: var(--c-surface);
     border: 1px solid var(--c-line);
-    border-radius: 999px;
+    border-radius: 0;
     color: var(--c-fg-2);
     cursor: pointer;
     font-size: 0.88rem;
-    font-weight: 500;
+    font-weight: 300;
     text-align: left;
     transition: background 150ms var(--ease), color 150ms var(--ease), border-color 150ms var(--ease);
     white-space: nowrap;
@@ -322,7 +322,7 @@
   .doc-link.active {
     background: var(--c-accent-tint);
     color: var(--c-accent);
-    border-color: rgba(255, 209, 122, 0.45);
+    border-color: var(--c-accent);
   }
   .doc-title { overflow: hidden; text-overflow: ellipsis; }
 
@@ -359,7 +359,7 @@
     align-items: center;
     background: var(--c-surface-2);
     border: 1px solid var(--c-line);
-    border-radius: 999px;
+    border-radius: 0;
     padding: 0 0.6rem 0 0.65rem;
     transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
     height: 2.1rem;
@@ -387,7 +387,7 @@
     font-size: 0.85rem;
     color: var(--c-fg);
     outline: none !important;
-    box-shadow: none !important;
+    box-shadow: none;
   }
   .search input::placeholder { color: var(--c-fg-3); }
   .search-count {
@@ -404,7 +404,7 @@
     padding: 0;
     background: transparent;
     border: 0;
-    border-radius: 999px;
+    border-radius: 0;
     color: var(--c-fg-3);
     font-size: 1rem;
     line-height: 1;
@@ -418,8 +418,8 @@
     padding: 0 0.85rem;
     font-size: 0.82rem;
   }
-  .copy.copied { color: var(--c-success); border-color: rgba(109, 213, 140, 0.45); }
-  .copy.error { color: var(--c-danger); border-color: rgba(240, 107, 117, 0.45); }
+  .copy.copied { color: var(--c-success); border-color: var(--c-success); }
+  .copy.error { color: var(--c-danger); border-color: var(--c-danger); }
 
   .no-matches {
     color: var(--c-fg-3);
@@ -451,12 +451,13 @@
     font-size: 0.86em;
     background: var(--c-surface-2);
     padding: 0.1em 0.35em;
-    border-radius: 4px;
+    border-radius: 0;
     border: 1px solid var(--c-line);
   }
   .prose :global(pre) {
-    background: #06080f;
-    border: 1px solid var(--c-line);
+    background: var(--c-carbon);
+    color: var(--c-bg);
+    border: 1px solid var(--c-carbon);
     border-radius: var(--radius-sm);
     padding: 0.85rem 1rem;
     overflow-x: auto;
@@ -495,7 +496,7 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-size: 0.75rem;
-    font-weight: 500;
+    font-weight: 300;
   }
   .prose :global(hr) {
     border: 0;

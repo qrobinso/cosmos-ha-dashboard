@@ -457,9 +457,9 @@
   h1 { margin: 0; font-weight: 300; }
   h2 { margin: 0 0 1rem; font-weight: 400; font-size: 1.1rem; }
   .panel {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 0.75rem;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-line);
+    border-radius: 0;
     padding: 1.25rem;
     margin-bottom: 1.25rem;
   }
@@ -470,22 +470,22 @@
     margin-bottom: 1rem;
   }
   .panel-hint {
-    color: #999;
+    color: var(--c-fg-3);
     font-size: 0.85rem;
     margin: 0 0 0.85rem;
     line-height: 1.45;
   }
   .panel-hint code {
-    background: #0a0a0a;
+    background: var(--c-surface);
     padding: 0.05rem 0.35rem;
-    border-radius: 0.25rem;
+    border-radius: 0;
     font-size: 0.85em;
   }
   .inline-check {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    color: #ccc;
+    color: var(--c-fg-2);
   }
   .opacity-row {
     display: flex;
@@ -498,16 +498,16 @@
     max-width: 18rem;
   }
   .opacity-value {
-    color: #ccc;
+    color: var(--c-fg-2);
     font-variant-numeric: tabular-nums;
     min-width: 3.25rem;
     text-align: right;
   }
   input, select, textarea {
-    background: #0a0a0a;
-    color: #eee;
-    border: 1px solid #2a2a2a;
-    border-radius: 0.4rem;
+    background: var(--c-surface);
+    color: var(--c-fg);
+    border: 1px solid var(--c-line);
+    border-radius: 0;
     padding: 0.5rem 0.65rem;
     font-size: 0.95rem;
     font-family: inherit;
@@ -521,11 +521,11 @@
     width: 5rem;
   }
   button {
-    background: #f5f5f5;
-    color: #0a0a0a;
+    background: var(--c-accent);
+    color: var(--c-bg);
     border: none;
     padding: 0.5rem 0.8rem;
-    border-radius: 0.4rem;
+    border-radius: 0;
     font-size: 0.9rem;
     cursor: pointer;
     font-family: inherit;
@@ -536,8 +536,8 @@
   }
   button.danger {
     background: transparent;
-    color: #ff8a8a;
-    border: 1px solid #3a2222;
+    color: var(--c-danger);
+    border: 1px solid var(--c-danger);
   }
   .actions {
     display: flex;
@@ -545,7 +545,7 @@
     align-items: center;
   }
   .status.saved {
-    color: #8aff8a;
+    color: var(--c-success);
     font-size: 0.9rem;
   }
   .radio-row {

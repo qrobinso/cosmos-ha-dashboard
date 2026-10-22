@@ -164,7 +164,7 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--c-fg-3);
-    font-weight: 600;
+    font-weight: 300;
   }
   .picker-list {
     list-style: none;

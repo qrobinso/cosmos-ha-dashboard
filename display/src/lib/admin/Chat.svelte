@@ -447,7 +447,7 @@
     border: 1px solid var(--c-line);
     color: var(--c-fg-2);
     padding: 0.65rem 1rem;
-    border-radius: 999px;
+    border-radius: 0;
     font-size: 0.9rem;
     cursor: pointer;
     transition: background 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease), transform 120ms var(--ease);
@@ -487,7 +487,7 @@
 
   .msg-bubble {
     padding: 0.75rem 1rem;
-    border-radius: 1rem;
+    border-radius: 0;
     font-size: 0.92rem;
     line-height: 1.5;
   }
@@ -502,7 +502,7 @@
     border-bottom-left-radius: 0.3rem;
   }
   .msg-error .msg-bubble {
-    background: rgba(255, 87, 87, 0.12);
+    background: var(--c-danger-tint);
     border: 1px solid var(--c-danger);
     color: var(--c-fg);
   }
@@ -513,7 +513,7 @@
   .md :global(code) {
     background: var(--c-bg);
     padding: 0.1rem 0.3rem;
-    border-radius: 0.25rem;
+    border-radius: 0;
     font-family: ui-monospace, 'JetBrains Mono', monospace;
     font-size: 0.85em;
   }
@@ -547,7 +547,7 @@
   .typing-dot {
     width: 0.45rem;
     height: 0.45rem;
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--c-fg-3);
     animation: typing-pulse 1.4s ease-in-out infinite;
   }

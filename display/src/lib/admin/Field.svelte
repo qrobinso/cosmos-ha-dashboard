@@ -18,11 +18,11 @@
   }
   .label {
     font-size: 0.85rem;
-    font-weight: 500;
-    color: #ddd;
+    font-weight: 300;
+    color: var(--c-fg);
   }
   .hint {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--c-fg-3);
   }
 </style>

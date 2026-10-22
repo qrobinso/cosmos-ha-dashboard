@@ -117,7 +117,7 @@
     border-radius: var(--radius-md, 0.6rem);
     overflow: hidden;
     border: 1px solid var(--c-line-strong, rgba(255, 255, 255, 0.2));
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+    box-shadow: none;
     background: #0a0a0a;
     pointer-events: none; /* hover-only — never steals the mouse from the thumb */
   }
@@ -145,7 +145,7 @@
     border-radius: var(--radius-md, 0.6rem);
     overflow: hidden;
     border: 1px solid var(--c-line-strong, rgba(255, 255, 255, 0.2));
-    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+    box-shadow: none;
     background: #0a0a0a;
   }
   .modal-panel iframe {
@@ -161,7 +161,7 @@
     width: 2rem;
     height: 2rem;
     min-height: 2rem;
-    border-radius: 999px;
+    border-radius: 0;
     border: 1px solid rgba(255, 255, 255, 0.25);
     background: rgba(0, 0, 0, 0.55);
     color: #fff;
@@ -189,7 +189,7 @@
     font-size: 0.85rem;
   }
   .modal-title {
-    font-weight: 600;
+    font-weight: 300;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -198,9 +198,9 @@
     flex-shrink: 0;
     color: #fff;
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 300;
     padding: 0.25rem 0.5rem;
-    border-radius: 0.35rem;
+    border-radius: 0;
     background: rgba(255, 255, 255, 0.12);
   }
   .edit-link:hover { background: rgba(255, 255, 255, 0.2); }

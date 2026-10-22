@@ -192,7 +192,7 @@
   }
   .whole { display: inline-flex; align-items: center; gap: 0.6rem; cursor: pointer; flex: 1; min-height: var(--tap, 44px); }
   .whole input { width: 1.1rem; height: 1.1rem; accent-color: var(--c-accent, #ffd17a); }
-  .group-name { font-weight: 500; color: var(--c-fg, #eee); }
+  .group-name { font-weight: 300; color: var(--c-fg, #eee); }
   .toggle { min-width: var(--tap, 44px); min-height: var(--tap, 44px); background: none; border: none; color: var(--c-fg-2, #ccc); cursor: pointer; }
 
   .grid {
@@ -228,7 +228,7 @@
     position: absolute; top: 0.35rem; right: 0.35rem;
     width: 1.4rem; height: 1.4rem; border-radius: 50%;
     display: none; align-items: center; justify-content: center;
-    background: var(--c-accent, #ffd17a); color: #000; font-size: 0.85rem; font-weight: 600;
+    background: var(--c-accent); color: var(--c-bg); font-size: 0.85rem; font-weight: 300;
   }
   .clip.selected .check { display: inline-flex; }
 
