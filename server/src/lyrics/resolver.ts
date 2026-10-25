@@ -4,8 +4,11 @@ import type { LyricsFetch, LyricsResult } from './lrclib.js';
 import { markChorus, parseLrc, parsePlain, type LyricsLine } from './parse.js';
 
 /** LRCLIB is fast, but rapid track-skipping shouldn't fan out unbounded requests.
- *  Past the cap a lookup is dropped; the next scene push retries it. */
+ *  Past the cap a lookup is dropped and that widget re-pushed when a slot frees. */
 export const MAX_CONCURRENT_LYRICS_LOOKUPS = 2;
+/** After a failed fetch, re-push this long later so the lookup is retried
+ *  even if nothing else about the player changes for the rest of the song. */
+export const LYRICS_RETRY_MS = 30_000;
 /** Parsed-lines memo size: a playing track re-pushes often and shouldn't reparse. */
 const PARSED_MEMO = 20;
 
@@ -34,8 +37,12 @@ export function createLyricsResolver(
   fetcher: LyricsFetch,
   cache: LyricsCache,
   onUpdate: (widgetId: string) => void,
+  opts: { retryMs?: number } = {},
 ): LyricsResolver {
+  const retryMs = opts.retryMs ?? LYRICS_RETRY_MS;
   const inFlight = new Map<string, Set<string>>();
+  /** Widgets whose lookup was dropped at the cap; re-pushed when a slot frees. */
+  const dropped = new Set<string>();
   const live = new Set<string>();
   const parsed = new Map<string, { lines: LyricsLine[] | null; synced: boolean }>();
 
@@ -43,17 +50,28 @@ export function createLyricsResolver(
     const waiters = new Set<string>();
     inFlight.set(key, waiters);
     const [artist, title] = key.split('|');
+    const notify = (ids: Iterable<string>) => {
+      for (const id of ids) if (live.has(id)) onUpdate(id);
+    };
     fetcher
       .get({ artist, title, durationSec })
       .then(
         (result) => {
           cache.put(key, result);
           parsed.delete(key);
-          for (const id of waiters) if (live.has(id)) onUpdate(id);
+          notify(waiters);
         },
-        (err) => console.error(`[lyrics] lookup failed for "${key}": ${(err as Error).message}`),
+        (err) => {
+          console.error(`[lyrics] lookup failed for "${key}": ${(err as Error).message}`);
+          setTimeout(() => notify(waiters), retryMs).unref?.();
+        },
       )
-      .finally(() => inFlight.delete(key));
+      .finally(() => {
+        inFlight.delete(key);
+        const retry = [...dropped];
+        dropped.clear();
+        notify(retry);
+      });
   }
 
   const resolve = ((widgetId: string, track: LyricsTrack): ResolvedLyrics => {
@@ -77,7 +95,7 @@ export function createLyricsResolver(
     else if (inFlight.size < MAX_CONCURRENT_LYRICS_LOOKUPS) {
       start(trackKey, track.durationSec);
       inFlight.get(trackKey)!.add(widgetId);
-    }
+    } else dropped.add(widgetId);
     return { lines: null, synced: false, trackKey };
   }) as LyricsResolver;
 

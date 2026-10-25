@@ -7,8 +7,19 @@
   export let playing: boolean;
   export let trackKey: string;
 
-  /** The current line plus the two before it, which are mid-dissolve. */
-  $: visible = index < 0 ? [] : lines.slice(Math.max(0, index - 2), index + 1).map((line, n, arr) => {
+  /** Lines stay mounted until their 11s dissolve has played out: unmounting a
+   *  line mid-fade pops it off at partial opacity. Timed lines leave once 12s
+   *  older than the current one; untimed ones after 4 lines (~4s+ apart). */
+  const LIFETIME_S = 12;
+  const MAX_MOUNTED = 8;
+  $: now = lines[index]?.t;
+  $: first = Math.max(
+    0,
+    now === undefined
+      ? index - 3
+      : Math.max(index - (MAX_MOUNTED - 1), lines.findIndex((l) => (l.t ?? 0) >= now - LIFETIME_S)),
+  );
+  $: visible = index < 0 ? [] : lines.slice(first, index + 1).map((line, n, arr) => {
     const i = index - (arr.length - 1 - n);
     const h = hash(`${line.text}:${i}`);
     return {

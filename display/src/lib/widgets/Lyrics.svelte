@@ -18,15 +18,21 @@
   $: style = typeof cfg.style === 'string' && STYLES.includes(cfg.style) ? cfg.style : 'spotlight';
   $: offsetMs = typeof cfg.offset_ms === 'number' && Number.isFinite(cfg.offset_ms) ? cfg.offset_ms : 0;
   $: accent = typeof cfg.accent === 'string' && cfg.accent.trim() ? cfg.accent.trim() : DEFAULT_ACCENT;
-  $: lines = (data?.lines?.length ? data.lines : null) as LyricsLine[] | null;
+  // Without a reported position there's nothing to keep time against — every
+  // push would snap back to line 0 — so hide rather than show the wrong words.
+  $: lines = (data?.lines?.length && typeof data.position === 'number' ? data.lines : null) as LyricsLine[] | null;
   $: synced = !!data?.synced;
   $: playing = data?.state === 'playing';
 
   // Anchor each push's server-extrapolated position to its arrival on THIS
   // kiosk's monotonic clock; never compare against HA's wall clock.
+  // Only a NEW data object is a new push: Svelte 4 re-sets object props on any
+  // parent re-render (e.g. a transition completing), which must not re-anchor.
   let anchorMs = 0;
   let pushed = 0;
-  $: if (data) {
+  let lastData: LyricsData | null = null;
+  $: if (data && data !== lastData) {
+    lastData = data;
     anchorMs = performance.now();
     pushed = data.position ?? 0;
   }

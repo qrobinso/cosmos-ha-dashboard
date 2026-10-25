@@ -19,7 +19,7 @@
 <div class="kara" data-style="karaoke">
   {#if current && !gap}
     {#key `${trackKey}:${index}`}
-      <div class="line" class:chorus={current.chorus} data-current in:fly={{ y: 24, duration: 450 }}>
+      <div class="line" class:chorus={current.chorus} class:plain={!synced} data-current in:fly={{ y: 24, duration: 450 }}>
         <span class="base">{current.text}</span>
         {#if synced}
           <!-- shortcut: the fill sweeps the whole block at once, so a line that
@@ -59,6 +59,10 @@
   }
   .base {
     opacity: 0.3;
+  }
+  /* Untimed lyrics have no sweep, so the line itself must read at full strength. */
+  .plain .base {
+    opacity: 1;
   }
   .fill {
     position: absolute;

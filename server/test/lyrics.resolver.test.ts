@@ -5,13 +5,13 @@ import { createLyricsCache } from '../src/lyrics/cache.js';
 import { createLyricsResolver } from '../src/lyrics/resolver.js';
 import type { LyricsFetch, LyricsResult } from '../src/lyrics/lrclib.js';
 
-function setup(get: LyricsFetch['get']) {
+function setup(get: LyricsFetch['get'], opts: { retryMs?: number } = {}) {
   const db = openDatabase(':memory:');
   runMigrations(db);
   const cache = createLyricsCache(db);
   const onUpdate = vi.fn();
   const fetcher = { get: vi.fn(get) };
-  const resolve = createLyricsResolver(fetcher, cache, onUpdate);
+  const resolve = createLyricsResolver(fetcher, cache, onUpdate, opts);
   return { resolve, fetcher, onUpdate, cache };
 }
 
@@ -79,5 +79,30 @@ describe('lyrics resolver', () => {
     const { resolve, fetcher } = setup(async () => synced);
     expect(resolve('w1', { title: 'x' })).toEqual({ lines: null, synced: false, trackKey: null });
     expect(fetcher.get).not.toHaveBeenCalled();
+  });
+
+  it('retries a lookup dropped at the concurrency cap once a slot frees', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { resolve, fetcher, onUpdate } = setup(async () => {
+      await gate;
+      return synced;
+    });
+    resolve('w1', { artist: 'a', title: '1' });
+    resolve('w2', { artist: 'a', title: '2' });
+    resolve('w3', { artist: 'a', title: '3' }); // over MAX_CONCURRENT_LYRICS_LOOKUPS
+    expect(fetcher.get).toHaveBeenCalledTimes(2);
+    release();
+    await settle();
+    expect(onUpdate.mock.calls.map((c) => c[0])).toContain('w3');
+  });
+
+  it('re-pushes after a failed lookup so it is retried', async () => {
+    const { resolve, onUpdate } = setup(async () => {
+      throw new Error('down');
+    }, { retryMs: 5 });
+    resolve('w1', track);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onUpdate).toHaveBeenCalledWith('w1');
   });
 });

@@ -145,7 +145,6 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 - `Aerials.svelte` uses `Math.random` directly for shuffle, so the order is not testable deterministically; the test only asserts one-of-each-per-pass.
 - `ResolvedMood` gained a `kind` discriminator; a kiosk running an older build against a newer server would fall into the video branch with no `url`. Both ship together in the image, so this only matters for a split dev setup.
 - The aerials mood source ignores `strategy` but the stored `MoodConfig` still carries one (the editor leaves whatever was there). Harmless; `parseMood` keeps `source`/`aerials` and the interest set skips ambient entities for aerials.
-
 - Lyrics: Karaoke's colour sweep clips the whole line block, so a line long enough to wrap fills all its rows at once rather than row by row.
 - Lyrics: LRC has no line end times, so the instrumental-gap pulse (`inGap` in `widgets/lyrics/timing.ts`) guesses how long a line is sung from its word count (2.5–6 s). Slow ballads can show the ♪ pulse before a held note ends.
 - Lyrics: the admin scene preview never wires the lyrics resolver, so lyrics widgets render hidden there. There is also no pin/block page for wrong lyrics like the music-video one; the only fix is LRCLIB itself.
