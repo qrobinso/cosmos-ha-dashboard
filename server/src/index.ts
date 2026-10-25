@@ -23,6 +23,9 @@ import { createMusicVideoCache } from './musicvideo/cache.js';
 import { mvLog } from './musicvideo/log.js';
 import { createYtDlpLookup, probeYtDlpAvailable } from './musicvideo/ytdlp.js';
 import { createMusicVideoResolver } from './musicvideo/resolver.js';
+import { createLyricsCache } from './lyrics/cache.js';
+import { createLrclibClient } from './lyrics/lrclib.js';
+import { createLyricsResolver } from './lyrics/resolver.js';
 import { createMusicVideoOverrideRepo } from './musicvideo/overrides.js';
 import { createVideoFileStore } from './musicvideo/fileStore.js';
 import { createAerialCatalogStore } from './aerials/store.js';
@@ -78,7 +81,9 @@ async function main() {
   // URLs are already ignored by reads, so they are pure dead weight, and the
   // durable lookup table gets a row cap. `unref` so this timer never holds the
   // process open.
+  const lyricsCache = createLyricsCache(db);
   function pruneMusicVideoCache() {
+    lyricsCache.prune();
     const { negatives, streams, overflow } = musicVideoCache.prune();
     if (negatives + streams + overflow > 0) {
       mvLog(
@@ -510,22 +515,25 @@ async function main() {
     }
   });
 
+  // Same fan-out as canvasResolver: any display whose active scene holds
+  // this widget needs a re-push now that the async lookup has landed.
+  function markDisplaysShowing(widgetId: string) {
+    for (const d of displays.list()) {
+      const activeId = d.currentSceneId ?? d.defaultSceneId;
+      if (!activeId) continue;
+      const scene = scenes.get(activeId);
+      if (!scene) continue;
+      if (scene.widgets.some((w) => w.id === widgetId)) markDisplayDirty(d.id);
+    }
+  }
+
   const musicVideoResolver = createMusicVideoResolver(
     musicVideoLookup,
     musicVideoCache,
-    (widgetId) => {
-      // Same fan-out as canvasResolver: any display whose active scene holds
-      // this widget needs a re-push now that the videoId has landed.
-      for (const d of displays.list()) {
-        const activeId = d.currentSceneId ?? d.defaultSceneId;
-        if (!activeId) continue;
-        const scene = scenes.get(activeId);
-        if (!scene) continue;
-        if (scene.widgets.some((w) => w.id === widgetId)) markDisplayDirty(d.id);
-      }
-    },
+    markDisplaysShowing,
     { overrides: musicVideoOverrides },
   );
+  const lyricsResolver = createLyricsResolver(createLrclibClient(), lyricsCache, markDisplaysShowing);
 
   const wss = attachWsHub(app.server, {
     displays, scenes, settings, transitions, overrides, displayPalette,
@@ -544,6 +552,7 @@ async function main() {
     onSceneActivated: publishSceneState,
     canvasResolver,
     musicVideoResolver,
+    lyricsResolver,
     canvasExtras: (widgetId) => {
       const all: string[] = [];
       for (const d of displays.list()) all.push(...canvasExtras.list(d.name, widgetId));
@@ -570,12 +579,15 @@ async function main() {
     canvasResolver.gc(live);
 
     const liveMusicVideo = new Set<string>();
+    const liveLyrics = new Set<string>();
     for (const s of scenes.list()) {
       for (const w of s.widgets) {
         if (w.kind === 'musicvideo') liveMusicVideo.add(w.id);
+        if (w.kind === 'lyrics') liveLyrics.add(w.id);
       }
     }
     musicVideoResolver.gc(liveMusicVideo);
+    lyricsResolver.gc(liveLyrics);
   }
 
   let unsubHaStateChange: (() => void) | null = null;
@@ -803,6 +815,7 @@ async function main() {
       // so `unsubscribe` messages actually reach HA.
       canvasResolver.dispose();
       musicVideoResolver.dispose();
+      lyricsResolver.dispose();
       clearInterval(musicVideoPruneTimer);
       clearInterval(aerialRefreshTimer);
       templatesClient?.close();
