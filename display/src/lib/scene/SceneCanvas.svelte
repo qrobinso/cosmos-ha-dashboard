@@ -11,6 +11,7 @@
   import Camera from '$lib/widgets/Camera.svelte';
   import Canvas from '$lib/widgets/Canvas.svelte';
   import MusicVideo from '$lib/widgets/MusicVideo.svelte';
+  import Lyrics from '$lib/widgets/Lyrics.svelte';
   import Background from '$lib/backgrounds/Background.svelte';
   import MoodLayer from './MoodLayer.svelte';
   import { paletteEnabled } from '$lib/scene/reportPalette';
@@ -117,6 +118,8 @@
           <Canvas widget={w} {scene} {entitiesById} displayName={displayName ?? ''} canvasFetchPolicy={scene.canvasFetchPolicy} />
         {:else if w.kind === 'musicvideo'}
           <MusicVideo widget={w} />
+        {:else if w.kind === 'lyrics'}
+          <Lyrics widget={w} />
         {/if}
       </WidgetSlot>
     {/each}

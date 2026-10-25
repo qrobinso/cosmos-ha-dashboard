@@ -65,7 +65,8 @@
    * intended look — disable it here. */
   .widget-slot[data-kind='media_player'],
   .widget-slot[data-kind='canvas'],
-  .widget-slot[data-kind='musicvideo'] {
+  .widget-slot[data-kind='musicvideo'],
+  .widget-slot[data-kind='lyrics'] {
     -webkit-mask-image: none;
     mask-image: none;
   }
