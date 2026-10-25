@@ -32,6 +32,8 @@ export const widgetIcons: Record<WidgetKind, string> = {
   // drawing for a widget that's conceptually "media player, but video".
   musicvideo:
     '<circle cx="12" cy="12" r="8.5"/><path d="M10.5 9.5v5l4-2.5z"/>',
+  // Three lyric lines, the middle one emphasised.
+  lyrics: '<path d="M5 7h10"/><path d="M5 12h14" stroke-width="2.5"/><path d="M5 17h8"/>',
 };
 
 /** Convenience: a complete <svg> string for `{@html}` use. */

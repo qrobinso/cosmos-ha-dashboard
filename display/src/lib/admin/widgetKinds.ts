@@ -243,6 +243,21 @@ export const widgetKinds: Record<WidgetKind, WidgetKindMeta> = {
     }),
     instanceLabel: (c) => labelFrom(c, 'Video Backdrop'),
   },
+  lyrics: {
+    kind: 'lyrics',
+    label: 'Lyrics',
+    category: 'ha',
+    icon: widgetIcons.lyrics,
+    accent: '#e0a83a', // lyric gold
+    blurb: 'Shows the words to the current track, in time with the music.',
+    defaultSize: { w: 6, h: 4 },
+    defaultConfig: (entities) => ({
+      entity_id: firstEntityOfDomain(entities, 'media_player'),
+      style: 'spotlight',
+      offset_ms: 0,
+    }),
+    instanceLabel: (c) => labelFrom(c, 'Lyrics'),
+  },
 };
 
 /** All kinds in palette order (Time & info, then Home Assistant, then Canvas). */
@@ -257,6 +272,7 @@ export const widgetKindOrder: WidgetKind[] = [
   'camera',
   'canvas',
   'musicvideo',
+  'lyrics',
 ];
 
 export const categoryLabels: Record<WidgetCategory, string> = {

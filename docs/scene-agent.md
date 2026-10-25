@@ -56,7 +56,7 @@ type Background =
 type WidgetKind =
   | 'clock' | 'weather' | 'entity_tile' | 'calendar'
   | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas'
-  | 'musicvideo';
+  | 'musicvideo' | 'lyrics';
 ```
 
 ### Coordinates
@@ -144,6 +144,27 @@ If the user gave style direction (a described aesthetic, named colors/fonts, "ma
 - Don't use Space Grotesk for body copy — it's a display face. Reserve it for one-word scene names.
 
 ### Canvas pairing rule
+
+### The `lyrics` widget
+
+Shows the lyrics (from LRCLIB) for whatever a `media_player` is playing, in time with the music when timed lyrics exist.
+
+```jsonc
+{
+  "kind": "lyrics",
+  "position": { "col": 2, "row": 2, "w": 10, "h": 5 },
+  "config": {
+    "entity_id": "media_player.living_room",  // required
+    "style": "spotlight",   // spotlight | karaoke | poster | drift (default spotlight)
+    "accent": "#ffc65c",    // optional CSS colour for the karaoke sweep and chorus
+    "offset_ms": 0          // optional; positive shows lyrics sooner
+  }
+}
+```
+
+Styles: `spotlight` scrolls with the current line lit (best for singing along); `karaoke` shows one big line with a colour sweep; `poster` typesets each line as kinetic typography; `drift` floats lines up and dissolves them (pure atmosphere — pairs well over a `musicvideo` backdrop or an aerials mood). Repeated lines (the chorus) get the accent colour.
+
+**It is blank whenever no lyrics are found**, for instrumentals, and when nothing is playing. Like `musicvideo`, never make it the only thing a scene depends on.
 
 ### The `musicvideo` widget (Video Backdrop)
 
