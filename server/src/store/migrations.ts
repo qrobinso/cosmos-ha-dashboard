@@ -241,6 +241,21 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 16,
+    up: `
+      -- LRCLIB lyrics per normalized track key. miss=1 rows are "looked,
+      -- found nothing" and expire after a day; hits are durable but capped.
+      CREATE TABLE lyrics_cache (
+        track_key    TEXT PRIMARY KEY,
+        synced       TEXT,
+        plain        TEXT,
+        instrumental INTEGER NOT NULL DEFAULT 0,
+        miss         INTEGER NOT NULL DEFAULT 0,
+        fetched_at   INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

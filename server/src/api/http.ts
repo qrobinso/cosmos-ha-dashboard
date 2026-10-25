@@ -20,7 +20,7 @@ import { registerCameraRoutes } from './cameras.js';
 import { registerMoodRoutes } from './moods.js';
 import { registerMusicVideoRoutes } from './musicvideo.js';
 import { registerAerialRoutes, type AerialRouteDeps } from './aerials.js';
-import { registerCanvasRoutes, createCanvasExtrasStore, type CanvasExtrasStore } from './canvases.js';
+import { registerCanvasRoutes, type CanvasExtrasStore } from './canvases.js';
 import { registerDocsRoutes } from './docs.js';
 import { registerAgentRoutes } from './agent.js';
 import { registerMcpRoutes } from './mcp.js';
