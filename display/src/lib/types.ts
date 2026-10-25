@@ -27,7 +27,7 @@ export type Background =
       auto_contrast?: boolean;
     };
 export type Typography = { font_family: string; font_scale: number; color?: string };
-export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas' | 'musicvideo';
+export type WidgetKind = 'clock' | 'weather' | 'entity_tile' | 'calendar' | 'media_player' | 'statistics' | 'text' | 'camera' | 'canvas' | 'musicvideo' | 'lyrics';
 
 export type WeatherForecastType = 'daily' | 'hourly' | 'twice_daily';
 
@@ -155,6 +155,21 @@ export type MusicVideoData = {
   duration?: number;
 };
 
+/** One lyric line; `t` (seconds) is absent for plain, untimed lyrics. */
+export type LyricsLine = { t?: number; text: string; chorus?: boolean };
+
+export type LyricsData = {
+  entity_id: string;
+  state: MediaPlayerData['state'];
+  /** null = nothing to show; the widget renders nothing. */
+  lines: LyricsLine[] | null;
+  synced: boolean;
+  /** seconds, extrapolated by the server to push time — anchor to arrival. */
+  position?: number;
+  duration?: number;
+  track_key?: string;
+};
+
 export type WidgetData =
   | null
   | WeatherData
@@ -164,7 +179,8 @@ export type WidgetData =
   | StatisticsData
   | CameraData
   | CanvasData
-  | MusicVideoData;
+  | MusicVideoData
+  | LyricsData;
 
 export type WidgetState = {
   id: string;
