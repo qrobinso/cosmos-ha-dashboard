@@ -12,6 +12,7 @@ import type {
   CanvasData,
   MediaPlayerData,
   MusicVideoData,
+  LyricsData,
   StatisticsData,
   StatisticsPoint,
   EntityState,
@@ -75,6 +76,10 @@ export type DataResolvers = {
     widgetId: string,
     track: { artist?: string; title?: string; querySuffix?: string; durationSec?: number },
   ) => { videoId: string | null };
+  /** Resolve the current track to lyrics. Synchronous like `musicVideoResolver`:
+   *  a miss returns null lines and re-pushes once the fetch lands. Without it,
+   *  lyrics widgets render hidden. */
+  lyricsResolver?: import('../lyrics/resolver.js').LyricsResolver;
 };
 
 /**
@@ -428,6 +433,38 @@ async function musicVideoData(
   };
 }
 
+async function lyricsData(
+  widget: Widget,
+  resolver: EntityResolver,
+  deps: DataResolvers
+): Promise<LyricsData> {
+  const entityId = readString(widget.config as Record<string, unknown>, 'entity_id');
+  const entity = entityId ? await resolver(entityId) : null;
+  if (!entity) return { entity_id: entityId, state: 'unknown' as LyricsData['state'], lines: null, synced: false };
+
+  const a = entity.attributes as Record<string, unknown>;
+  const state = entity.state as LyricsData['state'];
+  const duration = typeof a.media_duration === 'number' ? a.media_duration : undefined;
+  let position = typeof a.media_position === 'number' ? a.media_position : undefined;
+  const stamped = typeof a.media_position_updated_at === 'string' ? Date.parse(a.media_position_updated_at) : NaN;
+  if (position !== undefined && state === 'playing' && Number.isFinite(stamped)) {
+    position += Math.max(0, (Date.now() - stamped) / 1000);
+  }
+  if (position !== undefined && duration) position = Math.min(position, duration);
+
+  const base = { entity_id: entityId, state, position, duration };
+  const contentType = typeof a.media_content_type === 'string' ? a.media_content_type.toLowerCase() : '';
+  if (!MV_ACTIVE_STATES.has(entity.state) || MV_NON_MUSIC_TYPES.has(contentType) || !deps.lyricsResolver) {
+    return { ...base, lines: null, synced: false };
+  }
+  const { lines, synced, trackKey } = deps.lyricsResolver(widget.id, {
+    artist: typeof a.media_artist === 'string' ? a.media_artist : undefined,
+    title: typeof a.media_title === 'string' ? a.media_title : undefined,
+    durationSec: duration,
+  });
+  return { ...base, lines, synced, track_key: trackKey ?? undefined };
+}
+
 async function statisticsData(
   widget: Widget,
   deps: DataResolvers,
@@ -554,6 +591,8 @@ async function dataFor(widget: Widget, deps: DataResolvers): Promise<WidgetData>
     }
     case 'musicvideo':
       return await musicVideoData(widget, resolver, deps);
+    case 'lyrics':
+      return await lyricsData(widget, resolver, deps);
   }
 }
 
@@ -675,6 +714,7 @@ export type AssemblePushArgs = {
   canvasResolver?: DataResolvers['canvasResolver'];
   canvasExtras?: DataResolvers['canvasExtras'];
   musicVideoResolver?: DataResolvers['musicVideoResolver'];
+  lyricsResolver?: DataResolvers['lyricsResolver'];
   /** Global multiplier applied to the resolved transition's `out` and `in`
    *  durations. 1.0 = baked-in builtin durations; <1 faster; >1 slower.
    *  Out-of-range values are caller's responsibility to clamp. */
@@ -724,6 +764,7 @@ export async function assemblePush(args: AssemblePushArgs): Promise<ScenePushPay
       canvasResolver: args.canvasResolver,
       canvasExtras: args.canvasExtras,
       musicVideoResolver: args.musicVideoResolver,
+      lyricsResolver: args.lyricsResolver,
     },
     args.canvasFetchPolicy,
     args.adaptiveContributions

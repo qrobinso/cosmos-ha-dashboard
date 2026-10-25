@@ -1,3 +1,5 @@
+import type { LyricsLine } from '../lyrics/parse.js';
+export type { LyricsLine };
 import type { Scene, Widget } from '../store/scenes.js';
 import type { TransitionDescriptor } from '../transitions/types.js';
 import type { ResolvedMood } from '../moods/types.js';
@@ -150,6 +152,27 @@ export type MusicVideoData = {
   duration?: number;
 };
 
+/** Lyrics widget — parsed LRCLIB lines for the current track. */
+export type LyricsData = {
+  entity_id: string;
+  state: MediaPlayerData['state'];
+  /** null while resolving, when nothing matched, or for instrumentals. The widget hides. */
+  lines: LyricsLine[] | null;
+  /** true when lines carry timestamps (`t`); false for plain, untimed lyrics. */
+  synced: boolean;
+  /**
+   * seconds — the player position extrapolated by the server to push time from
+   * HA's `media_position` + `media_position_updated_at`. The server shares HA's
+   * clock domain, so the kiosk anchors this to message arrival on its own clock
+   * and never compares wall clocks with HA.
+   */
+  position?: number;
+  /** seconds */
+  duration?: number;
+  /** Normalized artist|title; lets the display spot a track change cheaply. */
+  track_key?: string;
+};
+
 /** Statistics / history graph — sparkline series. */
 export type StatisticsPoint = {
   /** Unix epoch milliseconds. */
@@ -203,7 +226,8 @@ export type WidgetData =
   | StatisticsData
   | CameraData
   | CanvasData
-  | MusicVideoData;
+  | MusicVideoData
+  | LyricsData;
 
 export type WidgetState = Widget & { data: WidgetData };
 

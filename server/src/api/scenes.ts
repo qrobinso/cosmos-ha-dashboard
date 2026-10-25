@@ -83,7 +83,7 @@ function validateBackground(bg: unknown): string | null {
  *  not yet contain the entity at scene-create time, so we don't enforce
  *  existence here. */
 const ENTITY_BEARING_KINDS = new Set([
-  'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'camera', 'musicvideo',
+  'weather', 'entity_tile', 'calendar', 'media_player', 'statistics', 'camera', 'musicvideo', 'lyrics',
 ]);
 
 /** Pattern for HA entity ids — `domain.object_id`. Both halves are
