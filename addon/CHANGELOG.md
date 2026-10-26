@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+
+- Feat: **Drift lyrics flow in word by word.** Each line now appears one word at a time, paced to the singing (longer words get a little longer), while the line keeps floating upward — fade in, drift, fade out, without ever stopping.
+
 ## 0.10.0
 
 - Feat: **Lyrics widget.** Add **Lyrics** to any scene, point it at a media player, and the words to whatever is playing appear on the wall, in time with the music when timed lyrics exist. Lyrics come from LRCLIB, a free open lyrics database — no account or key. The widget stays hidden when a song has no lyrics, for instrumentals, and when nothing is playing, so there is never an empty box on the wall.
