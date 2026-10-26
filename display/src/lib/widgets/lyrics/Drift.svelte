@@ -32,6 +32,8 @@
       // Loose spots inside the box, kept clear of the edges.
       left: 6 + (h % 46),
       top: 10 + ((h >>> 8) % 60),
+      // Sideways wander per line (-0.8em..0.8em) so lines don't rise in lockstep.
+      dx: (((h >>> 4) % 17) - 8) / 10,
       // A font mood widens the size range (0.6–1.5×) — mixing is the point.
       size: face ? (0.6 + ((h >>> 16) % 90) / 100) * (face.scale ?? 1) : 0.75 + ((h >>> 16) % 50) / 100,
       face: face ? faceCss(face) : '',
@@ -43,7 +45,7 @@
   {#each visible as v (v.key)}
     <span
       class:chorus={v.line.chorus}
-      style="left: {v.left}%; top: {v.top}%; --s: {v.size}; {v.face}"
+      style="left: {v.left}%; top: {v.top}%; --s: {v.size}; --dx: {v.dx}em; {v.face}"
       data-current={v.current ? '' : undefined}
     >{v.line.text}</span>
   {/each}
@@ -63,7 +65,12 @@
     line-height: 1.15;
     text-wrap: balance;
     opacity: 0;
-    animation: ghost 11s ease-out forwards;
+    /* Two layers: constant-speed motion for the whole life of the line (it never
+       stops, so it reads as one continuous float) and a separate fade in → hold →
+       fade out on top. Bigger lines rise further in em, which gives free parallax. */
+    animation:
+      drift-move 11s linear forwards,
+      drift-fade 11s ease-in-out forwards;
   }
   .paused span {
     animation-play-state: paused;
@@ -74,10 +81,14 @@
     text-shadow: 0 0 0.6em color-mix(in oklab, var(--lyr-accent) 50%, transparent);
     font-size: calc(min(7.5cqw, 13cqh) * var(--lyr-k, 1) * var(--s));
   }
-  @keyframes ghost {
-    0% { opacity: 0; transform: translate3d(0, 0.6em, 0); filter: blur(8px); }
-    10%, 35% { opacity: 0.95; transform: none; filter: none; }
-    70% { opacity: 0.15; transform: translate3d(0, -0.8em, 0); filter: blur(2px); }
-    100% { opacity: 0; transform: translate3d(0, -1.2em, 0); filter: blur(4px); }
+  @keyframes drift-move {
+    from { transform: translate3d(0, 1.2em, 0); }
+    to { transform: translate3d(var(--dx), -2.4em, 0); }
+  }
+  @keyframes drift-fade {
+    0% { opacity: 0; filter: blur(8px); }
+    18% { opacity: 0.95; filter: blur(0); }
+    50% { opacity: 0.9; filter: blur(0); }
+    100% { opacity: 0; filter: blur(5px); }
   }
 </style>
