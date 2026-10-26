@@ -159,6 +159,7 @@ Shows the lyrics (from LRCLIB) for whatever a `media_player` is playing, in time
     "font_mood": "gig",     // optional: editorial | gig | handwritten | retro | mixtape (default: scene font)
     "custom_font": "Lobster", // optional Google Fonts family (letters/digits/spaces); main face, joins the mood mix
     "opacity": 0.8,         // optional 0..1 (default 1)
+    "text_size": "large",   // optional: normal | large | xl (1× / 1.25× / 1.5×, on top of the scene font scale)
     "accent": "#ffc65c",    // optional CSS colour for the karaoke sweep and chorus
     "offset_ms": 0          // optional; positive shows lyrics sooner
   }

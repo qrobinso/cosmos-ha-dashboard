@@ -53,7 +53,7 @@
   .line {
     position: relative;
     font-family: var(--lyr-font, inherit);
-    font-size: calc(min(9cqw, 20cqh) * var(--cosmos-font-scale, 1) * var(--lyr-scale, 1));
+    font-size: calc(min(9cqw, 20cqh) * var(--lyr-k, 1) * var(--lyr-scale, 1));
     font-weight: var(--lyr-weight, 800);
     line-height: 1.1;
     text-wrap: balance;
@@ -83,13 +83,13 @@
   }
   .next {
     font-family: var(--lyr-font, inherit);
-    font-size: calc(min(4.5cqw, 9cqh) * var(--cosmos-font-scale, 1) * var(--lyr-scale, 1));
+    font-size: calc(min(4.5cqw, 9cqh) * var(--lyr-k, 1) * var(--lyr-scale, 1));
     font-weight: var(--lyr-weight, 600);
     opacity: 0.38;
     text-wrap: balance;
   }
   .notes {
-    font-size: calc(min(7cqw, 14cqh) * var(--cosmos-font-scale, 1));
+    font-size: calc(min(7cqw, 14cqh) * var(--lyr-k, 1));
     letter-spacing: 0.4em;
     color: var(--lyr-accent);
     animation: pulse 2.4s ease-in-out infinite;

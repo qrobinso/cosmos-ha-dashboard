@@ -57,6 +57,13 @@
       {/each}
     </select>
   </Field>
+  <Field label="Text size" hint="Relative to the scene's font scale.">
+    <select value={str('text_size', 'normal')} on:change={(e) => set('text_size', e.currentTarget.value)}>
+      <option value="normal">Normal</option>
+      <option value="large">Large</option>
+      <option value="xl">Extra large</option>
+    </select>
+  </Field>
   <Field
     label="Font mood"
     hint="Spotlight and Karaoke use the mood's main font; Poster and Drift mix all of its fonts and sizes."

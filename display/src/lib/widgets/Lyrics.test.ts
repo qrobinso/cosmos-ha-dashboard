@@ -176,3 +176,17 @@ describe('Lyrics widget — custom font and opacity', () => {
     expect(el.querySelector<HTMLElement>('.lyrics')!.style.opacity).toBe('');
   });
 });
+
+describe('Lyrics widget — text size', () => {
+  const size = (el: Element) => el.querySelector<HTMLElement>('.lyrics')!.style.getPropertyValue('--lyr-size');
+
+  it('maps normal / large / xl to 1 / 1.25 / 1.5', async () => {
+    expect(size(await mount(widget({ text_size: 'large' })))).toBe('1.25');
+    component!.$destroy(); host!.remove();
+    expect(size(await mount(widget({ text_size: 'xl' })))).toBe('1.5');
+  });
+
+  it('defaults to normal for missing or unknown values', async () => {
+    expect(size(await mount(widget({ text_size: 'huge' })))).toBe('1');
+  });
+});

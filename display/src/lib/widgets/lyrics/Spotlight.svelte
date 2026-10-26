@@ -55,7 +55,7 @@
   }
   li {
     font-family: var(--lyr-font, inherit);
-    font-size: calc(min(7cqw, 11cqh) * var(--cosmos-font-scale, 1) * var(--lyr-scale, 1));
+    font-size: calc(min(7cqw, 11cqh) * var(--lyr-k, 1) * var(--lyr-scale, 1));
     font-weight: var(--lyr-weight, 700);
     line-height: 1.2;
     padding: 0.28em 0;
@@ -86,7 +86,7 @@
     inset: 0;
     display: grid;
     place-items: center;
-    font-size: calc(min(6cqw, 10cqh) * var(--cosmos-font-scale, 1));
+    font-size: calc(min(6cqw, 10cqh) * var(--lyr-k, 1));
     letter-spacing: 0.4em;
     color: var(--lyr-accent);
     animation: pulse 2.4s ease-in-out infinite;

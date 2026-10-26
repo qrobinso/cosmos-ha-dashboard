@@ -59,7 +59,7 @@
     max-width: 55%;
     font-family: var(--cosmos-font-Fraunces);
     font-weight: 300;
-    font-size: calc(min(6cqw, 10cqh) * var(--cosmos-font-scale, 1) * var(--s));
+    font-size: calc(min(6cqw, 10cqh) * var(--lyr-k, 1) * var(--s));
     line-height: 1.15;
     text-wrap: balance;
     opacity: 0;
@@ -72,7 +72,7 @@
     font-style: italic;
     color: var(--lyr-accent);
     text-shadow: 0 0 0.6em color-mix(in oklab, var(--lyr-accent) 50%, transparent);
-    font-size: calc(min(7.5cqw, 13cqh) * var(--cosmos-font-scale, 1) * var(--s));
+    font-size: calc(min(7.5cqw, 13cqh) * var(--lyr-k, 1) * var(--s));
   }
   @keyframes ghost {
     0% { opacity: 0; transform: translate3d(0, 0.6em, 0); filter: blur(8px); }

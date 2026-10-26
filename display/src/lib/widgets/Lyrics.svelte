@@ -11,6 +11,7 @@
   export let widget: WidgetState;
 
   const STYLES = ['spotlight', 'karaoke', 'poster', 'drift'];
+  const TEXT_SIZES: Record<string, number> = { normal: 1, large: 1.25, xl: 1.5 };
   /** Default emphasis colour — warm gold, legible over the dark scenes kiosks run. */
   const DEFAULT_ACCENT = '#ffc65c';
 
@@ -27,6 +28,7 @@
   $: fontVars = main
     ? `--lyr-font: '${main.family}', var(--cosmos-font-Inter); --lyr-weight: ${main.weight}; --lyr-scale: ${main.scale ?? 1};`
     : '';
+  $: textSize = TEXT_SIZES[cfg.text_size as string] ?? 1;
   $: opacity =
     typeof cfg.opacity === 'number' && cfg.opacity >= 0 && cfg.opacity <= 1 ? `opacity: ${cfg.opacity};` : '';
   $: accent = typeof cfg.accent === 'string' && cfg.accent.trim() ? cfg.accent.trim() : DEFAULT_ACCENT;
@@ -87,7 +89,7 @@
 </script>
 
 {#if lines}
-  <div class="lyrics" style="--lyr-accent: {accent}; {fontVars} {opacity}">
+  <div class="lyrics" style="--lyr-accent: {accent}; --lyr-size: {textSize}; {fontVars} {opacity}">
     {#if style === 'karaoke'}
       <Karaoke {lines} {index} {gap} {synced} {playing} {elapsed} {span} trackKey={lastTrack ?? ""} />
     {:else if style === 'poster'}
@@ -102,6 +104,8 @@
 
 <style>
   .lyrics {
+    /* Every style sizes text by this: the scene's font scale × the widget's text size. */
+    --lyr-k: calc(var(--cosmos-font-scale, 1) * var(--lyr-size, 1));
     position: relative;
     width: 100%;
     height: 100%;

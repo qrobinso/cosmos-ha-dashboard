@@ -60,7 +60,7 @@
     flex-direction: column;
     align-items: center;
     line-height: 0.95;
-    --u: calc(min(13cqw, 24cqh) * var(--cosmos-font-scale, 1) * var(--k));
+    --u: calc(min(13cqw, 24cqh) * var(--lyr-k, 1) * var(--k));
   }
   .big {
     font-size: calc(var(--u) * var(--fs, 1));
