@@ -6,7 +6,7 @@
   import Karaoke from './lyrics/Karaoke.svelte';
   import Poster from './lyrics/Poster.svelte';
   import Drift from './lyrics/Drift.svelte';
-  import { moodFaces } from './lyrics/fonts';
+  import { customFace, loadGoogleFont, moodFaces } from './lyrics/fonts';
 
   export let widget: WidgetState;
 
@@ -18,11 +18,17 @@
   $: cfg = widget.config as Record<string, unknown>;
   $: style = typeof cfg.style === 'string' && STYLES.includes(cfg.style) ? cfg.style : 'spotlight';
   $: offsetMs = typeof cfg.offset_ms === 'number' && Number.isFinite(cfg.offset_ms) ? cfg.offset_ms : 0;
-  $: faces = moodFaces(cfg.font_mood);
+  // A custom Google font becomes the main face: alone, or leading the mood's mix.
+  $: custom = customFace(cfg.custom_font);
+  $: if (custom) loadGoogleFont(custom.family);
+  $: mood = moodFaces(cfg.font_mood);
+  $: faces = custom ? [custom, ...(mood?.slice(1) ?? [])] : mood;
   $: main = faces?.[0];
   $: fontVars = main
     ? `--lyr-font: '${main.family}', var(--cosmos-font-Inter); --lyr-weight: ${main.weight}; --lyr-scale: ${main.scale ?? 1};`
     : '';
+  $: opacity =
+    typeof cfg.opacity === 'number' && cfg.opacity >= 0 && cfg.opacity <= 1 ? `opacity: ${cfg.opacity};` : '';
   $: accent = typeof cfg.accent === 'string' && cfg.accent.trim() ? cfg.accent.trim() : DEFAULT_ACCENT;
   // Without a reported position there's nothing to keep time against — every
   // push would snap back to line 0 — so hide rather than show the wrong words.
@@ -81,7 +87,7 @@
 </script>
 
 {#if lines}
-  <div class="lyrics" style="--lyr-accent: {accent}; {fontVars}">
+  <div class="lyrics" style="--lyr-accent: {accent}; {fontVars} {opacity}">
     {#if style === 'karaoke'}
       <Karaoke {lines} {index} {gap} {synced} {playing} {elapsed} {span} trackKey={lastTrack ?? ""} />
     {:else if style === 'poster'}

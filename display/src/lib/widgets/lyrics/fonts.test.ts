@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FONT_MOODS, moodFaces, pickFace, faceCss } from './fonts';
+import { FONT_MOODS, moodFaces, pickFace, faceCss, customFace, googleFontHref, loadGoogleFont } from './fonts';
 
 describe('font moods', () => {
   it('has the five approved moods', () => {
@@ -47,5 +47,28 @@ describe('faceCss', () => {
     expect(css).toContain('font-style: italic');
     expect(css).toContain('text-transform: uppercase');
     expect(css).toContain('rotate: -3deg');
+  });
+});
+
+describe('custom Google font', () => {
+  it('accepts a plain family name', () => {
+    expect(customFace('  Lobster  ')).toEqual({ family: 'Lobster', weight: 400 });
+    expect(customFace('Playfair Display SC')?.family).toBe('Playfair Display SC');
+  });
+
+  it('rejects anything that could escape CSS or the URL', () => {
+    for (const bad of ["x'; color:red", 'a&family=b', '<script>', '', '   ', 'x'.repeat(61), 42]) {
+      expect(customFace(bad)).toBeNull();
+    }
+  });
+
+  it('builds the Google Fonts stylesheet URL', () => {
+    expect(googleFontHref('Playfair Display')).toBe('https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap');
+  });
+
+  it('loads each family once', () => {
+    loadGoogleFont('Lobster');
+    loadGoogleFont('Lobster');
+    expect(document.head.querySelectorAll('link[data-cosmos-font="Lobster"]')).toHaveLength(1);
   });
 });

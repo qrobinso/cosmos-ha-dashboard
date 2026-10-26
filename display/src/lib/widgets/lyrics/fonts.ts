@@ -62,3 +62,30 @@ export function faceCss(f: Face): string {
     .filter(Boolean)
     .join('; ');
 }
+
+/** Google family names are letters, digits and spaces; anything else could
+ *  break out of the CSS string or the stylesheet URL, so it's rejected. */
+const FAMILY_RE = /^[A-Za-z0-9 ]{1,60}$/;
+
+/** A user-typed Google Fonts family as a face, or null if the name isn't safe. */
+export function customFace(name: unknown): Face | null {
+  if (typeof name !== 'string') return null;
+  const family = name.trim().replace(/\s+/g, ' ');
+  // Weight 400 only: requesting a weight a family lacks makes Google 400 the whole sheet.
+  return FAMILY_RE.test(family) ? { family, weight: 400 } : null;
+}
+
+export function googleFontHref(family: string): string {
+  return `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, '+')}&display=swap`;
+}
+
+/** Add the family's stylesheet once. Needs internet on the kiosk; offline the
+ *  face's fallback stack (Inter) renders instead. */
+export function loadGoogleFont(family: string): void {
+  if (typeof document === 'undefined' || document.head.querySelector(`link[data-cosmos-font="${family}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = googleFontHref(family);
+  link.dataset.cosmosFont = family;
+  document.head.appendChild(link);
+}

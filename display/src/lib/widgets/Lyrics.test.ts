@@ -146,3 +146,33 @@ describe('Lyrics widget — font moods', () => {
     for (const f of families(el, '[data-current] span')) expect(f).toBe('');
   });
 });
+
+describe('Lyrics widget — custom font and opacity', () => {
+  it('uses a custom Google font as the main face and loads it', async () => {
+    const el = await mount(widget({ style: 'spotlight', custom_font: 'Lobster' }));
+    expect(el.querySelector<HTMLElement>('.lyrics')!.style.getPropertyValue('--lyr-font')).toContain('Lobster');
+    expect(document.head.querySelector('link[data-cosmos-font="Lobster"]')).not.toBeNull();
+  });
+
+  it('without a mood, the custom font is used for every poster part', async () => {
+    const el = await mount(widget({ style: 'poster', custom_font: 'Lobster' }));
+    const fams = [...el.querySelectorAll<HTMLElement>('[data-current] span')].map((n) => n.style.fontFamily);
+    expect(fams.length).toBeGreaterThan(0);
+    for (const f of fams) expect(f).toContain('Lobster');
+  });
+
+  it('with a mood, the custom font joins the mix as the main face', async () => {
+    const el = await mount(widget({ style: 'karaoke', font_mood: 'gig', custom_font: 'Lobster' }));
+    expect(el.querySelector<HTMLElement>('.lyrics')!.style.getPropertyValue('--lyr-font')).toContain('Lobster');
+  });
+
+  it('applies widget opacity', async () => {
+    const el = await mount(widget({ opacity: 0.4 }));
+    expect(el.querySelector<HTMLElement>('.lyrics')!.style.opacity).toBe('0.4');
+  });
+
+  it('ignores an out-of-range opacity', async () => {
+    const el = await mount(widget({ opacity: 7 }));
+    expect(el.querySelector<HTMLElement>('.lyrics')!.style.opacity).toBe('');
+  });
+});

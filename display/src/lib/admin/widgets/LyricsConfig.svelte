@@ -33,6 +33,9 @@
 
   $: mediaPlayers = entities.filter((e) => e.entity_id.startsWith('media_player.'));
   $: offsetMs = typeof config.offset_ms === 'number' ? config.offset_ms : 0;
+  // Stored 0..1; edited as a percentage, which is what people think in.
+  $: opacityPct = Math.round((typeof config.opacity === 'number' ? config.opacity : 1) * 100);
+  $: badFont = str('custom_font').trim() !== '' && !/^[A-Za-z0-9 ]{1,60}$/.test(str('custom_font').trim());
 </script>
 
 <Section label="Source">
@@ -64,6 +67,35 @@
       {/each}
     </select>
   </Field>
+  <Field
+    label="Custom Google font"
+    hint={badFont
+      ? 'Use the family name exactly as fonts.google.com shows it — letters, numbers and spaces only.'
+      : 'Any family from fonts.google.com, e.g. Lobster. Becomes the main font, and joins the mood mix if one is set. The wall display needs internet to load it.'}
+  >
+    <input
+      type="text"
+      placeholder="Lobster"
+      value={str('custom_font')}
+      on:input={(e) => set('custom_font', e.currentTarget.value || undefined)}
+    />
+  </Field>
+  <Field label="Opacity" hint="Fade the lyrics back so they sit in the scene rather than on top of it.">
+    <div class="opacity-row">
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        value={opacityPct}
+        on:input={(e) => set('opacity', Number(e.currentTarget.value) / 100)}
+      />
+      <span class="opacity-val">{opacityPct}%</span>
+      {#if opacityPct !== 100}
+        <button type="button" class="ghost sm" on:click={() => set('opacity', 1)}>Reset</button>
+      {/if}
+    </div>
+  </Field>
   <Field label="Accent colour" hint="Used for the karaoke sweep and the chorus. Any CSS colour; leave empty for warm gold.">
     <input
       type="text"
@@ -84,3 +116,22 @@
     />
   </Field>
 </Section>
+
+<style>
+  .opacity-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .opacity-row input[type='range'] {
+    flex: 1;
+    min-width: 0;
+  }
+  .opacity-val {
+    font-family: var(--c-font-mono, monospace);
+    font-size: 0.8125rem;
+    color: var(--c-fg-2);
+    min-width: 3.5ch;
+    text-align: right;
+  }
+</style>
