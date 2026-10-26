@@ -95,7 +95,7 @@
     {:else if style === 'poster'}
       <Poster {lines} {index} {gap} {faces} trackKey={lastTrack ?? ''} />
     {:else if style === 'drift'}
-      <Drift {lines} {index} {playing} {faces} trackKey={lastTrack ?? ''} />
+      <Drift {lines} {index} {playing} {faces} {elapsed} duration={data?.duration} trackKey={lastTrack ?? ''} />
     {:else}
       <Spotlight {lines} {index} {gap} {synced} />
     {/if}

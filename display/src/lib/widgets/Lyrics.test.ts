@@ -113,9 +113,11 @@ describe('Lyrics widget — review fixes', () => {
     expect(el.querySelector('.line.plain [data-current], .line.plain')).not.toBeNull();
   });
 
-  it('drift keeps recent lines mounted until their dissolve has finished', async () => {
+  it('drift floats up to three lines at once, each in its own lane', async () => {
     const el = await mount(playing([...ABC, { t: 6, text: 'ddd' }], 6.5, { style: 'drift' }));
-    expect(el.querySelectorAll('[data-style="drift"] .line')).toHaveLength(4);
+    const lanes = [...el.querySelectorAll<HTMLElement>('[data-style="drift"] .lane')];
+    expect(lanes.map((l) => l.textContent?.trim())).toEqual(['bbb', 'ccc', 'ddd']);
+    expect(new Set(lanes.map((l) => l.style.top)).size).toBe(3);
   });
 });
 
@@ -196,10 +198,29 @@ describe('Lyrics widget — drift word reveal', () => {
     const el = await mount(widget({ style: 'drift' }));
     const words = [...el.querySelectorAll<HTMLElement>('[data-current] .word')];
     expect(words.map((w) => w.textContent)).toEqual(['we', 'can', 'be', 'heroes']);
-    const delays = words.map((w) => parseFloat(w.style.animationDelay));
+    // Delay is `calc(<word delay>s + var(--late))`; the word's own offset is what's paced.
+    const delays = words.map((w) => parseFloat(w.getAttribute('style')!.match(/calc\(([\d.]+)s/)![1]));
     expect(delays[0]).toBe(0);
     for (let i = 1; i < delays.length; i++) expect(delays[i]).toBeGreaterThan(delays[i - 1]);
     // Line runs 1s → 10s; words finish well inside it, at a natural pace.
     expect(delays.at(-1)!).toBeLessThan(9 * 0.8);
+  });
+});
+
+describe('Lyrics widget — drift timing', () => {
+  it("a line lives until its lane is reused, starting partway in if joined late", async () => {
+    // Lines at 0/2/4/6: line 0's lane is reused by line 3 at 6s.
+    const lines = [{ t: 0, text: 'aaa' }, { t: 2, text: 'bbb' }, { t: 4, text: 'ccc' }, { t: 6, text: 'ddd' }];
+    const el = await mount(widget({ style: 'drift' }, lines, 1));
+    const line = el.querySelector<HTMLElement>('[data-current]')!;
+    expect(line.style.getPropertyValue('--life')).toBe('5.75s');
+    expect(line.style.getPropertyValue('--late')).toBe('-1s');
+  });
+
+  it('keeps lines inside the widget', async () => {
+    const el = await mount(widget({ style: 'drift' }));
+    const line = el.querySelector<HTMLElement>('[data-current]')!;
+    const left = parseFloat(line.style.marginLeft);
+    expect(left + parseFloat(line.style.maxWidth)).toBeLessThanOrEqual(94);
   });
 });
