@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0
+
+- Feat: **Lyrics widget.** Add **Lyrics** to any scene, point it at a media player, and the words to whatever is playing appear on the wall, in time with the music when timed lyrics exist. Lyrics come from LRCLIB, a free open lyrics database — no account or key. The widget stays hidden when a song has no lyrics, for instrumentals, and when nothing is playing, so there is never an empty box on the wall.
+  - Four styles: **Spotlight** (Spotify-style scroll, the line being sung lights up), **Karaoke** (one big line with colour sweeping across it), **Poster** (each line typeset like a gig poster) and **Drift** (lines float up and dissolve — pure atmosphere, lovely over a video backdrop or aerials).
+  - Repeated lines are treated as the chorus and get the accent colour.
+  - **Font moods** — Editorial, Gig poster, Handwritten, Retro glam and Mixtape — swap in curated Google Fonts (bundled, so the wall needs no internet for them). Poster and Drift mix every font in the mood at varied sizes. Or type any **custom Google font** name (this one loads from Google).
+  - Also: **text size** (Normal / Large / Extra large), **opacity**, **accent colour**, and a **sync offset** to nudge timing if your speaker reports its position early or late.
+- Change: **the admin editor has a new look** — light, flat surfaces, black ink actions and hairline type throughout.
+
 ## 0.9.0
 
 - Feat: **Apple TV aerials as a mood.** The Mood card on every scene now has a **Source** choice: Cosmos's built-in atmospheres, or Apple's aerial footage — the same drone and space clips the Apple TV screensaver plays. Pick clips one at a time from four groups (Earth, Landscape, Cityscape, Underwater), or tick a whole group to include everything in it, now and as Apple adds more. Choose whether the clips shuffle and how often the wall changes clip (every 5 minutes up to every 4 hours, or when each clip ends); a clip that finishes early simply starts over. Clip changes crossfade, and the mood Opacity slider applies, so the footage can sit over your gradient at any strength.
