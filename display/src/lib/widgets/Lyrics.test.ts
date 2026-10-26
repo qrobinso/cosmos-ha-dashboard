@@ -113,11 +113,11 @@ describe('Lyrics widget — review fixes', () => {
     expect(el.querySelector('.line.plain [data-current], .line.plain')).not.toBeNull();
   });
 
-  it('drift floats up to three lines at once, each in its own lane', async () => {
+  it('drift floats up to three lines at once, each placed explicitly', async () => {
     const el = await mount(playing([...ABC, { t: 6, text: 'ddd' }], 6.5, { style: 'drift' }));
-    const lanes = [...el.querySelectorAll<HTMLElement>('[data-style="drift"] .lane')];
-    expect(lanes.map((l) => l.textContent?.trim())).toEqual(['bbb', 'ccc', 'ddd']);
-    expect(new Set(lanes.map((l) => l.style.top)).size).toBe(3);
+    const shown = [...el.querySelectorAll<HTMLElement>('[data-style="drift"] .line')];
+    expect(shown.map((l) => l.textContent?.trim())).toEqual(['bbb', 'ccc', 'ddd']);
+    for (const l of shown) expect(l.parentElement!.style.top).toMatch(/px$/);
   });
 });
 
@@ -216,11 +216,19 @@ describe('Lyrics widget — drift timing', () => {
     expect(line.style.getPropertyValue('--life')).toBe('5.75s');
     expect(line.style.getPropertyValue('--late')).toBe('-1s');
   });
+});
 
-  it('keeps lines inside the widget', async () => {
-    const el = await mount(widget({ style: 'drift' }));
-    const line = el.querySelector<HTMLElement>('[data-current]')!;
-    const left = parseFloat(line.style.marginLeft);
-    expect(left + parseFloat(line.style.maxWidth)).toBeLessThanOrEqual(94);
+describe('Lyrics widget — drift stability', () => {
+  it('older lines keep their animation offset when a new line arrives (no jump)', async () => {
+    const lines = [{ t: 0, text: 'aaa' }, { t: 2, text: 'bbb' }, { t: 4, text: 'ccc' }];
+    const w = widget({ style: 'drift' }, lines, 2.5);
+    const el = await mount(w);
+    const lateOf = (text: string) =>
+      [...el.querySelectorAll<HTMLElement>('.line')].find((l) => l.textContent?.includes(text))!.style.getPropertyValue('--late');
+    const before = lateOf('aaa');
+    component!.$set({ widget: { ...w, data: { ...(w.data as object), position: 4.5 } } as WidgetState });
+    await tick();
+    expect(lateOf('ccc')).toBeTruthy();
+    expect(lateOf('aaa')).toBe(before);
   });
 });

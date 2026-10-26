@@ -2,6 +2,7 @@
   import type { LyricsLine } from '$lib/types';
   import { hash } from './poster';
   import { faceCss, pickFace, type Face } from './fonts';
+  import { placeLine, type Rect } from './place';
 
   export let lines: LyricsLine[];
   export let index: number;
@@ -13,18 +14,89 @@
   export let duration: number | undefined = undefined;
 
   /**
-   * Text never overlaps: the box is split into LANES horizontal lanes and line j
-   * always takes lane j % LANES, so any LANES consecutive lines sit in different
-   * lanes. A line lives until the line LANES after it starts (minus a short
-   * handoff), so its lane is empty again before it's reused. Up to LANES lines
-   * float at once.
+   * Up to CONCURRENT lines float at once: a line lives until the line
+   * CONCURRENT after it starts (minus a short handoff). Text never overlaps
+   * because each new line is measured and placed clear of every line still
+   * floating — see `place` below.
    */
-  const LANES = 3;
-  /** Lane order top → bottom → middle reads less mechanical than top-down. */
-  const LANE_ORDER = [0, 2, 1];
+  const CONCURRENT = 3;
   const HANDOFF_S = 0.25;
-  /** Long instrumental gaps: a line still dissolves; its lane just rests empty. */
+  /** Long instrumental gaps: a line still dissolves; the space just rests empty. */
   const MAX_LIFE_S = 14;
+  /** Float travel each way, as a fraction of the box height (matches drift-move's 3.5cqh). */
+  const TRAVEL = 0.035;
+  const GAP_PX = 12;
+  const FIT_STEPS = [1, 0.85, 0.7, 0.55, 0.4];
+
+  /**
+   * How far into its life each line was when it mounted, by key. Frozen at first
+   * sight: changing a running animation's delay makes it jump, so an older line
+   * must never get a recomputed offset when a newer line arrives.
+   */
+  const lateByKey = new Map<string, number>();
+  function lateFor(key: string, now: number): number {
+    if (!lateByKey.has(key)) lateByKey.set(key, now);
+    return lateByKey.get(key)!;
+  }
+
+  /** Space each floating line sweeps over its whole life, by key. */
+  const taken = new Map<string, Rect>();
+
+  /**
+   * Measure a just-mounted line and put it somewhere it can float its whole
+   * life without touching another line or leaving the box. Runs once per line;
+   * existing lines never move.
+   */
+  // Runs on a wrapper with no `style` attribute: Svelte rewrites the line's own
+  // style on every re-render, which would wipe a position set there.
+  function place(node: HTMLElement, p: { key: string; seed: number }) {
+    let gone = false;
+    node.style.visibility = 'hidden';
+    // Fonts load on first use; measuring in the fallback face and then swapping
+    // re-wraps the line bigger than the space reserved for it. Wait for it.
+    const line = node.firstElementChild as HTMLElement;
+    const ready = typeof document !== 'undefined' && document.fonts ? document.fonts.load(getComputedStyle(line).font) : null;
+    if (ready) ready.catch(() => {}).then(() => !gone && settle(node, line, p.key, p.seed));
+    else settle(node, line, p.key, p.seed);
+    return {
+      destroy: () => {
+        gone = true;
+        taken.delete(p.key);
+        lateByKey.delete(p.key);
+      },
+    };
+  }
+
+  function settle(node: HTMLElement, line: HTMLElement, key: string, seed: number) {
+    const box = node.parentElement!;
+    const travel = TRAVEL * box.clientHeight;
+    // Crowded? Shrink this line in steps until it fits clear of the others; the
+    // font-size clamp still holds it at the readability floor.
+    let r!: Rect, w = 0, h = 0;
+    for (const fit of FIT_STEPS) {
+      node.style.setProperty('--fit', String(fit));
+      const cs = getComputedStyle(line);
+      const padX = 0.8 * (parseFloat(cs.fontSize) || 16); // sideways wander (--dx)
+      // A tilted face's painted box is bigger than its layout box.
+      const tilt = Math.abs(Math.sin(((parseFloat(cs.rotate) || 0) * Math.PI) / 180));
+      w = line.offsetWidth + line.offsetHeight * tilt;
+      h = line.offsetHeight + line.offsetWidth * tilt;
+      const spot = placeLine(
+        { w: w + 2 * padX + GAP_PX, h: h + 2 * travel + GAP_PX },
+        { w: box.clientWidth, h: box.clientHeight },
+        [...taken.values()],
+        seed,
+      );
+      r = spot;
+      node.style.left = `${spot.x + padX + GAP_PX / 2 + (w - line.offsetWidth) / 2}px`;
+      node.style.top = `${spot.y + travel + GAP_PX / 2 + (h - line.offsetHeight) / 2}px`;
+      if (spot.clear) break;
+    }
+    // Lock the measured wrap: a line's width must not change once its space is reserved.
+    node.style.width = `${Math.ceil(line.offsetWidth) + 1}px`;
+    node.style.visibility = '';
+    taken.set(key, r);
+  }
 
   /** Start time of line j; untimed lyrics are spaced evenly across the track. */
   function tOf(j: number): number {
@@ -56,22 +128,19 @@
   $: visible =
     index < 0
       ? []
-      : lines.slice(Math.max(0, index - (LANES - 1)), index + 1).map((line, n, arr) => {
+      : lines.slice(Math.max(0, index - (CONCURRENT - 1)), index + 1).map((line, n, arr) => {
           const j = index - (arr.length - 1 - n);
           const h = hash(`${line.text}:${j}`);
           const face = faces ? pickFace(faces, `${line.text}:${j}`, line.text.length) : null;
-          const left = 4 + (h % 36);
           return {
             key: `${trackKey}:${j}`,
             line,
             current: j === index,
             words: wordTimes(line.text, tOf(j + 1) - tOf(j)),
-            lane: LANE_ORDER[j % LANES],
-            life: r2(Math.max(0.8, Math.min(tOf(j + LANES) - tOf(j) - HANDOFF_S, MAX_LIFE_S))),
+            seed: h,
+            life: r2(Math.max(0.8, Math.min(tOf(j + CONCURRENT) - tOf(j) - HANDOFF_S, MAX_LIFE_S))),
             // How far into this line we already are (older lines on a late join).
-            late: r2(Math.max(0, tOf(index) - tOf(j) + elapsed)),
-            left,
-            maxWidth: 94 - left,
+            late: lateFor(`${trackKey}:${j}`, r2(Math.max(0, tOf(index) - tOf(j) + elapsed))),
             // Sideways wander per line (-0.8em..0.8em) so lines don't rise in lockstep.
             dx: (((h >>> 4) % 17) - 8) / 10,
             // A font mood widens the size range (0.6–1.5×) — mixing is the point.
@@ -83,11 +152,11 @@
 
 <div class="drift" data-style="drift" class:paused={!playing}>
   {#each visible as v (v.key)}
-    <div class="lane" style="top: {r2(v.lane * (100 / LANES))}%;">
+    <div class="slot" use:place={{ key: v.key, seed: v.seed }}>
       <p
         class="line"
         class:chorus={v.line.chorus}
-        style="margin-left: {v.left}%; max-width: {v.maxWidth}%; --life: {v.life}s; --late: -{v.late}s; --s: {v.size}; --dx: {v.dx}em; {v.face}"
+        style="--life: {v.life}s; --late: -{v.late}s; --s: {v.size}; --dx: {v.dx}em; {v.face}"
         data-current={v.current ? '' : undefined}
       >
         {#each v.words as w, n}{#if n}{' '}{/if}<span class="word" style="animation-delay: calc({w.delay}s + var(--late));">{w.text}</span>{/each}
@@ -101,33 +170,31 @@
     position: absolute;
     inset: 0;
     /* Readability floor: never below 20px or 5% of the widget's height, whichever
-       is larger — however small the mood's size jitter makes a line. Ceiling: two
-       wrapped rows plus the float must fit inside a third-height lane. */
+       is larger — however small the mood's size jitter makes a line. Ceiling keeps
+       three lines placeable side by side without crowding. */
     --drift-min: max(20px, 5cqh);
-    --drift-max: max(11cqh, var(--drift-min));
+    --drift-max: max(16cqh, var(--drift-min));
   }
-  /* One lane per concurrent line; clipping is the hard no-overlap guarantee. */
-  .lane {
+  .slot {
+    /* The size ceiling shrinks with --fit too, or a capped line couldn't get smaller. */
+    --drift-cap: max(var(--drift-min), calc(var(--drift-max) * var(--fit, 1)));
     position: absolute;
     left: 0;
-    right: 0;
-    height: calc(100% / 3);
-    display: flex;
-    align-items: center;
-    overflow: hidden;
+    top: 0;
+    max-width: 62%;
   }
   .line {
     margin: 0;
     font-family: var(--cosmos-font-Fraunces);
     font-weight: 300;
-    font-size: clamp(var(--drift-min), calc(min(6cqw, 10cqh) * var(--lyr-k, 1) * var(--s)), var(--drift-max));
+    font-size: clamp(var(--drift-min), calc(min(6cqw, 10cqh) * var(--lyr-k, 1) * var(--s) * var(--fit, 1)), var(--drift-cap));
     line-height: 1.15;
     text-wrap: balance;
     opacity: 0;
     /* Two layers: constant-speed motion for the whole life of the line (it never
        stops, so it reads as one continuous float) and a separate fade in → hold →
        fade out on top. The words reveal themselves (below), so the line itself
-       appears at once. Travel is in cqh so it stays inside the lane. */
+       appears at once. Travel is in cqh so placement can reserve it exactly. */
     animation:
       drift-move var(--life) linear var(--late) forwards,
       drift-fade var(--life) ease-in-out var(--late) forwards;
@@ -144,7 +211,7 @@
     font-style: italic;
     color: var(--lyr-accent);
     text-shadow: 0 0 0.6em color-mix(in oklab, var(--lyr-accent) 50%, transparent);
-    font-size: clamp(var(--drift-min), calc(min(7.5cqw, 13cqh) * var(--lyr-k, 1) * var(--s)), var(--drift-max));
+    font-size: clamp(var(--drift-min), calc(min(7.5cqw, 13cqh) * var(--lyr-k, 1) * var(--s) * var(--fit, 1)), var(--drift-cap));
   }
   @keyframes drift-move {
     from { transform: translate3d(0, 3.5cqh, 0); }
