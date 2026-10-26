@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.2
+
+- Fix: **Drift lyrics never overlap.** Up to three lines float at once, each placed at an organic spot clear of the others (and of where they'll drift), shrinking a little when the widget is crowded. Lines stay inside the widget, and older lines no longer jump when a new one arrives.
+- Change: **Drift text has a readable minimum size** (20px, or 5% of the widget's height on larger widgets), and **old lines fade out faster**.
+
 ## 0.10.1
 
 - Feat: **Drift lyrics flow in word by word.** Each line now appears one word at a time, paced to the singing (longer words get a little longer), while the line keeps floating upward — fade in, drift, fade out, without ever stopping.
