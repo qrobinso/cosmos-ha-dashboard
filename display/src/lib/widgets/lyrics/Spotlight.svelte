@@ -54,8 +54,9 @@
     will-change: transform;
   }
   li {
-    font-size: calc(min(7cqw, 11cqh) * var(--cosmos-font-scale, 1));
-    font-weight: 700;
+    font-family: var(--lyr-font, inherit);
+    font-size: calc(min(7cqw, 11cqh) * var(--cosmos-font-scale, 1) * var(--lyr-scale, 1));
+    font-weight: var(--lyr-weight, 700);
     line-height: 1.2;
     padding: 0.28em 0;
     text-wrap: balance;

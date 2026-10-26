@@ -75,7 +75,9 @@ describe('posterRecipe', () => {
 });
 
 describe('Lyrics widget — review fixes', () => {
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   const ABC = [
     { t: 0, text: 'aaa' },
@@ -114,5 +116,33 @@ describe('Lyrics widget — review fixes', () => {
   it('drift keeps recent lines mounted until their dissolve has finished', async () => {
     const el = await mount(playing([...ABC, { t: 6, text: 'ddd' }], 6.5, { style: 'drift' }));
     expect(el.querySelectorAll('[data-style="drift"] span')).toHaveLength(4);
+  });
+});
+
+describe('Lyrics widget — font moods', () => {
+  const families = (el: Element, sel: string) =>
+    [...el.querySelectorAll<HTMLElement>(sel)].map((n) => n.style.fontFamily);
+
+  it('spotlight and karaoke take the mood main font', async () => {
+    const el = await mount(widget({ style: 'karaoke', font_mood: 'gig' }));
+    const root = el.querySelector<HTMLElement>('.lyrics')!;
+    expect(root.style.getPropertyValue('--lyr-font')).toContain('Bebas Neue');
+  });
+
+  it('poster mixes faces from the mood', async () => {
+    const el = await mount(widget({ style: 'poster', font_mood: 'editorial' }));
+    const fams = families(el, '[data-current] span');
+    expect(fams.length).toBeGreaterThan(0);
+    for (const f of fams) expect(f).toMatch(/Playfair Display|Cormorant Garamond|Inter/);
+  });
+
+  it('drift gives each line a face from the mood', async () => {
+    const el = await mount(widget({ style: 'drift', font_mood: 'handwritten' }));
+    for (const f of families(el, '[data-style="drift"] span')) expect(f).toMatch(/Caveat|Permanent Marker/);
+  });
+
+  it('the scene font adds no per-part faces', async () => {
+    const el = await mount(widget({ style: 'poster' }));
+    for (const f of families(el, '[data-current] span')) expect(f).toBe('');
   });
 });

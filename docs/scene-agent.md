@@ -156,13 +156,14 @@ Shows the lyrics (from LRCLIB) for whatever a `media_player` is playing, in time
   "config": {
     "entity_id": "media_player.living_room",  // required
     "style": "spotlight",   // spotlight | karaoke | poster | drift (default spotlight)
+    "font_mood": "gig",     // optional: editorial | gig | handwritten | retro | mixtape (default: scene font)
     "accent": "#ffc65c",    // optional CSS colour for the karaoke sweep and chorus
     "offset_ms": 0          // optional; positive shows lyrics sooner
   }
 }
 ```
 
-Styles: `spotlight` scrolls with the current line lit (best for singing along); `karaoke` shows one big line with a colour sweep; `poster` typesets each line as kinetic typography; `drift` floats lines up and dissolves them (pure atmosphere — pairs well over a `musicvideo` backdrop or an aerials mood). Repeated lines (the chorus) get the accent colour.
+Styles: `spotlight` scrolls with the current line lit (best for singing along); `karaoke` shows one big line with a colour sweep; `poster` typesets each line as kinetic typography; `drift` floats lines up and dissolves them (pure atmosphere — pairs well over a `musicvideo` backdrop or an aerials mood). Repeated lines (the chorus) get the accent colour. A `font_mood` swaps the scene font for a bundled set of Google Fonts: Spotlight/Karaoke use its main face, Poster/Drift mix every face in the set with varied sizes (`mixtape` mixes all of them).
 
 **It is blank whenever no lyrics are found**, for instrumentals, and when nothing is playing. Like `musicvideo`, never make it the only thing a scene depends on.
 

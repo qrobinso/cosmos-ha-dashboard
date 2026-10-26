@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { LyricsLine } from '$lib/types';
   import { hash } from './poster';
+  import { faceCss, pickFace, type Face } from './fonts';
 
   export let lines: LyricsLine[];
   export let index: number;
   export let playing: boolean;
   export let trackKey: string;
+  export let faces: Face[] | null = null;
 
   /** Lines stay mounted until their 11s dissolve has played out: unmounting a
    *  line mid-fade pops it off at partial opacity. Timed lines leave once 12s
@@ -22,6 +24,7 @@
   $: visible = index < 0 ? [] : lines.slice(first, index + 1).map((line, n, arr) => {
     const i = index - (arr.length - 1 - n);
     const h = hash(`${line.text}:${i}`);
+    const face = faces ? pickFace(faces, `${line.text}:${i}`, line.text.length) : null;
     return {
       key: `${trackKey}:${i}`,
       line,
@@ -29,7 +32,9 @@
       // Loose spots inside the box, kept clear of the edges.
       left: 6 + (h % 46),
       top: 10 + ((h >>> 8) % 60),
-      size: 0.75 + ((h >>> 16) % 50) / 100,
+      // A font mood widens the size range (0.6–1.5×) — mixing is the point.
+      size: face ? (0.6 + ((h >>> 16) % 90) / 100) * (face.scale ?? 1) : 0.75 + ((h >>> 16) % 50) / 100,
+      face: face ? faceCss(face) : '',
     };
   });
 </script>
@@ -38,7 +43,7 @@
   {#each visible as v (v.key)}
     <span
       class:chorus={v.line.chorus}
-      style="left: {v.left}%; top: {v.top}%; --s: {v.size};"
+      style="left: {v.left}%; top: {v.top}%; --s: {v.size}; {v.face}"
       data-current={v.current ? '' : undefined}
     >{v.line.text}</span>
   {/each}

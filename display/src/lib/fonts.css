@@ -4,6 +4,18 @@
 @import '@fontsource/jetbrains-mono/400.css';
 @import '@fontsource/space-grotesk/300.css';
 @import '@fontsource/space-grotesk/400.css';
+/* Lyrics widget font moods (widgets/lyrics/fonts.ts) — only the cuts it uses. */
+@import '@fontsource/inter/800.css';
+@import '@fontsource/playfair-display/900.css';
+@import '@fontsource/cormorant-garamond/300-italic.css';
+@import '@fontsource/bebas-neue/400.css';
+@import '@fontsource/archivo-black/400.css';
+@import '@fontsource/permanent-marker/400.css';
+@import '@fontsource/caveat/700.css';
+@import '@fontsource/abril-fatface/400.css';
+@import '@fontsource/monoton/400.css';
+@import '@fontsource/syne/800.css';
+@import '@fontsource/major-mono-display/400.css';
 
 :root {
   --cosmos-font-Inter: 'Inter', system-ui, sans-serif;

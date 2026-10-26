@@ -6,6 +6,7 @@
   import Karaoke from './lyrics/Karaoke.svelte';
   import Poster from './lyrics/Poster.svelte';
   import Drift from './lyrics/Drift.svelte';
+  import { moodFaces } from './lyrics/fonts';
 
   export let widget: WidgetState;
 
@@ -17,6 +18,11 @@
   $: cfg = widget.config as Record<string, unknown>;
   $: style = typeof cfg.style === 'string' && STYLES.includes(cfg.style) ? cfg.style : 'spotlight';
   $: offsetMs = typeof cfg.offset_ms === 'number' && Number.isFinite(cfg.offset_ms) ? cfg.offset_ms : 0;
+  $: faces = moodFaces(cfg.font_mood);
+  $: main = faces?.[0];
+  $: fontVars = main
+    ? `--lyr-font: '${main.family}', var(--cosmos-font-Inter); --lyr-weight: ${main.weight}; --lyr-scale: ${main.scale ?? 1};`
+    : '';
   $: accent = typeof cfg.accent === 'string' && cfg.accent.trim() ? cfg.accent.trim() : DEFAULT_ACCENT;
   // Without a reported position there's nothing to keep time against — every
   // push would snap back to line 0 — so hide rather than show the wrong words.
@@ -75,13 +81,13 @@
 </script>
 
 {#if lines}
-  <div class="lyrics" style="--lyr-accent: {accent};">
+  <div class="lyrics" style="--lyr-accent: {accent}; {fontVars}">
     {#if style === 'karaoke'}
       <Karaoke {lines} {index} {gap} {synced} {playing} {elapsed} {span} trackKey={lastTrack ?? ""} />
     {:else if style === 'poster'}
-      <Poster {lines} {index} {gap} trackKey={lastTrack ?? ''} />
+      <Poster {lines} {index} {gap} {faces} trackKey={lastTrack ?? ''} />
     {:else if style === 'drift'}
-      <Drift {lines} {index} {playing} trackKey={lastTrack ?? ''} />
+      <Drift {lines} {index} {playing} {faces} trackKey={lastTrack ?? ''} />
     {:else}
       <Spotlight {lines} {index} {gap} {synced} />
     {/if}
