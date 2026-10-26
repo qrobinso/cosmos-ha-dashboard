@@ -221,10 +221,12 @@
     from { opacity: 0; filter: blur(6px); transform: translate3d(0, 0.35em, 0); }
     to { opacity: 1; filter: none; transform: none; }
   }
+  /* Old lines clear out briskly: hold while current and next, gone by ~2/3 of
+     their life. The rest of the life is invisible (the space stays reserved). */
   @keyframes drift-fade {
     0% { opacity: 0; }
     3% { opacity: 0.95; }
-    75% { opacity: 0.9; filter: blur(0); }
-    100% { opacity: 0; filter: blur(5px); }
+    48% { opacity: 0.9; filter: blur(0); }
+    66%, 100% { opacity: 0; filter: blur(5px); }
   }
 </style>
