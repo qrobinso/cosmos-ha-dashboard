@@ -115,7 +115,7 @@ describe('Lyrics widget — review fixes', () => {
 
   it('drift keeps recent lines mounted until their dissolve has finished', async () => {
     const el = await mount(playing([...ABC, { t: 6, text: 'ddd' }], 6.5, { style: 'drift' }));
-    expect(el.querySelectorAll('[data-style="drift"] span')).toHaveLength(4);
+    expect(el.querySelectorAll('[data-style="drift"] .line')).toHaveLength(4);
   });
 });
 
@@ -138,7 +138,7 @@ describe('Lyrics widget — font moods', () => {
 
   it('drift gives each line a face from the mood', async () => {
     const el = await mount(widget({ style: 'drift', font_mood: 'handwritten' }));
-    for (const f of families(el, '[data-style="drift"] span')) expect(f).toMatch(/Caveat|Permanent Marker/);
+    for (const f of families(el, '[data-style="drift"] .line')) expect(f).toMatch(/Caveat|Permanent Marker/);
   });
 
   it('the scene font adds no per-part faces', async () => {
@@ -188,5 +188,18 @@ describe('Lyrics widget — text size', () => {
 
   it('defaults to normal for missing or unknown values', async () => {
     expect(size(await mount(widget({ text_size: 'huge' })))).toBe('1');
+  });
+});
+
+describe('Lyrics widget — drift word reveal', () => {
+  it('reveals words one at a time, paced across the sung part of the line', async () => {
+    const el = await mount(widget({ style: 'drift' }));
+    const words = [...el.querySelectorAll<HTMLElement>('[data-current] .word')];
+    expect(words.map((w) => w.textContent)).toEqual(['we', 'can', 'be', 'heroes']);
+    const delays = words.map((w) => parseFloat(w.style.animationDelay));
+    expect(delays[0]).toBe(0);
+    for (let i = 1; i < delays.length; i++) expect(delays[i]).toBeGreaterThan(delays[i - 1]);
+    // Line runs 1s → 10s; words finish well inside it, at a natural pace.
+    expect(delays.at(-1)!).toBeLessThan(9 * 0.8);
   });
 });
