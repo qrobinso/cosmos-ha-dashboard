@@ -45,6 +45,7 @@ SvelteKit + Svelte 4 + adapter-static. Served by the server from the same origin
   - `displays/+page.svelte` — table of displays (default/active scene, orientation toggle, rotation summary with inline editor, last-seen, assign/activate selects). Wrapped in `.table-wrap` for horizontal scroll on narrow viewports; `min-width` keeps columns readable.
   - `settings/+page.svelte` — safe-area padding form with a live SVG-style preview rectangle that updates as you type. 4-up grid on desktop, 2-up on mobile.
   - `musicvideo/+page.svelte` — Music Video overrides page: pick the watched `media_player`, see what it's playing and how it currently resolves (polls `GET /api/musicvideo/now-playing` every 5s), pin a pasted YouTube link or block a song entirely, and browse/edit existing overrides plus the last 50 automatic resolutions.
+  - `lyrics/+page.svelte` — Lyrics matches page (a Scenes section tab after Video Backdrop): shows what the watched player's song matched with a few preview lines, searches LRCLIB and pins the chosen record to the song, blocks lyrics for a song, and lists pinned/blocked and recently looked-up songs. Shares the watched-player setting with the Video Backdrop page.
 
   Everything is **iframe-friendly** so Plan 6's HA sidebar panel mounts the editor without any extra work.
 - `src/routes/preview-canvas/+page.svelte` — standalone full-window preview at `/preview-canvas?id=<widgetId>` for canvas authors iterating without scene chrome.

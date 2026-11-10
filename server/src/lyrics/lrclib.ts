@@ -10,6 +10,23 @@ export type LyricsQuery = { artist: string; title: string; durationSec?: number 
 
 export type LyricsFetch = { get(q: LyricsQuery): Promise<LyricsResult | null> };
 
+/** One LRCLIB record offered to the user on the Lyrics admin page. */
+export type LyricsCandidate = {
+  id: number;
+  track: string;
+  artist: string;
+  album: string | null;
+  durationSec: number | null;
+  synced: boolean;
+  instrumental: boolean;
+};
+
+/** Manual matching: free-text search, then fetch the record the user picked. */
+export type LyricsSearch = {
+  search(q: string): Promise<LyricsCandidate[]>;
+  byId(id: number): Promise<{ candidate: LyricsCandidate; result: LyricsResult } | null>;
+};
+
 const USER_AGENT = 'Cosmos Dashboard (https://github.com/qrobinso/cosmos-ha-dashboard)';
 const TIMEOUT_MS = 8000;
 /** A search hit further than this from the player's track length is a different
@@ -17,13 +34,19 @@ const TIMEOUT_MS = 8000;
 const DURATION_TOLERANCE_S = 3;
 
 type LrclibRecord = {
+  id?: number;
+  trackName?: string;
+  artistName?: string;
+  albumName?: string | null;
   duration?: number;
   instrumental?: boolean;
   plainLyrics?: string | null;
   syncedLyrics?: string | null;
 };
 
-export function createLrclibClient(opts: { fetch?: typeof fetch; baseUrl?: string } = {}): LyricsFetch {
+export function createLrclibClient(
+  opts: { fetch?: typeof fetch; baseUrl?: string } = {},
+): LyricsFetch & LyricsSearch {
   const doFetch = opts.fetch ?? fetch;
   const base = opts.baseUrl ?? 'https://lrclib.net';
 
@@ -45,7 +68,28 @@ export function createLrclibClient(opts: { fetch?: typeof fetch; baseUrl?: strin
     instrumental: !!r.instrumental,
   });
 
+  const toCandidate = (r: LrclibRecord): LyricsCandidate => ({
+    id: r.id ?? 0,
+    track: r.trackName ?? '',
+    artist: r.artistName ?? '',
+    album: r.albumName || null,
+    durationSec: typeof r.duration === 'number' ? r.duration : null,
+    synced: !!r.syncedLyrics,
+    instrumental: !!r.instrumental,
+  });
+
   return {
+    async search(q) {
+      const results = (await call('/api/search', { q })) as LrclibRecord[] | null;
+      if (!Array.isArray(results)) return [];
+      return results
+        .filter((r) => typeof r.id === 'number' && (r.syncedLyrics || r.plainLyrics || r.instrumental))
+        .map(toCandidate);
+    },
+    async byId(id) {
+      const hit = (await call(`/api/get/${id}`, {})) as LrclibRecord | null;
+      return hit ? { candidate: toCandidate(hit), result: toResult(hit) } : null;
+    },
     async get({ artist, title, durationSec }) {
       const params: Record<string, string> = { artist_name: artist, track_name: title };
       if (durationSec) params.duration = String(Math.round(durationSec));

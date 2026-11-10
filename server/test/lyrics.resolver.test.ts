@@ -105,4 +105,15 @@ describe('lyrics resolver', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(onUpdate).toHaveBeenCalledWith('w1');
   });
+
+  it('forget drops the parsed memo so a pin shows on the next push', async () => {
+    const { resolve, cache } = setup(async () => synced);
+    resolve('w1', track);
+    await settle();
+    expect(resolve('w1', track).lines).not.toBeNull();
+    cache.pin('david bowie|heroes', null);
+    expect(resolve('w1', track).lines).not.toBeNull(); // memo still answers
+    resolve.forget('david bowie|heroes');
+    expect(resolve('w1', track).lines).toBeNull();
+  });
 });

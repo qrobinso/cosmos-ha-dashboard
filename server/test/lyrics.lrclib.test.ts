@@ -71,4 +71,32 @@ describe('createLrclibClient', () => {
     const { fn } = fakeFetch(() => ({ status: 500 }));
     await expect(createLrclibClient({ fetch: fn }).get({ artist: 'a', title: 'b' })).rejects.toThrow(/500/);
   });
+
+  it('search returns candidates that have something to show, by free text', async () => {
+    const { fn, calls } = fakeFetch(() => ({
+      status: 200,
+      body: [
+        record({ id: 7, albumName: 'Heroes' }),
+        record({ id: 8, syncedLyrics: null }),
+        record({ id: 9, syncedLyrics: null, plainLyrics: null }),
+      ],
+    }));
+    const out = await createLrclibClient({ fetch: fn }).search('bowie heroes');
+    expect(calls[0].url.pathname).toBe('/api/search');
+    expect(calls[0].url.searchParams.get('q')).toBe('bowie heroes');
+    expect(out).toEqual([
+      { id: 7, track: 'Heroes', artist: 'David Bowie', album: 'Heroes', durationSec: 371, synced: true, instrumental: false },
+      { id: 8, track: 'Heroes', artist: 'David Bowie', album: null, durationSec: 371, synced: false, instrumental: false },
+    ]);
+  });
+
+  it('byId fetches one record with its lyrics; 404 is null', async () => {
+    const { fn, calls } = fakeFetch((u) => (u.pathname === '/api/get/7' ? { status: 200, body: record({ id: 7 }) } : { status: 404 }));
+    const client = createLrclibClient({ fetch: fn });
+    const out = await client.byId(7);
+    expect(calls[0].url.pathname).toBe('/api/get/7');
+    expect(out?.candidate.id).toBe(7);
+    expect(out?.result).toEqual({ synced: '[00:20.00]I, I will be king', plain: 'I, I will be king', instrumental: false });
+    expect(await client.byId(8)).toBeNull();
+  });
 });

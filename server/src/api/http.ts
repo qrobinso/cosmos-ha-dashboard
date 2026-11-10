@@ -19,6 +19,7 @@ import { registerHaMediaProxyRoutes } from './ha-media-proxy.js';
 import { registerCameraRoutes } from './cameras.js';
 import { registerMoodRoutes } from './moods.js';
 import { registerMusicVideoRoutes } from './musicvideo.js';
+import { registerLyricsRoutes, type LyricsRouteDeps } from './lyrics.js';
 import { registerAerialRoutes, type AerialRouteDeps } from './aerials.js';
 import { registerCanvasRoutes, type CanvasExtrasStore } from './canvases.js';
 import { registerDocsRoutes } from './docs.js';
@@ -98,6 +99,8 @@ export type HttpDeps = {
   musicVideoResolver?: () => import('../musicvideo/resolver.js').MusicVideoResolver | null;
   /** Fired after any music-video override mutation, so the host can re-push. */
   onMusicVideoOverridesChanged?: () => void;
+  /** Lyrics admin page. Absent in tests that don't care; routes are then not registered. */
+  lyrics?: Omit<LyricsRouteDeps, 'settings' | 'haClient'>;
   onSceneChanged?: (
     displayId: string,
     opts?: { skipHistory?: boolean; explicitTransitionId?: string | null }
@@ -300,6 +303,9 @@ export async function buildHttpApp(deps: HttpDeps): Promise<FastifyInstance> {
     maxCacheBytes: deps.musicVideoMaxCacheBytes,
   });
 
+  if (deps.lyrics) {
+    registerLyricsRoutes(app, { ...deps.lyrics, settings: deps.settings, haClient: deps.haClient ?? null });
+  }
   if (deps.aerials) registerAerialRoutes(app, { ...deps.aerials, settings: deps.settings });
 
   registerSceneRoutes(app, {

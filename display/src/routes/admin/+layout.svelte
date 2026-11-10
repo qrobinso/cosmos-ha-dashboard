@@ -27,6 +27,7 @@
     { href: '/admin/scenes', label: 'Scenes' },
     { href: '/admin/designs', label: 'Designs' },
     { href: '/admin/musicvideo', label: 'Video Backdrop' },
+    { href: '/admin/lyrics', label: 'Lyrics' },
   ];
 
   $: pathname = $page.url.pathname;

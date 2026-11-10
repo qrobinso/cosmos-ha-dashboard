@@ -82,6 +82,7 @@ async function main() {
   // durable lookup table gets a row cap. `unref` so this timer never holds the
   // process open.
   const lyricsCache = createLyricsCache(db);
+  const lrclib = createLrclibClient();
   function pruneMusicVideoCache() {
     lyricsCache.prune();
     const { negatives, streams, overflow } = musicVideoCache.prune();
@@ -341,6 +342,16 @@ async function main() {
       // trade against threading widget ids through the route.
       for (const d of displays.list()) markDisplayDirty(d.id);
     },
+    lyrics: {
+      cache: lyricsCache,
+      search: lrclib,
+      resolver: () => lyricsResolver,
+      onChanged: (trackKey) => {
+        lyricsResolver.forget(trackKey);
+        // Same blanket re-push as a music-video override: rare, explicit, few displays.
+        for (const d of displays.list()) markDisplayDirty(d.id);
+      },
+    },
     moodsDir: () => resolveMoodsDir({ explicit: config.moodsDir, staticDir: config.staticDir, repoRoot: __cosmos_repo_root }),
     onSceneChanged,
     onSettingsChanged: () => wssRef?.pushSettingsChanged().catch((err) => console.error('pushSettingsChanged failed', err)),
@@ -533,7 +544,7 @@ async function main() {
     markDisplaysShowing,
     { overrides: musicVideoOverrides },
   );
-  const lyricsResolver = createLyricsResolver(createLrclibClient(), lyricsCache, markDisplaysShowing);
+  const lyricsResolver = createLyricsResolver(lrclib, lyricsCache, markDisplaysShowing);
 
   const wss = attachWsHub(app.server, {
     displays, scenes, settings, transitions, overrides, displayPalette,

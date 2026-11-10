@@ -256,6 +256,16 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 17,
+    up: `
+      -- A user's manual choice from the Lyrics admin page. pinned=1 rows are
+      -- never pruned, expired, or overwritten by automatic lookups; a pinned
+      -- miss is a block. label names the LRCLIB record that was picked.
+      ALTER TABLE lyrics_cache ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE lyrics_cache ADD COLUMN label TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: DB): void {

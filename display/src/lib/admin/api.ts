@@ -23,6 +23,26 @@ export type AerialCatalogEntry = {
   cached: boolean;
 };
 
+/** One remembered song on the Lyrics admin page (no lyrics text). */
+export type LyricsRow = {
+  trackKey: string;
+  pinned: boolean;
+  kind: 'synced' | 'plain' | 'instrumental' | 'none';
+  label: string | null;
+  fetchedAt: number;
+};
+
+/** One LRCLIB search result. */
+export type LyricsCandidate = {
+  id: number;
+  track: string;
+  artist: string;
+  album: string | null;
+  durationSec: number | null;
+  synced: boolean;
+  instrumental: boolean;
+};
+
 export const api = {
   scenes: {
     async list(): Promise<SceneRecord[]> {
@@ -398,6 +418,53 @@ export const api = {
       await ensureOk(
         await fetch(`/api/musicvideo/overrides/${encodeURIComponent(trackKey)}`, { method: 'DELETE' })
       );
+    },
+  },
+  lyrics: {
+    async nowPlaying(): Promise<{
+      entityId: string | null;
+      state?: string;
+      artist?: string;
+      title?: string;
+      durationSec?: number;
+      trackKey?: string | null;
+      status: 'no-entity' | 'entity-missing' | 'nothing-playing' | 'non-music' | 'pinned' | 'blocked' | 'auto' | 'nothing-found' | 'unresolved';
+      kind?: LyricsRow['kind'];
+      label?: string | null;
+      preview?: string[];
+    }> {
+      return (await fetch('/api/lyrics/now-playing')).json();
+    },
+    async listPins(): Promise<LyricsRow[]> {
+      return jsonOr(await fetch('/api/lyrics/pins'), []);
+    },
+    /** Recent lookups, or with a query every remembered song whose key matches. */
+    async listHistory(query = ''): Promise<LyricsRow[]> {
+      const q = query.trim();
+      return jsonOr(await fetch(`/api/lyrics/history${q ? `?q=${encodeURIComponent(q)}` : ''}`), []);
+    },
+    /** LRCLIB matches for free text. Returns the server's error so the page can show it. */
+    async search(query: string): Promise<{ ok: true; results: LyricsCandidate[] } | { ok: false; error: string }> {
+      const res = await fetch(`/api/lyrics/search?q=${encodeURIComponent(query)}`);
+      const body = await res.json().catch(() => null);
+      if (!res.ok) return { ok: false, error: body?.error ?? 'Search failed.' };
+      return { ok: true, results: body ?? [] };
+    },
+    /** Pin an LRCLIB record to a song, or block lyrics for it. */
+    async pin(payload: { trackKey: string; lrclibId: number } | { trackKey: string; block: true }): Promise<
+      { ok: true } | { ok: false; error: string }
+    > {
+      const res = await fetch('/api/lyrics/pins', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) return { ok: true };
+      const body = await res.json().catch(() => null);
+      return { ok: false, error: body?.error ?? 'Save failed.' };
+    },
+    async unpin(trackKey: string): Promise<void> {
+      await ensureOk(await fetch(`/api/lyrics/pins/${encodeURIComponent(trackKey)}`, { method: 'DELETE' }));
     },
   },
   docs: {

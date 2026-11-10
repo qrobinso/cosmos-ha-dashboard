@@ -18,9 +18,11 @@ export type ResolvedLyrics = { lines: LyricsLine[] | null; synced: boolean; trac
 export type LyricsResolver = ((widgetId: string, track: LyricsTrack) => ResolvedLyrics) & {
   dispose(widgetId?: string): void;
   gc(liveWidgetIds: Iterable<string>): void;
+  /** Drop the parsed memo for a track whose cache row changed (a pin or unpin). */
+  forget(trackKey: string): void;
 };
 
-function toLines(r: LyricsResult): { lines: LyricsLine[] | null; synced: boolean } {
+export function toLines(r: LyricsResult): { lines: LyricsLine[] | null; synced: boolean } {
   if (r.instrumental) return { lines: null, synced: false };
   const timed = r.synced ? parseLrc(r.synced) : [];
   if (timed.length) return { lines: markChorus(timed), synced: true };
@@ -107,5 +109,6 @@ export function createLyricsResolver(
     const keep = new Set(liveIds);
     for (const id of [...live]) if (!keep.has(id)) live.delete(id);
   };
+  resolve.forget = (trackKey) => void parsed.delete(trackKey);
   return resolve;
 }

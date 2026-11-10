@@ -70,6 +70,7 @@ REST highlights:
 - `GET /api/musicvideo/history[?q=]` — the last 50 automatic resolutions, including misses. With `q`, searches **every** remembered song (artist, title, and the track key, so pre-v12 rows with no display names are still findable) rather than filtering the 50 — the rows worth fixing are usually the ones that scrolled out. Capped at 200 matches.
 - `GET /api/musicvideo/now-playing` — what the watched media_player is playing and how it currently resolves.
 - `GET|PUT /api/musicvideo/settings` — which media_player the overrides page watches.
+- `GET /api/lyrics/now-playing` — the watched player's song (same setting as the Video Backdrop page) and how its lyrics resolved, with the first lines as a preview. `GET /api/lyrics/search?q=` — LRCLIB candidates for free text. `GET|POST /api/lyrics/pins` (`{trackKey, lrclibId}` pins that LRCLIB record, `{trackKey, block:true}` turns lyrics off for the song), `DELETE /api/lyrics/pins/:trackKey` — back to automatic. `GET /api/lyrics/history[?q=]` — remembered songs, newest first.
 
 Optional env vars: `HA_URL` + `HA_TOKEN` enable HA integration; `MQTT_URL` enables MQTT command dispatch + HA discovery. Without them, Cosmos uses mock entity data and overlay commands are unavailable.
 
@@ -147,7 +148,8 @@ When adding admin pages: use the existing `.cosmos-admin` shell, the `eyebrow` +
 - The aerials mood source ignores `strategy` but the stored `MoodConfig` still carries one (the editor leaves whatever was there). Harmless; `parseMood` keeps `source`/`aerials` and the interest set skips ambient entities for aerials.
 - Lyrics: Karaoke's colour sweep clips the whole line block, so a line long enough to wrap fills all its rows at once rather than row by row.
 - Lyrics: LRC has no line end times, so the instrumental-gap pulse (`inGap` in `widgets/lyrics/timing.ts`) guesses how long a line is sung from its word count (2.5–6 s). Slow ballads can show the ♪ pulse before a held note ends.
-- Lyrics: the admin scene preview never wires the lyrics resolver, so lyrics widgets render hidden there. There is also no pin/block page for wrong lyrics like the music-video one; the only fix is LRCLIB itself.
+- Lyrics: the admin scene preview never wires the lyrics resolver, so lyrics widgets render hidden there.
+- Lyrics admin page (`/admin/lyrics`): pins live in `lyrics_cache` itself (`pinned` + `label`, migration v17) rather than a separate override table — a pinned row is never pruned, expired, or overwritten by an automatic lookup, and a pinned miss is a block. Removing a pin deletes the row, so the song is looked up afresh. The table stores only the normalized track key, so the Pinned and Recent lists show `artist — title` lowercased and stripped, not the player's original names. Recent is capped (50, or 200 when searching) with no paging. A manual pick skips the 3 s duration check on purpose. The page polls now-playing every 5 s and has no per-song timing offset.
 - Lyrics: the default accent is a fixed warm gold (`#ffc65c`), not derived from the scene palette.
 
 ## Roadmap
