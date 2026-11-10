@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- Feat: **Lyrics page.** A new Lyrics tab under Scenes, next to Video Backdrop, shows which lyrics the current song matched. When a song matched wrong, search LRCLIB and pick the right one, or turn lyrics off for that song. Pinned and blocked songs are listed, and recently played songs can be fixed after the fact.
+
 ## 0.10.2
 
 - Fix: **Drift lyrics never overlap.** Up to three lines float at once, each placed at an organic spot clear of the others (and of where they'll drift), shrinking a little when the widget is crowded. Lines stay inside the widget, and older lines no longer jump when a new one arrives.
