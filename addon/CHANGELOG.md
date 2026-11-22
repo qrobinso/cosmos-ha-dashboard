@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0
+
+- Feat: **Pick an existing display on a new device.** First-run setup now lists the displays you already have, so a new device can join one with a tap instead of retyping its name. Creating a new display works as before.
+
 ## 0.11.0
 
 - Feat: **Lyrics page.** A new Lyrics tab under Scenes, next to Video Backdrop, shows which lyrics the current song matched. When a song matched wrong, search LRCLIB and pick the right one, or turn lyrics off for that song. Pinned and blocked songs are listed, and recently played songs can be fixed after the fact.
