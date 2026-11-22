@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1
+
+- Fix: **A deleted display goes back to setup.** If you delete a display in the admin, the device that was using it now shows the setup screen on its next load instead of quietly re-creating the display under the same name.
+
 ## 0.12.0
 
 - Feat: **Pick an existing display on a new device.** First-run setup now lists the displays you already have, so a new device can join one with a tap instead of retyping its name. Creating a new display works as before.
