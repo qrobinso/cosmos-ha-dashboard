@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { getDisplayName, setDisplayName } from '$lib/storage';
+  import { getDisplayName, setDisplayName, clearDisplayName } from '$lib/storage';
   import { setDisplayName as setReportDisplayName } from '$lib/scene/reportPalette';
   import { connect, type ServerMessage, type Orientation, type CosmosConnection } from '$lib/ws';
   import type { SceneState } from '$lib/types';
@@ -143,13 +143,16 @@
     if (trimmed) choose(trimmed);
   }
 
-  // Onboarding only: a failed or empty list just leaves the create form.
-  async function loadExisting() {
+  // Returns false when the list couldn't be loaded; onboarding then shows
+  // only the create form.
+  async function loadExisting(): Promise<boolean> {
     try {
       const res = await fetch('/api/displays');
-      if (res.ok) existing = ((await res.json()) as { name: string }[]).map((d) => d.name);
+      if (!res.ok) return false;
+      existing = ((await res.json()) as { name: string }[]).map((d) => d.name);
+      return true;
     } catch {
-      /* create form still works */
+      return false;
     }
   }
 
@@ -162,9 +165,15 @@
       start(previewName);
       return;
     }
-    const stored = getDisplayName();
-    if (stored) start(stored);
-    else void loadExisting();
+    void (async () => {
+      const stored = getDisplayName();
+      const loaded = await loadExisting();
+      // A saved display deleted in the admin goes back to first-run setup
+      // rather than being silently re-created by the hello. If the list
+      // can't be loaded, trust the saved name so an outage never resets a kiosk.
+      if (stored && loaded && !existing.includes(stored)) clearDisplayName();
+      else if (stored) start(stored);
+    })();
   });
 
   onDestroy(() => {
