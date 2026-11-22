@@ -15,6 +15,7 @@
 
   let name: string | null = null;
   let inputName = '';
+  let existing: string[] = [];
   let greeting: string | null = null;
   let scene: SceneState | null = null;
   let error: string | null = null;
@@ -131,12 +132,25 @@
     socket = connect(n, handleMessage);
   }
 
+  function choose(n: string) {
+    setDisplayName(n);
+    start(n);
+  }
+
   function submitOnboarding(e: Event) {
     e.preventDefault();
     const trimmed = inputName.trim();
-    if (!trimmed) return;
-    setDisplayName(trimmed);
-    start(trimmed);
+    if (trimmed) choose(trimmed);
+  }
+
+  // Onboarding only: a failed or empty list just leaves the create form.
+  async function loadExisting() {
+    try {
+      const res = await fetch('/api/displays');
+      if (res.ok) existing = ((await res.json()) as { name: string }[]).map((d) => d.name);
+    } catch {
+      /* create form still works */
+    }
   }
 
   onMount(() => {
@@ -150,6 +164,7 @@
     }
     const stored = getDisplayName();
     if (stored) start(stored);
+    else void loadExisting();
   });
 
   onDestroy(() => {
@@ -162,10 +177,26 @@
 <main style="display:grid;place-items:center;min-height:100vh;text-align:center;padding:2rem">
   {#if !name}
     <form on:submit={submitOnboarding} style="display:grid;gap:1rem;max-width:24rem;width:100%">
-      <h1 style="margin:0;font-weight:300">Name this display</h1>
+      <h1 style="margin:0;font-weight:300">Set up this display</h1>
+      {#if existing.length}
+        <p style="margin:0;opacity:0.6">Use an existing display</p>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:center">
+          {#each existing as n (n)}
+            <button
+              type="button"
+              on:click={() => choose(n)}
+              style="font-size:1.1rem;padding:0.75rem 1rem;min-height:44px;border-radius:0.5rem;border:1px solid #333;background:#111;color:inherit;cursor:pointer"
+            >
+              {n}
+            </button>
+          {/each}
+        </div>
+        <p style="margin:0;opacity:0.6">or create a new one</p>
+      {/if}
       <input
         bind:value={inputName}
         placeholder="e.g. Living Room"
+        aria-label="New display name"
         autofocus
         style="font-size:1.25rem;padding:0.75rem;border-radius:0.5rem;border:1px solid #333;background:#111;color:inherit"
       />
@@ -173,7 +204,7 @@
         type="submit"
         style="font-size:1.1rem;padding:0.75rem;border-radius:0.5rem;border:none;background:#f5f5f5;color:#0a0a0a;cursor:pointer"
       >
-        Continue
+        {existing.length ? 'Create' : 'Continue'}
       </button>
     </form>
   {:else if error}
